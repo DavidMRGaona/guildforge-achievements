@@ -14,6 +14,15 @@ return [
         ],
     ],
 
+    'recalculate' => [
+        'complete' => ':type: leídos: :subjects · actualizados: :changed · retirados: :removed',
+        'missing' => ':type: no hay ninguna fuente activa de este tipo; no se ha cambiado nada',
+        'failed' => ':type: la fuente ha fallado (leídos: :subjects · actualizados: :changed); se guarda lo leído y no se retira nada',
+        'cycle' => ':type: el historial vuelve a una página ya leída (leídos: :subjects · actualizados: :changed); se para aquí y no se retira nada',
+        'no_sources' => 'No hay ninguna fuente de actividad activa.',
+        'dry_run' => 'Simulación: no se ha guardado nada.',
+    ],
+
     'settings' => [
         'navigation' => 'Logros',
         'title' => 'Logros',

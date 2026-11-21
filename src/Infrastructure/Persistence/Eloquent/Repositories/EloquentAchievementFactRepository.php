@@ -1,0 +1,329 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories;
+
+use DateTimeImmutable;
+use DateTimeZone;
+use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Str;
+use Modules\Achievements\Domain\Entities\AchievementFact;
+use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
+use Modules\Achievements\Domain\ValueObjects\FactAttribute;
+use Modules\Achievements\Domain\ValueObjects\FactsReplacement;
+use Modules\Achievements\Domain\ValueObjects\RecordedFact;
+use stdClass;
+
+/**
+ * Written with the query builder: a subject is replaced with a few statements, and instants are
+ * formatted in the storage zone (PHP's default zone) by hand, since bindings skip the models'
+ * conversion.
+ */
+final readonly class EloquentAchievementFactRepository implements AchievementFactRepositoryInterface
+{
+    public const string TABLE = 'achievements_facts';
+
+    private const string STORAGE_FORMAT = 'Y-m-d H:i:s';
+
+    public function __construct(
+        private ConnectionInterface $db,
+    ) {}
+
+    public function replaceSubject(string $sourceType, string $subjectId, string $kind, array $facts): FactsReplacement
+    {
+        return $this->db->transaction(function () use ($sourceType, $subjectId, $kind, $facts): FactsReplacement {
+            // Locked so two refreshes of one subject apply one after the other (PostgreSQL)
+            $stored = $this->storedRows($sourceType, $subjectId, lock: true);
+            $wanted = $this->wantedRows($kind, $facts);
+            $replacement = $this->compare($stored, $wanted);
+
+            if (! $replacement->changed) {
+                return $replacement;
+            }
+
+            $gone = array_values(array_map(
+                static fn (stdClass $row): string => (string) $row->id,
+                array_diff_key($stored, $wanted),
+            ));
+
+            foreach (array_chunk($gone, 500) as $ids) {
+                $this->table()->whereIn('id', $ids)->delete();
+            }
+
+            $now = new DateTimeImmutable()->format(self::STORAGE_FORMAT);
+            $rows = [];
+
+            foreach ($wanted as $key => $row) {
+                $current = $stored[$key] ?? null;
+
+                if ($current instanceof stdClass && $this->sameRow($current, $row)) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'id' => (string) Str::uuid7(),
+                    'source_type' => $sourceType,
+                    'subject_id' => $subjectId,
+                    ...$row,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+
+            // An upsert, so a refresh racing another one of the same subject never trips the
+            // unique index: the last one wins, and both read the same source
+            foreach (array_chunk($rows, 200) as $chunk) {
+                $this->table()->upsert(
+                    $chunk,
+                    ['source_type', 'subject_id', 'user_id', 'role'],
+                    ['kind', 'occurred_at', 'attributes', 'placement', 'updated_at'],
+                );
+            }
+
+            return $replacement;
+        });
+    }
+
+    public function previewReplacement(string $sourceType, string $subjectId, string $kind, array $facts): FactsReplacement
+    {
+        return $this->compare($this->storedRows($sourceType, $subjectId, lock: false), $this->wantedRows($kind, $facts));
+    }
+
+    public function subjectIds(string $sourceType): array
+    {
+        return array_values(array_map(
+            strval(...),
+            $this->table()
+                ->where('source_type', $sourceType)
+                ->distinct()
+                ->orderBy('subject_id')
+                ->pluck('subject_id')
+                ->all(),
+        ));
+    }
+
+    public function userIdsOfSubject(string $sourceType, string $subjectId): array
+    {
+        return array_values(array_map(
+            strval(...),
+            $this->table()
+                ->where('source_type', $sourceType)
+                ->where('subject_id', $subjectId)
+                ->distinct()
+                ->orderBy('user_id')
+                ->pluck('user_id')
+                ->all(),
+        ));
+    }
+
+    public function forUser(string $userId, array $kinds = []): array
+    {
+        $query = $this->table()
+            ->where('user_id', strtolower($userId))
+            ->orderBy('occurred_at')
+            ->orderBy('source_type')
+            ->orderBy('subject_id');
+
+        if ($kinds !== []) {
+            $query->whereIn('kind', $kinds);
+        }
+
+        $facts = [];
+
+        foreach ($query->get() as $row) {
+            $facts[] = $this->toEntity($row);
+        }
+
+        return $facts;
+    }
+
+    public function countForUser(string $userId, string $kind, ?string $role = null): int
+    {
+        return $this->table()
+            ->where('user_id', strtolower($userId))
+            ->where('kind', $kind)
+            ->when($role !== null, static fn (Builder $query): Builder => $query->where('role', $role))
+            ->count();
+    }
+
+    public function deleteForUser(string $userId): int
+    {
+        return $this->table()->where('user_id', strtolower($userId))->delete();
+    }
+
+    private function table(): Builder
+    {
+        return $this->db->table(self::TABLE);
+    }
+
+    /**
+     * @return array<string, stdClass> keyed by person and role
+     */
+    private function storedRows(string $sourceType, string $subjectId, bool $lock): array
+    {
+        $query = $this->table()
+            ->where('source_type', $sourceType)
+            ->where('subject_id', $subjectId);
+
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        $rows = [];
+
+        foreach ($query->get() as $row) {
+            $rows[$this->key((string) $row->user_id, (string) $row->role)] = $row;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * The columns each fact is stored with, keyed like storedRows().
+     *
+     * @param  list<RecordedFact>  $facts
+     * @return array<string, array{user_id: string, role: string, kind: string, occurred_at: string, attributes: string, placement: int|null}>
+     */
+    private function wantedRows(string $kind, array $facts): array
+    {
+        $zone = new DateTimeZone(date_default_timezone_get());
+        $rows = [];
+
+        foreach ($facts as $fact) {
+            $userId = strtolower($fact->userId);
+            $rows[$this->key($userId, $fact->role)] = [
+                'user_id' => $userId,
+                'role' => $fact->role,
+                'kind' => $kind,
+                'occurred_at' => $fact->occurredAt->setTimezone($zone)->format(self::STORAGE_FORMAT),
+                'attributes' => $this->encodeAttributes($fact->attributes),
+                'placement' => $fact->placement,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, stdClass>  $stored
+     * @param  array<string, array{user_id: string, role: string, kind: string, occurred_at: string, attributes: string, placement: int|null}>  $wanted
+     */
+    private function compare(array $stored, array $wanted): FactsReplacement
+    {
+        $changed = array_diff_key($stored, $wanted) !== [] || array_diff_key($wanted, $stored) !== [];
+
+        foreach ($wanted as $key => $row) {
+            if ($changed) {
+                break;
+            }
+
+            $changed = ! $this->sameRow($stored[$key], $row);
+        }
+
+        return new FactsReplacement(
+            $this->userIds(array_map(static fn (stdClass $row): string => (string) $row->user_id, $stored)),
+            $this->userIds(array_map(static fn (array $row): string => $row['user_id'], $wanted)),
+            $changed,
+        );
+    }
+
+    /**
+     * @param  array{user_id: string, role: string, kind: string, occurred_at: string, attributes: string, placement: int|null}  $wanted
+     */
+    private function sameRow(stdClass $stored, array $wanted): bool
+    {
+        $placement = $stored->placement === null ? null : (int) $stored->placement;
+
+        return (string) $stored->kind === $wanted['kind']
+            && $this->storedInstant($stored->occurred_at) === $wanted['occurred_at']
+            // Read back and written again, so key order and spacing of the stored JSON never count
+            && $this->encodeAttributes($this->decodeAttributes($stored->attributes)) === $wanted['attributes']
+            && $placement === $wanted['placement'];
+    }
+
+    /**
+     * PostgreSQL may give a timestamp with fractions or an offset; only the second counts.
+     */
+    private function storedInstant(mixed $value): string
+    {
+        return substr((string) $value, 0, 19);
+    }
+
+    /**
+     * @param  array<string|int, string>  $ids
+     * @return list<string>
+     */
+    private function userIds(array $ids): array
+    {
+        $ids = array_values(array_unique($ids));
+        sort($ids, SORT_STRING);
+
+        return $ids;
+    }
+
+    private function key(string $userId, string $role): string
+    {
+        return strtolower($userId).'|'.$role;
+    }
+
+    /**
+     * @param  array<string, FactAttribute>  $attributes
+     */
+    private function encodeAttributes(array $attributes): string
+    {
+        if ($attributes === []) {
+            return '{}';
+        }
+
+        ksort($attributes, SORT_STRING);
+        $encoded = [];
+
+        foreach ($attributes as $key => $value) {
+            $encoded[$key] = ['id' => $value->id, 'label' => $value->label];
+        }
+
+        return json_encode($encoded, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * Tolerant: anything unreadable is no attributes.
+     *
+     * @return array<string, FactAttribute>
+     */
+    private function decodeAttributes(mixed $value): array
+    {
+        $decoded = is_string($value) ? json_decode($value, true) : null;
+
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $attributes = [];
+
+        foreach ($decoded as $key => $attribute) {
+            if (is_string($key) && is_array($attribute) && is_string($attribute['id'] ?? null) && is_string($attribute['label'] ?? null)) {
+                $attributes[$key] = new FactAttribute($attribute['id'], $attribute['label']);
+            }
+        }
+
+        ksort($attributes, SORT_STRING);
+
+        return $attributes;
+    }
+
+    private function toEntity(stdClass $row): AchievementFact
+    {
+        return new AchievementFact(
+            sourceType: (string) $row->source_type,
+            subjectId: (string) $row->subject_id,
+            userId: (string) $row->user_id,
+            role: (string) $row->role,
+            kind: (string) $row->kind,
+            occurredAt: new DateTimeImmutable($this->storedInstant($row->occurred_at), new DateTimeZone(date_default_timezone_get())),
+            attributes: $this->decodeAttributes($row->attributes),
+            placement: $row->placement === null ? null : (int) $row->placement,
+        );
+    }
+}
