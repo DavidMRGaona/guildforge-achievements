@@ -16,9 +16,9 @@ use Filament\Pages\Page;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
-use Illuminate\Support\Facades\Lang;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Domain\ValueObjects\MetricKinds;
 
 /**
  * «Sistema → Configuración → Logros»: the switch of every mechanic of the module.
@@ -71,8 +71,15 @@ final class AchievementsSettingsPage extends Page implements HasForms
     {
         abort_unless(self::canAccess(), 403);
 
-        // Every kind with its switch, the ones with none stored as on
-        $this->form->fill(['metric_kinds' => $this->service()->metricKinds()] + $this->service()->settings()->toArray());
+        $service = $this->service();
+        // Only the kinds the form offers: a stored kind that is not one of them is never a field
+        $kinds = [];
+
+        foreach (MetricKinds::ALL as $kind) {
+            $kinds[$kind] = $service->metricKindEnabled($kind);
+        }
+
+        $this->form->fill(['metric_kinds' => $kinds] + $service->settings()->toArray());
     }
 
     public function form(Schema $schema): Schema
@@ -88,6 +95,7 @@ final class AchievementsSettingsPage extends Page implements HasForms
                         $this->toggle('seasons_and_streaks'),
                         $this->toggle('community'),
                         $this->toggle('bulk_grants'),
+                        $this->toggle('challenges'),
                     ])
                     ->columns(2),
 
@@ -114,7 +122,6 @@ final class AchievementsSettingsPage extends Page implements HasForms
                         $this->toggle('points'),
                         $this->toggle('levels'),
                         $this->toggle('leaderboard'),
-                        $this->toggle('challenges'),
                     ])
                     ->columns(2),
 
@@ -136,12 +143,11 @@ final class AchievementsSettingsPage extends Page implements HasForms
 
                 Section::make(__('achievements::messages.settings.sections.metric_kinds'))
                     ->description(__('achievements::messages.settings.sections.metric_kinds_description'))
+                    // Only the kinds of the module, never a key that was stored
                     ->schema(array_map(
                         fn (string $kind): Toggle => Toggle::make('metric_kinds.'.$kind)
-                            ->label(Lang::has('achievements::messages.settings.metric_kinds.'.$kind)
-                                ? __('achievements::messages.settings.metric_kinds.'.$kind)
-                                : $kind),
-                        array_keys($this->service()->metricKinds()),
+                            ->label(__('achievements::messages.settings.metric_kinds.'.$kind)),
+                        MetricKinds::ALL,
                     ))
                     ->columns(2),
             ])
@@ -213,7 +219,7 @@ final class AchievementsSettingsPage extends Page implements HasForms
         $kinds = $current->metricKinds;
 
         foreach (is_array($submitted) ? $submitted : [] as $kind => $enabled) {
-            if (is_string($kind) && array_key_exists($kind, $current->allMetricKinds())) {
+            if (is_string($kind) && MetricKinds::isKnown($kind)) {
                 $kinds[$kind] = (bool) $enabled;
             }
         }

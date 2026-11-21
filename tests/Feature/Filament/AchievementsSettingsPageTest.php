@@ -9,6 +9,8 @@ use App\Filament\Support\ModuleSettingsPages;
 use App\Infrastructure\Persistence\Eloquent\Models\PermissionModel;
 use App\Infrastructure\Persistence\Eloquent\Models\RoleModel;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Section;
 use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 use Modules\Achievements\AchievementsServiceProvider;
@@ -164,20 +166,84 @@ final class AchievementsSettingsPageTest extends ModuleTestCase
         $this->assertSame(21, $settings->recognitionsWindowDays());
     }
 
-    public function test_a_stored_kind_the_form_does_not_list_is_kept(): void
+    public function test_a_stored_kind_the_form_does_not_offer_is_not_a_field_and_survives_a_save(): void
     {
         $this->actingAs($this->userWith(AchievementsSettingsPage::PERMISSION));
-        $this->app->make(AchievementsSettingsInterface::class)->save(new AchievementsSettings(metricKinds: ['future_kind' => false]));
+        $this->app->make(AchievementsSettingsInterface::class)->save(new AchievementsSettings(
+            metricKinds: ['future_kind' => false, 'a.b' => false, '<b>x</b>' => false],
+        ));
 
-        Livewire::test(AchievementsSettingsPage::class)
+        $component = Livewire::test(AchievementsSettingsPage::class)
+            ->assertFormFieldDoesNotExist('metric_kinds.future_kind')
+            ->assertFormFieldDoesNotExist('metric_kinds.a.b')
+            ->assertFormFieldExists('metric_kinds.event')
             ->fillForm(['metric_kinds.event' => false])
             ->call('save');
+
+        $component->assertSee('Eventos')->assertDontSee('future_kind')->assertDontSee('<b>x</b>', false);
 
         $this->app->forgetScopedInstances();
         $kinds = $this->app->make(AchievementsSettingsInterface::class)->metricKinds();
 
         $this->assertFalse($kinds['future_kind']);
+        $this->assertFalse($kinds['a.b']);
         $this->assertFalse($kinds['event']);
+        $this->assertTrue($kinds['campaign']);
+    }
+
+    public function test_every_known_kind_has_a_toggle(): void
+    {
+        $this->actingAs($this->userWith(AchievementsSettingsPage::PERMISSION));
+
+        $component = Livewire::test(AchievementsSettingsPage::class);
+
+        foreach (MetricKinds::ALL as $kind) {
+            $component->assertFormFieldExists('metric_kinds.'.$kind);
+        }
+    }
+
+    public function test_the_challenges_switch_is_not_among_the_competitive_ones(): void
+    {
+        $this->actingAs($this->userWith(AchievementsSettingsPage::PERMISSION));
+
+        Livewire::test(AchievementsSettingsPage::class)
+            ->assertFormFieldExists('challenges', static function (Toggle $field): bool {
+                $section = $field->getContainer()->getParentComponent();
+
+                return $section instanceof Section && $section->getHeading() === 'Logros';
+            });
+    }
+
+    public function test_the_threshold_below_the_minimum_is_refused(): void
+    {
+        $this->actingAs($this->userWith(AchievementsSettingsPage::PERMISSION));
+
+        Livewire::test(AchievementsSettingsPage::class)
+            ->fillForm(['announcements' => true, 'announcements_rarity_threshold' => 0.05])
+            ->call('save')
+            ->assertHasFormErrors(['announcements_rarity_threshold']);
+    }
+
+    public function test_days_above_the_maximum_or_not_whole_are_refused(): void
+    {
+        $this->actingAs($this->userWith(AchievementsSettingsPage::PERMISSION));
+        $component = Livewire::test(AchievementsSettingsPage::class);
+
+        foreach ([366, 14.5] as $days) {
+            $component
+                ->fillForm(['recognitions' => true, 'recognitions_window_days' => $days])
+                ->call('save')
+                ->assertHasFormErrors(['recognitions_window_days']);
+        }
+
+        $this->assertNull(DB::table('settings')->where('key', 'module_settings:achievements')->first());
+    }
+
+    public function test_opening_the_page_without_the_permission_is_forbidden(): void
+    {
+        $this->actingAs($this->userWith('modules.configure'));
+
+        Livewire::test(AchievementsSettingsPage::class)->assertForbidden();
     }
 
     public function test_saving_without_the_permission_is_refused(): void

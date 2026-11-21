@@ -63,9 +63,9 @@ return [
             'points' => 'Cada logro da puntos.',
             'levels' => 'Los puntos suben de nivel.',
             'leaderboard' => 'Página con la clasificación de quienes aparecen en ella.',
-            'challenges' => 'Objetivos colectivos con una recompensa para quienes contribuyen.',
+            'challenges' => 'Objetivos colectivos con una recompensa para todas las personas que contribuyen.',
             'recognitions' => 'Tras una partida, una campaña o un torneo, los participantes pueden reconocerse.',
-            'recognitions_window_days' => 'Días que pasan, desde que acaba, durante los que se puede reconocer.',
+            'recognitions_window_days' => 'Días, desde que acaba la partida, la campaña o el torneo, en los que se puede reconocer.',
         ],
 
         'metric_kinds' => [

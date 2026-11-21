@@ -1,6 +1,6 @@
 # Logros
 
-Logros, niveles y reconocimientos entre las personas de la asociación
+Logros, niveles y reconocimientos entre las personas de la asociación.
 
 ## Requisitos
 
@@ -11,7 +11,7 @@ El core rechaza el módulo si no se cumplen (`module.json` → `requires`).
 
 ## Qué hace
 
-Logros, niveles y reconocimientos para las personas de la asociación. Esta versión es solo la base del módulo: permisos y ajustes. Cada mecánica llega con su propia issue.
+Esta versión es solo la base del módulo: permisos y ajustes. Cada mecánica llega con su propia issue.
 
 ## Permisos
 
