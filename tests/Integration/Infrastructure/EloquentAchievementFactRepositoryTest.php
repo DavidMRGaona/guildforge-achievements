@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Tests\Integration\Infrastructure;
 
+use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -161,6 +162,23 @@ final class EloquentAchievementFactRepositoryTest extends ModuleTestCase
         $this->assertSame(2, $this->repository()->countForUser(self::ANA, 'game_session'));
         $this->assertSame(0, $this->repository()->countForUser(self::ANA, 'game_session', 'director'));
         $this->assertSame(1, $this->repository()->countForUser(self::ANA, 'tournament', 'organizer'));
+    }
+
+    public function test_facts_of_an_account_anonymized_after_they_were_read_are_not_stored(): void
+    {
+        $anonymized = (string) UserModel::factory()->create(['anonymized_at' => now()])->id;
+
+        $replacement = $this->repository()->replaceSubject(self::TYPE, '42', 'game_session', [
+            $this->recordedFact(strtoupper($anonymized)),
+            $this->recordedFact(self::LUIS),
+        ]);
+
+        $this->assertSame([self::LUIS], $replacement->userIdsAfter);
+        $this->assertSame([self::LUIS], $this->repository()->userIdsOfSubject(self::TYPE, '42'));
+        $this->assertSame([self::LUIS], $this->repository()->previewReplacement(self::TYPE, '43', 'game_session', [
+            $this->recordedFact($anonymized),
+            $this->recordedFact(self::LUIS),
+        ])->userIdsAfter);
     }
 
     public function test_an_account_id_is_read_in_lower_case(): void

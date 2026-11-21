@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories;
 
+use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Database\ConnectionInterface;
@@ -36,7 +37,7 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
         return $this->db->transaction(function () use ($sourceType, $subjectId, $kind, $facts): FactsReplacement {
             // Locked so two refreshes of one subject apply one after the other (PostgreSQL)
             $stored = $this->storedRows($sourceType, $subjectId, lock: true);
-            $wanted = $this->wantedRows($kind, $facts);
+            $wanted = $this->wantedRows($kind, $this->withoutAnonymizedAccounts($facts, lock: true));
             $replacement = $this->compare($stored, $wanted);
 
             if (! $replacement->changed) {
@@ -88,7 +89,10 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
 
     public function previewReplacement(string $sourceType, string $subjectId, string $kind, array $facts): FactsReplacement
     {
-        return $this->compare($this->storedRows($sourceType, $subjectId, lock: false), $this->wantedRows($kind, $facts));
+        return $this->compare(
+            $this->storedRows($sourceType, $subjectId, lock: false),
+            $this->wantedRows($kind, $this->withoutAnonymizedAccounts($facts, lock: false)),
+        );
     }
 
     public function subjectIds(string $sourceType): array
@@ -151,6 +155,45 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
     public function deleteForUser(string $userId): int
     {
         return $this->table()->where('user_id', strtolower($userId))->delete();
+    }
+
+    /**
+     * The facts were read before this transaction, and an account may have been anonymized since:
+     * its facts are dropped. The accounts are read with a shared lock, so an anonymization that
+     * starts meanwhile waits for this write to commit, and its UserAnonymized listener then
+     * deletes what was written. Facts of an account that does not exist are kept, like the core's
+     * reader keeps them.
+     *
+     * @param  list<RecordedFact>  $facts
+     * @return list<RecordedFact>
+     */
+    private function withoutAnonymizedAccounts(array $facts, bool $lock): array
+    {
+        $userIds = array_values(array_unique(array_map(static fn (RecordedFact $fact): string => strtolower($fact->userId), $facts)));
+
+        if ($userIds === []) {
+            return [];
+        }
+
+        $anonymized = [];
+
+        foreach (array_chunk($userIds, 500) as $chunk) {
+            $query = UserModel::withTrashed()->whereIn('id', $chunk);
+
+            // Locking reads every account of the subject, so none can turn anonymized meanwhile
+            $lock ? $query->sharedLock() : $query->whereNotNull('anonymized_at');
+
+            foreach ($query->get(['id', 'anonymized_at']) as $user) {
+                if ($user->anonymized_at !== null) {
+                    $anonymized[strtolower((string) $user->id)] = true;
+                }
+            }
+        }
+
+        return array_values(array_filter(
+            $facts,
+            static fn (RecordedFact $fact): bool => ! isset($anonymized[strtolower($fact->userId)]),
+        ));
     }
 
     private function table(): Builder
