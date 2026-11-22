@@ -21,6 +21,12 @@ use Modules\Achievements\Application\DTOs\BulkGrantRequestDTO;
  */
 interface BulkGrantInterface
 {
+    /** Above this many people nothing is granted (TooMany): grant by hand or pick something smaller */
+    public const int MAX_PEOPLE = 1000;
+
+    /** People granted per transaction */
+    public const int PER_BATCH = 100;
+
     /** How many subjects are offered at most */
     public const int MAX_SUBJECTS = 50;
 
@@ -41,8 +47,10 @@ interface BulkGrantInterface
     public function preview(BulkGrantRequestDTO $request, Authenticatable $viewer): BulkGrantCountDTO;
 
     /**
-     * Grants it, in one transaction, with GrantSource::Bulk, `actor` as who did it and the same
-     * reason for everybody; `silent` grants send no notice.
+     * Grants it with GrantSource::Bulk, `actor` as who did it and the same reason for everybody;
+     * `silent` grants send no notice. In batches of PER_BATCH, each in its own transaction: when one
+     * fails, what earlier batches granted stays and the outcome is Partial, with `granted` counting
+     * it (granting again skips whoever already holds it). More than MAX_PEOPLE is TooMany.
      */
     public function grant(BulkGrantRequestDTO $request, bool $silent, ?string $reason, Authenticatable $actor): BulkGrantCountDTO;
 }

@@ -18,7 +18,7 @@ Desde el logro:
 
 1. Abre **Personas** → **Logros** y entra en el logro.
 2. En **Personas que lo tienen**, pulsa **Conceder**.
-3. Busca la **Cuenta** por su nombre. No salen las que ya lo tienen.
+3. Busca la **Cuenta** por su nombre. No salen las que ya lo tienen, ni las que no puedes ver: para conceder desde el logro también hace falta permiso para ver las cuentas.
 4. Escribe un **Motivo** si quieres. Queda en el historial; la persona no lo ve.
 5. Decide si **Avisar a la persona** y pulsa **Conceder**.
 
@@ -31,7 +31,7 @@ Los logros secretos solo los ve, y por tanto solo los concede, quien gestiona el
 Sirve para dar un logro a todas las personas que participaron en algo con un papel: quien asistió a un evento, quien jugó un torneo, quien dirigió una mesa…
 
 1. En **Personas que lo tienen**, pulsa **Conceder en lote**.
-2. En **De dónde**, elige el tipo de actividad (eventos, torneos, partidas…). En **Qué**, escribe para buscar: solo salen las que tú puedes ver.
+2. En **De dónde**, elige el tipo de actividad (eventos, torneos, partidas…). En **Qué**, escribe para buscar: solo salen las que tú puedes ver, entre las 200 más recientes de ese tipo.
 3. Elige **Con qué papel** y pulsa **Siguiente**.
 4. Comprueba a cuántas personas se concederá. Por privacidad solo ves cuántas son, no quiénes: quién jugó o asistió a algo no es público.
 5. Elige el **Aviso**: **En silencio** o **Con aviso a cada persona**.
@@ -39,7 +39,9 @@ Sirve para dar un logro a todas las personas que participaron en algo con un pap
 
 A quien ya lo tiene no le cambia nada. A quien se lo retiraron no se le vuelve a dar en lote: si hace falta, concédeselo a mano.
 
-Si no ves el botón, la concesión en lote está apagada en **Sistema** → **Configuración** → **Logros**.
+En lote se concede a 1000 personas como mucho; con más, no se concede nada. Se concede de 100 en 100: si algo falla a mitad, te dice a cuántas se les ha concedido, y puedes volver a intentarlo sin que se repita a quien ya lo tiene.
+
+La concesión en lote viene apagada. Si no ves el botón, enciéndela en **Sistema** → **Configuración** → **Logros**.
 
 ## Retirar un logro
 
@@ -50,6 +52,8 @@ Una concesión es para siempre: los logros no se retiran solos. Retirarlo a mano
 3. Marca la casilla y pulsa **Retirar**.
 
 Un logro retirado no vuelve a concederse solo ni en lote, aunque la persona siga cumpliendo la regla. Solo vuelve si alguien se lo concede a mano otra vez.
+
+Si no tienes permiso para ver cuentas, en el logro las personas salen como «Cuenta oculta» y no puedes retirarles el logro.
 
 ## Historial
 

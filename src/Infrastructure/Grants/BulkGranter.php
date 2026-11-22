@@ -9,6 +9,9 @@ use App\Application\Activity\Services\ActivityReaderInterface;
 use App\Domain\Activity\ActivityIdentifierRule;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\DeadlockException;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Log;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\DTOs\BulkGrantCountDTO;
 use Modules\Achievements\Application\DTOs\BulkGrantRequestDTO;
@@ -90,6 +93,10 @@ final readonly class BulkGranter implements BulkGrantInterface
             return BulkGrantCountDTO::refused($people);
         }
 
+        if (count($people) > self::MAX_PEOPLE) {
+            return new BulkGrantCountDTO(BulkGrantOutcome::TooMany, count($people));
+        }
+
         [$held, $revoked] = $this->alreadyDecided($request->achievementId, $people);
 
         return new BulkGrantCountDTO(BulkGrantOutcome::Ready, count($people), count($held), count($revoked));
@@ -103,30 +110,58 @@ final readonly class BulkGranter implements BulkGrantInterface
             return BulkGrantCountDTO::refused($people);
         }
 
+        if (count($people) > self::MAX_PEOPLE) {
+            return new BulkGrantCountDTO(BulkGrantOutcome::TooMany, count($people));
+        }
+
         $actorId = (string) $actor->getAuthIdentifier();
+        [$held, $revoked] = $this->alreadyDecided($request->achievementId, $people);
+        $granted = 0;
 
-        // One transaction: everybody gets it or nobody does; each notice waits for the commit
-        return $this->db->transaction(function () use ($request, $people, $silent, $reason, $actorId): BulkGrantCountDTO {
-            [$held, $revoked] = $this->alreadyDecided($request->achievementId, $people);
-            $granted = 0;
+        // A transaction per batch keeps each lock short; a batch that fails (a deadlock, say) is
+        // rolled back alone and what earlier batches granted stays. Each notice waits for its commit.
+        foreach (array_chunk(array_values(array_diff($people, $held, $revoked)), self::PER_BATCH) as $batch) {
+            try {
+                $granted += $this->db->transaction(fn (): int => $this->grantBatch($batch, $request, $silent, $reason, $actorId));
+            } catch (QueryException|DeadlockException $exception) {
+                // Neither the query nor its bindings: they would carry the accounts
+                Log::warning('A bulk grant of an achievement stopped partway.', [
+                    'achievement_id' => $request->achievementId,
+                    'source_type' => $request->sourceType,
+                    'granted' => $granted,
+                    'exception' => $exception::class,
+                ]);
 
-            foreach (array_diff($people, $held, $revoked) as $userId) {
-                $grant = $this->granter->grant(new NewGrant(
-                    userId: $userId,
-                    achievementId: $request->achievementId,
-                    source: GrantSource::Bulk,
-                    silent: $silent,
-                    actorId: $actorId,
-                    reason: $reason,
-                ));
-
-                if ($grant instanceof AchievementGrant) {
-                    $granted++;
-                }
+                return new BulkGrantCountDTO(BulkGrantOutcome::Partial, count($people), count($held), count($revoked), $granted);
             }
+        }
 
-            return new BulkGrantCountDTO(BulkGrantOutcome::Granted, count($people), count($held), count($revoked), $granted);
-        });
+        return new BulkGrantCountDTO(BulkGrantOutcome::Granted, count($people), count($held), count($revoked), $granted);
+    }
+
+    /**
+     * @param  list<string>  $batch
+     */
+    private function grantBatch(array $batch, BulkGrantRequestDTO $request, bool $silent, ?string $reason, string $actorId): int
+    {
+        $granted = 0;
+
+        foreach ($batch as $userId) {
+            $grant = $this->granter->grant(new NewGrant(
+                userId: $userId,
+                achievementId: $request->achievementId,
+                source: GrantSource::Bulk,
+                silent: $silent,
+                actorId: $actorId,
+                reason: $reason,
+            ));
+
+            if ($grant instanceof AchievementGrant) {
+                $granted++;
+            }
+        }
+
+        return $granted;
     }
 
     /**

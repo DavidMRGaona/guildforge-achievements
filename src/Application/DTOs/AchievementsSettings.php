@@ -13,7 +13,7 @@ use Modules\Achievements\Domain\ValueObjects\MetricKinds;
  * it already granted stays. Reading goes key by key: a missing value takes its default, so a release
  * that adds a switch never needs a data change. A value of the wrong type is listed in
  * `invalidKeys` and takes its default, except where the default would grant more than asked: a
- * malformed `secrets` is off, a malformed `metric_kinds` turns every kind off, and a kind whose
+ * malformed `secrets` or `bulk_grants` is off, a malformed `metric_kinds` turns every kind off, and a kind whose
  * switch is not a boolean is off.
  */
 final readonly class AchievementsSettings
@@ -40,7 +40,7 @@ final readonly class AchievementsSettings
         public bool $secrets = true,
         public bool $seasonsAndStreaks = true,
         public bool $community = true,
-        public bool $bulkGrants = true,
+        public bool $bulkGrants = false,
         public bool $announcements = true,
         public float $announcementsRarityThreshold = self::DEFAULT_ANNOUNCEMENT_THRESHOLD,
         public bool $points = false,
@@ -80,7 +80,8 @@ final readonly class AchievementsSettings
             secrets: self::bool($raw, 'secrets', in_array('secrets', $invalid, true) ? false : $defaults->secrets),
             seasonsAndStreaks: self::bool($raw, 'seasons_and_streaks', $defaults->seasonsAndStreaks),
             community: self::bool($raw, 'community', $defaults->community),
-            bulkGrants: self::bool($raw, 'bulk_grants', $defaults->bulkGrants),
+            // Off by default and when malformed: a bulk grant is permanent for many people at once
+            bulkGrants: self::bool($raw, 'bulk_grants', false),
             announcements: self::bool($raw, 'announcements', $defaults->announcements),
             announcementsRarityThreshold: self::threshold($raw['announcements_rarity_threshold'] ?? null),
             points: self::bool($raw, 'points', $defaults->points),

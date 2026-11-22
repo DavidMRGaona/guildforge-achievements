@@ -21,6 +21,8 @@ use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementM
 /**
  * «Personas que lo tienen»: the holders of an achievement, seen with AchievementPolicy::viewGrants().
  * From here, with `achievements.grant`: grant it to one account, grant it in bulk, and revoke it.
+ * An account the person may not see (UserPolicy::view()) shows as «Cuenta oculta» and cannot be
+ * revoked from; searching by name is only offered with `users.view_any`.
  */
 final class GrantsRelationManager extends RelationManager
 {
@@ -56,10 +58,18 @@ final class GrantsRelationManager extends RelationManager
                 TextColumn::make('account')
                     ->label($this->text('fields.account'))
                     ->state(static fn (AchievementGrantModel $record): string => GrantDisplay::accountName($record->user))
-                    ->searchable(query: static fn (Builder $query, string $search): Builder => $query->whereHas(
-                        'user',
-                        static fn (Builder $user): Builder => $user->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", ['%'.addcslashes(mb_strtolower($search), '!%_').'%']),
-                    ))
+                    ->searchable(
+                        condition: GrantDisplay::searchesAccounts(),
+                        query: static fn (Builder $query, string $search): Builder => $query->whereHas(
+                            'user',
+                            static function (Builder $user) use ($search): void {
+                                $pattern = '%'.addcslashes(mb_strtolower($search), '!%_').'%';
+                                $user->where(static fn (Builder $names): Builder => $names
+                                    ->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", [$pattern])
+                                    ->orWhereRaw("LOWER(COALESCE(display_name, '')) LIKE ? ESCAPE '!'", [$pattern]));
+                            },
+                        ),
+                    )
                     ->wrap(),
 
                 TextColumn::make('source')

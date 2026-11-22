@@ -23,6 +23,7 @@ use Filament\Schemas\Components\Wizard\Step;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Modules\Achievements\Application\DTOs\BulkGrantCountDTO;
 use Modules\Achievements\Application\DTOs\BulkGrantRequestDTO;
 use Modules\Achievements\Application\Enums\BulkGrantOutcome;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
@@ -52,6 +53,12 @@ final class GrantActions
     private const int MAX_ACCOUNTS = 50;
 
     /**
+     * Whether the bulk dialog says how many already hold the achievement or had it taken away
+     * (previewLines()). Pending a product decision: false shows only how many took part.
+     */
+    private const bool PREVIEW_BREAKDOWN = true;
+
+    /**
      * «Conceder», from an achievement: to one account found by its name, among those the person may
      * see (UserPolicy::view(), as on the account page).
      *
@@ -71,7 +78,7 @@ final class GrantActions
                     ->helperText(self::text('grant.account_helper'))
                     ->searchable()
                     ->getSearchResultsUsing(static fn (string $search): array => self::accountsWithout($achievement(), $search))
-                    ->getOptionLabelUsing(static fn (mixed $value): ?string => is_string($value) ? UserModel::query()->whereKey($value)->value('name') : null)
+                    ->getOptionLabelUsing(static fn (mixed $value): ?string => self::visibleAccountName($value))
                     ->required()
                     ->rules([
                         static fn (): Closure => static function (string $attribute, mixed $value, Closure $fail) use ($achievement): void {
@@ -134,7 +141,11 @@ final class GrantActions
             ->label(self::text('revoke.label'))
             ->icon('heroicon-o-minus-circle')
             ->color('danger')
-            ->authorize(static fn (AchievementGrantModel $record): bool => $record->achievement instanceof AchievementModel && Gate::allows('revoke', $record->achievement))
+            // Only on an account the person may see (UserPolicy::view()), as everywhere else
+            ->authorize(static fn (AchievementGrantModel $record): bool => $record->achievement instanceof AchievementModel
+                && Gate::allows('revoke', $record->achievement)
+                && $record->user instanceof UserModel
+                && Gate::allows('view', $record->user))
             ->modalHeading(self::text('revoke.heading'))
             ->modalDescription(self::text('revoke.description'))
             ->modalIcon('heroicon-o-minus-circle')
@@ -258,8 +269,18 @@ final class GrantActions
                     actor: $actor,
                 );
 
+                if ($result->outcome === BulkGrantOutcome::Partial) {
+                    Notification::make()
+                        ->title(trans_choice('achievements::messages.grants.bulk.partial', $result->granted, ['count' => $result->granted]))
+                        ->warning()
+                        ->persistent()
+                        ->send();
+
+                    return;
+                }
+
                 if ($result->outcome !== BulkGrantOutcome::Granted) {
-                    Notification::make()->title(self::text('bulk.refused.'.$result->outcome->value))->danger()->send();
+                    Notification::make()->title(self::refusal($result))->danger()->send();
 
                     return;
                 }
@@ -447,7 +468,23 @@ final class GrantActions
         );
 
         if ($preview->outcome !== BulkGrantOutcome::Ready) {
-            return self::text('bulk.refused.'.$preview->outcome->value);
+            return self::refusal($preview);
+        }
+
+        return implode(' ', self::previewLines($preview, self::PREVIEW_BREAKDOWN));
+    }
+
+    /**
+     * What the dialog says before granting, in numbers only. With the breakdown, how many get it,
+     * how many already hold it and how many had it taken away; without it, only how many took part
+     * with the role (so a subject with one participant never tells whether that person holds it).
+     *
+     * @return list<string>
+     */
+    public static function previewLines(BulkGrantCountDTO $preview, bool $breakdown): array
+    {
+        if (! $breakdown) {
+            return [trans_choice('achievements::messages.grants.bulk.preview.total', $preview->people, ['count' => $preview->people])];
         }
 
         $lines = [trans_choice('achievements::messages.grants.bulk.preview.people', $preview->toGrant(), ['count' => $preview->toGrant()])];
@@ -460,7 +497,31 @@ final class GrantActions
             $lines[] = trans_choice('achievements::messages.grants.bulk.preview.revoked', $preview->revoked, ['count' => $preview->revoked]);
         }
 
-        return implode(' ', $lines);
+        return $lines;
+    }
+
+    private static function refusal(BulkGrantCountDTO $result): string
+    {
+        return (string) __('achievements::messages.grants.bulk.refused.'.$result->outcome->value, [
+            'count' => $result->people,
+            'max' => BulkGrantInterface::MAX_PEOPLE,
+        ]);
+    }
+
+    /**
+     * The name of an account the signed-in person may see, or null.
+     */
+    private static function visibleAccountName(mixed $userId): ?string
+    {
+        $viewer = self::viewer();
+
+        if (! is_string($userId) || ! $viewer instanceof UserModel) {
+            return null;
+        }
+
+        $user = UserModel::query()->whereKey($userId)->first(['id', 'name']);
+
+        return $user instanceof UserModel && $viewer->can('view', $user) ? $user->name : null;
     }
 
     private static function viewer(): ?UserModel

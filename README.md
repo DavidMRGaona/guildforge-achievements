@@ -62,7 +62,7 @@ Tabla `achievements_grants`: cuenta, logro, temporada (nula por ahora), `granted
 - Se concede solo a través de `AchievementGranterInterface::grant(NewGrant)`. Lo ya concedido no se vuelve a conceder (`INSERT … ON CONFLICT DO NOTHING`, así que dos trabajos a la vez escriben una fila), ni a una cuenta que no existe o está anonimizada (se lee con bloqueo compartido), ni a un logro borrado.
 - Cada concesión nueva lanza `AchievementGranted` (ids, origen, `silent`) cuando su transacción se confirma; nunca dentro de la red de seguridad de la impersonación.
 - **Nunca se retira sola**: el evaluador solo añade y un logro con titulares no se puede borrar. Retirarla a mano (`AchievementGranterInterface::revoke()`, con motivo obligatorio) es la única forma de quitarla; lanza `AchievementRevoked` (ids) tras el commit.
-- **Lo retirado no vuelve solo.** `grant()` rechaza una concesión por regla, por reto o en lote si la última entrada del historial de esa cuenta y ese logro es una retirada. Solo una concesión a mano la devuelve.
+- **Lo retirado no vuelve solo.** `grant()` rechaza una concesión por regla, por reto o en lote si la última entrada del historial de esa cuenta y ese logro es una retirada. Solo una concesión a mano la devuelve. El evaluador tampoco la cuenta, ni en un `--dry-run`. `revoke()` y la anonimización bloquean primero la fila de la cuenta y después la concesión, y `grant()` la tiene con un bloqueo compartido mientras lee el historial: una concesión que corre a la vez que una retirada o espera y la ve, o termina antes y la retirada se la lleva.
 - Al anonimizar una cuenta (`UserAnonymized`) se borran sus concesiones, en cola.
 
 ### A mano y en lote
@@ -70,9 +70,10 @@ Tabla `achievements_grants`: cuenta, logro, temporada (nula por ahora), `granted
 En el panel, con `achievements.grant` (`AchievementPolicy::grant()` y `revoke()`). Un logro secreto solo lo concede o retira quien también gestiona el catálogo, y uno desactivado se puede retirar pero no conceder.
 
 - **En el logro** (página de ver o de editar): *Personas que lo tienen*, con **Conceder** (una cuenta por su nombre, motivo opcional y si se avisa), **Conceder en lote** y **Retirar** en el menú **⋯** de cada fila; debajo, *Historial de concesiones*.
+- **Cuentas que se pueden ver.** Desde el logro solo se encuentran, se eligen y se retiran cuentas que quien concede puede ver (`UserPolicy::view()`, lo mismo que pide la ficha de la cuenta). Las demás salen como «Cuenta oculta», en *Personas que lo tienen* y en el historial, y la búsqueda por nombre (`name` o `display_name`) solo se ofrece con `users.view_any`.
 - **En la ficha de la cuenta** (*Personas → Usuarios*): *Logros* y *Historial de logros*, al final de la página. El core no tiene un hueco para módulos ahí, así que se cuelgan del render hook `PAGE_END` de Filament con alcance a `EditUser` (`AccountAchievementsHook`), como dos componentes Livewire (`AccountAchievements`, `AccountGrantLog`) que comprueban el acceso en cada petición (`AccountGrantsAccess`: `achievements.grant` o `manage`, y poder ver la cuenta).
 - **Retirar** pide un diálogo con motivo obligatorio y una casilla.
-- **En lote** (`BulkGrantInterface`), solo con *Concesión en lote* encendida. Se elige una cosa de una fuente de actividad entre las más recientes del registro, descrita con `ActivityReaderInterface::describe()` para quien concede (lo que no le enseña no aparece ni se puede conceder), y un papel; se concede a quien lo tuvo según `facts()` del lector, solo si el resultado es `Read`. Dos pasos: qué, y después cuántas personas, el aviso (en silencio o con aviso) y una casilla. Todo en una transacción, con `GrantSource::Bulk`. Falla cerrado: ajustes leídos con `readStrictly()`, logro activo, cosa visible y hechos leídos; si algo falla, no se concede nada.
+- **En lote** (`BulkGrantInterface`), solo con *Concesión en lote* encendida. Se elige una cosa de una fuente de actividad entre las más recientes del registro, descrita con `ActivityReaderInterface::describe()` para quien concede (lo que no le enseña no aparece ni se puede conceder), y un papel; se concede a quien lo tuvo según `facts()` del lector, solo si el resultado es `Read`. Dos pasos: qué, y después cuántas personas, el aviso (en silencio o con aviso) y una casilla. Con `GrantSource::Bulk`, de 100 en 100 personas (`PER_BATCH`), cada tanda en su transacción: si una falla (un deadlock, por ejemplo), lo concedido en las anteriores se queda y el resultado es `Partial`, con cuántas se concedieron; repetir no concede dos veces. Con más de 1000 personas (`MAX_PEOPLE`) no se concede nada (`TooMany`). El selector busca entre las 200 cosas más recientes del registro de ese tipo (`RECENT_SUBJECTS`). Falla cerrado: ajustes leídos con `readStrictly()`, logro activo, cosa visible y hechos leídos; si algo falla, no se concede nada.
 - **Privacidad del lote.** Quién jugó o asistió no es público: el diálogo y el resultado solo dan números (`BulkGrantCountDTO`: personas, ya lo tenían, se les retiró, concedidos), nunca una lista de nombres.
 - **Impersonación en modo «Solo mirar»**: todas estas acciones se rechazan (comportamiento por defecto del core; ninguna está marcada como de lectura).
 
@@ -138,7 +139,8 @@ Es idempotente: crea solo los que faltan (por su `starter_key`) y deja como est�
 
 | Ajuste | Por defecto |
 |---|---|
-| Progreso visible, rareza, logros secretos, temporadas y rachas, logros de comunidad, concesión en lote | Encendidos |
+| Progreso visible, rareza, logros secretos, temporadas y rachas, logros de comunidad | Encendidos |
+| Concesión en lote | Apagada (también si el valor guardado está mal formado) |
 | Anuncios de logros raros | Encendido, con umbral de rareza del 10 % |
 | Puntos, niveles, clasificación, retos | Apagados |
 | Reconocimientos | Apagados, con un plazo de 14 días |

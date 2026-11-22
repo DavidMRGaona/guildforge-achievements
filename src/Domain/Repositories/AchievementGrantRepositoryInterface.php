@@ -44,6 +44,15 @@ interface AchievementGrantRepositoryInterface
     public function revokedAmong(string $achievementId, array $userIds): array;
 
     /**
+     * For each of these accounts, the achievements (seasonless) whose latest history entry is a
+     * revoke, keyed by account id in lower case; accounts with none are missing.
+     *
+     * @param  list<string>  $userIds
+     * @return array<string, list<string>>
+     */
+    public function revokedAchievementIds(array $userIds): array;
+
+    /**
      * Ids of the achievements each account holds (seasonless grants), keyed by account id in lower
      * case; accounts holding nothing are missing.
      *

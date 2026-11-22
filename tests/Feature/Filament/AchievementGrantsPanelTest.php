@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Gate;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
+use Modules\Achievements\Application\DTOs\BulkGrantCountDTO;
+use Modules\Achievements\Application\Enums\BulkGrantOutcome;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\Entities\AchievementGrant;
@@ -61,6 +63,8 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
         $this->registerOnAdminPanel(resources: [AchievementResource::class]);
 
         $this->fundadora = $this->achievement(['version' => 1, 'metric' => 'manual'], ['name' => 'Fundadora']);
+        // Off by default
+        $this->app->make(AchievementsSettingsInterface::class)->save(new AchievementsSettings(bulkGrants: true));
     }
 
     protected function tearDown(): void
@@ -72,7 +76,7 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
 
     public function test_granting_lets_you_see_the_catalogue_but_secrets_stay_with_whoever_manages_it(): void
     {
-        $granter = $this->userWith(AchievementPolicy::GRANT);
+        $granter = $this->granter();
         $manager = $this->userWith(AchievementPolicy::MANAGE, AchievementPolicy::GRANT);
         $secret = $this->achievement(['version' => 1, 'metric' => 'manual'], ['is_secret' => true]);
         $off = $this->achievement(['version' => 1, 'metric' => 'manual'], ['is_active' => false]);
@@ -105,14 +109,14 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
         $this->assertSame([GrantsRelationManager::class, GrantLogRelationManager::class], AchievementResource::getRelations());
         $this->assertArrayHasKey('view', AchievementResource::getPages());
 
-        $this->actingAs($this->userWith(AchievementPolicy::GRANT));
+        $this->actingAs($this->granter());
         $this->get(AchievementResource::getUrl('view', ['record' => $this->fundadora]))->assertOk();
     }
 
     public function test_granting_by_hand_from_the_achievement_logs_who_and_why(): void
     {
         Event::fake([AchievementGranted::class]);
-        $actor = $this->userWith(AchievementPolicy::GRANT, 'users.view');
+        $actor = $this->granter();
         $this->actingAs($actor);
         $ana = $this->account(self::ANA);
 
@@ -132,7 +136,7 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
 
     public function test_an_account_that_already_holds_it_or_is_anonymized_is_not_offered(): void
     {
-        $this->actingAs($this->userWith(AchievementPolicy::GRANT, 'users.view'));
+        $this->actingAs($this->granter());
         $ana = $this->account(self::ANA);
         $this->grantTo($ana);
         $gone = $this->account(self::LUIS, anonymized: true);
@@ -175,7 +179,7 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
 
     public function test_revoking_needs_a_reason_and_the_box_ticked(): void
     {
-        $actor = $this->userWith(AchievementPolicy::GRANT);
+        $actor = $this->granter();
         $this->actingAs($actor);
         $grant = $this->grantTo($this->account(self::ANA));
         $record = AchievementGrantModel::query()->findOrFail($grant->id);
@@ -198,7 +202,7 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
 
     public function test_the_row_actions_sit_in_one_menu_with_the_details_first(): void
     {
-        $this->actingAs($this->userWith(AchievementPolicy::GRANT));
+        $this->actingAs($this->granter());
         $actions = $this->holdersTable()->getRecordActions();
 
         $this->assertCount(1, $actions);
@@ -212,7 +216,7 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
 
     public function test_the_tables_fit_with_their_secondary_columns_hidden_on_narrow_screens(): void
     {
-        $this->actingAs($this->userWith(AchievementPolicy::GRANT));
+        $this->actingAs($this->granter());
         $holders = $this->holdersTable()->getColumns();
         $log = $this->logTable(Livewire::test(GrantLogRelationManager::class, ['ownerRecord' => $this->fundadora, 'pageClass' => ViewAchievement::class]))->getColumns();
 
@@ -226,7 +230,7 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
 
     public function test_bulk_granting_is_hidden_while_it_is_off(): void
     {
-        $this->actingAs($this->userWith(AchievementPolicy::GRANT));
+        $this->actingAs($this->granter());
         $this->app->make(AchievementsSettingsInterface::class)->save(new AchievementsSettings(bulkGrants: false));
 
         $this->holders()->assertActionHidden(TestAction::make('bulkGrant')->table());
@@ -235,7 +239,7 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
     public function test_bulk_granting_in_silence_from_the_achievement(): void
     {
         Event::fake([AchievementGranted::class]);
-        $actor = $this->userWith(AchievementPolicy::GRANT);
+        $actor = $this->granter();
         $this->actingAs($actor);
         $this->jornadas([self::ANA, self::LUIS]);
 
@@ -259,7 +263,7 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
     public function test_bulk_granting_with_a_notice_needs_the_box_ticked(): void
     {
         Event::fake([AchievementGranted::class]);
-        $this->actingAs($this->userWith(AchievementPolicy::GRANT));
+        $this->actingAs($this->granter());
         $this->jornadas([self::ANA]);
         $data = [
             'source_type' => ParticipationActivitySource::TYPE,
@@ -281,7 +285,7 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
 
     public function test_the_bulk_dialog_tells_how_many_and_never_who(): void
     {
-        $this->actingAs($this->userWith(AchievementPolicy::GRANT));
+        $this->actingAs($this->granter());
         UserModel::query()->whereKey($this->account(self::ANA))->update(['name' => 'Ana Asistente', 'display_name' => 'Ana']);
         UserModel::query()->whereKey($this->account(self::LUIS))->update(['name' => 'Luis Asistente', 'display_name' => 'Luis']);
         ParticipationActivitySource::put('7', 'Jornadas 2027', [
@@ -305,7 +309,7 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
 
     public function test_a_subject_the_granter_may_not_see_is_never_offered(): void
     {
-        $this->actingAs($this->userWith(AchievementPolicy::GRANT));
+        $this->actingAs($this->granter());
         $this->jornadas([self::ANA], hidden: true);
 
         $this->holders()
@@ -323,7 +327,7 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
 
     public function test_the_history_lists_what_happened_and_offers_no_changes(): void
     {
-        $actor = $this->userWith(AchievementPolicy::GRANT);
+        $actor = $this->granter();
         $this->actingAs($actor);
         UserModel::query()->whereKey($this->account(self::ANA))->update(['name' => 'Ana Ejemplo']);
         $grant = $this->grantTo(self::ANA, reason: 'Fundó la asociación');
@@ -343,7 +347,7 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
 
     public function test_a_read_only_impersonation_refuses_every_grant_and_revoke(): void
     {
-        $actor = $this->userWith(AchievementPolicy::GRANT);
+        $actor = $this->granter();
         $actor->forceFill(['name' => 'Marta Ejemplo', 'display_name' => 'Marta'])->save();
         $this->actingAs($actor);
         $this->jornadas([self::ANA]);
@@ -370,6 +374,63 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
 
         $this->assertSame([self::MARTA], AchievementGrantModel::query()->pluck('user_id')->all());
         $this->assertSame(1, DB::table('achievements_grant_log')->count());
+    }
+
+    public function test_an_account_the_granter_may_not_see_shows_hidden_and_cannot_be_revoked(): void
+    {
+        $this->actingAs($this->userWith(AchievementPolicy::GRANT));
+        UserModel::query()->whereKey($this->account(self::ANA))->update(['name' => 'Ana Ejemplo']);
+        $record = AchievementGrantModel::query()->findOrFail($this->grantTo(self::ANA)->id);
+
+        $this->holders()
+            ->assertSee(__('achievements::messages.grants.log.hidden_account'))
+            ->assertDontSee('Ana Ejemplo')
+            ->assertActionHidden(TestAction::make('revokeGrant')->table($record));
+        Livewire::test(GrantLogRelationManager::class, ['ownerRecord' => $this->fundadora, 'pageClass' => ViewAchievement::class])
+            ->assertSee(__('achievements::messages.grants.log.hidden_account'))
+            ->assertDontSee('Ana Ejemplo');
+        $this->assertFalse($this->holdersTable()->getColumn('account')?->isSearchable());
+        // Nor can its name be read through the account picker's label
+        $label = new \ReflectionMethod(GrantActions::class, 'visibleAccountName');
+        $this->assertNull($label->invoke(null, self::ANA));
+
+        $this->actingAs($this->granter());
+        $this->assertTrue($this->holdersTable()->getColumn('account')?->isSearchable());
+        $this->assertSame('Ana Ejemplo', $label->invoke(null, self::ANA));
+    }
+
+    public function test_holders_are_found_by_their_public_name_too(): void
+    {
+        $this->actingAs($this->granter());
+        UserModel::query()->whereKey($this->account(self::ANA))->update(['name' => 'Ana Ejemplo', 'display_name' => 'Anita']);
+        UserModel::query()->whereKey($this->account(self::LUIS))->update(['name' => 'Luis Ejemplo', 'display_name' => 'Lu']);
+        $ana = AchievementGrantModel::query()->findOrFail($this->grantTo(self::ANA)->id);
+        $luis = AchievementGrantModel::query()->findOrFail($this->grantTo(self::LUIS)->id);
+
+        $this->holders()
+            ->searchTable('anita')
+            ->assertCanSeeTableRecords([$ana])
+            ->assertCanNotSeeTableRecords([$luis]);
+    }
+
+    public function test_the_preview_can_show_only_how_many_took_part(): void
+    {
+        $preview = new BulkGrantCountDTO(BulkGrantOutcome::Ready, people: 5, alreadyHeld: 1, revoked: 1);
+
+        $this->assertSame([
+            trans_choice('achievements::messages.grants.bulk.preview.people', 3, ['count' => 3]),
+            trans_choice('achievements::messages.grants.bulk.preview.held', 1, ['count' => 1]),
+            trans_choice('achievements::messages.grants.bulk.preview.revoked', 1, ['count' => 1]),
+        ], GrantActions::previewLines($preview, breakdown: true));
+        $this->assertSame(
+            [trans_choice('achievements::messages.grants.bulk.preview.total', 5, ['count' => 5])],
+            GrantActions::previewLines($preview, breakdown: false),
+        );
+    }
+
+    private function granter(): UserModel
+    {
+        return $this->userWith(AchievementPolicy::GRANT, 'users.view_any', 'users.view');
     }
 
     /**

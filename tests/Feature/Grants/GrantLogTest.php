@@ -19,6 +19,15 @@ use Modules\Achievements\Tests\Support\BuildsActivityFacts;
 use Tests\Support\Activity\InMemoryActivitySource;
 use Tests\Support\Modules\ModuleTestCase;
 
+/**
+ * The race between a revoke and a grant by a rule, a challenge or in bulk is closed by the order of
+ * the locks, not tested here with two connections: ModuleTestCase enables the module (migrations and
+ * its seeder) inside the wrapping transaction of every test, so a test without that transaction
+ * (`$connectionsToTransact = []`) would leave the module's tables and starter catalogue committed
+ * for the next ones. revoke() and deleteForUser() take the account's row FOR UPDATE before the grant;
+ * grant() holds it with a shared lock while it reads the history and writes. Whichever comes second
+ * waits for the other's commit: a grant then finds the revoke in the history, a revoke finds the grant.
+ */
 final class GrantLogTest extends ModuleTestCase
 {
     use BuildsAchievements;

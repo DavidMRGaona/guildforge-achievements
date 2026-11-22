@@ -96,7 +96,8 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
                 return null;
             }
 
-            $this->log(GrantLogAction::Granted, $grant->source, $achievementId, (string) $name, $userId, $actorId, $seasonKey, $reason, $stamp);
+            // Stamped once written: its entry never sorts before a revoke that waited for this commit
+            $this->log(GrantLogAction::Granted, $grant->source, $achievementId, (string) $name, $userId, $actorId, $seasonKey, $reason, $this->now());
 
             return new AchievementGrant(
                 id: $id,
@@ -132,6 +133,17 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
         }
 
         return $this->db->transaction(function () use ($grantId, $actorId, $reason): ?AchievementGrant {
+            $userId = $this->table()->where('id', strtolower($grantId))->value('user_id');
+
+            if ($userId === null) {
+                return null;
+            }
+
+            // The account first, then the grant, as everywhere else: a grant by a rule, a challenge
+            // or in bulk holds the account's row with a shared lock while it reads the history, so
+            // it either commits before this revoke (which then removes what it wrote) or waits for
+            // it and finds the revoke. Anonymizing (deleteForUser()) takes the same lock.
+            $this->db->table('users')->where('id', (string) $userId)->lockForUpdate()->first(['id']);
             $row = $this->table()->where('id', strtolower($grantId))->lockForUpdate()->first();
 
             if (! $row instanceof stdClass) {
@@ -149,8 +161,7 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
 
             $this->table()->where('id', $grant->id)->delete();
 
-            $stamp = new DateTimeImmutable('now', new DateTimeZone(date_default_timezone_get()))->format(self::STORAGE_FORMAT);
-            $this->log(GrantLogAction::Revoked, GrantSource::Manual, $grant->achievementId, $name, $grant->userId, $actorId, (string) $row->season_key, $reason, $stamp);
+            $this->log(GrantLogAction::Revoked, GrantSource::Manual, $grant->achievementId, $name, $grant->userId, $actorId, (string) $row->season_key, $reason, $this->now());
 
             return $grant;
         }, self::TRANSACTION_ATTEMPTS);
@@ -180,6 +191,38 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
         }
 
         return array_keys(array_filter($latest, static fn (string $action): bool => $action === GrantLogAction::Revoked->value));
+    }
+
+    public function revokedAchievementIds(array $userIds): array
+    {
+        $userIds = array_values(array_unique(array_map(strtolower(...), $userIds)));
+        $latest = [];
+
+        foreach (array_chunk($userIds, 500) as $chunk) {
+            $rows = $this->db->table(self::LOG_TABLE)
+                ->whereIn('user_id', $chunk)
+                ->whereNotNull('achievement_id')
+                ->where('season_key', '')
+                ->orderBy('created_at')
+                ->orderBy('id')
+                ->get(['user_id', 'achievement_id', 'action']);
+
+            foreach ($rows as $row) {
+                $latest[strtolower((string) $row->user_id)][strtolower((string) $row->achievement_id)] = (string) $row->action;
+            }
+        }
+
+        $revoked = [];
+
+        foreach ($latest as $userId => $actions) {
+            $ids = array_keys(array_filter($actions, static fn (string $action): bool => $action === GrantLogAction::Revoked->value));
+
+            if ($ids !== []) {
+                $revoked[(string) $userId] = array_map(strval(...), $ids);
+            }
+        }
+
+        return $revoked;
     }
 
     public function heldAchievementIds(array $userIds): array
@@ -256,12 +299,20 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
         $userId = strtolower($userId);
 
         return $this->db->transaction(function () use ($userId): int {
+            // The account first, as revoke() does, so the two never wait on each other in a circle
+            $this->db->table('users')->where('id', $userId)->lockForUpdate()->first(['id']);
+
             $this->db->table(self::LOG_TABLE)
                 ->where('user_id', $userId)
                 ->update(['user_id' => null, 'reason' => null]);
 
             return $this->table()->where('user_id', $userId)->delete();
         }, self::TRANSACTION_ATTEMPTS);
+    }
+
+    private function now(): string
+    {
+        return new DateTimeImmutable('now', new DateTimeZone(date_default_timezone_get()))->format(self::STORAGE_FORMAT);
     }
 
     /**

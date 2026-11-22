@@ -38,15 +38,23 @@ final class GrantDisplay
         return $achievement->name;
     }
 
+    /**
+     * The account's name, only for whoever may see that account (UserPolicy::view(), as on the
+     * account page); anybody else reads «Cuenta oculta».
+     */
     public static function accountName(?UserModel $user): string
     {
-        return $user instanceof UserModel ? $user->name : self::text('log.anonymized');
+        if (! $user instanceof UserModel) {
+            return self::text('log.anonymized');
+        }
+
+        return self::seesAccount($user) ? $user->name : self::text('log.hidden_account');
     }
 
     public static function actorName(?UserModel $actor, string $source): string
     {
         if ($actor instanceof UserModel) {
-            return $actor->name;
+            return self::seesAccount($actor) ? $actor->name : self::text('log.hidden_account');
         }
 
         return in_array($source, [GrantSource::Rule->value, GrantSource::Challenge->value], true) ? self::text('log.automatic') : '—';
@@ -78,6 +86,24 @@ final class GrantDisplay
     public static function actionColour(string $action): string
     {
         return GrantLogAction::tryFrom($action) === GrantLogAction::Revoked ? 'danger' : 'success';
+    }
+
+    public static function seesAccount(UserModel $user): bool
+    {
+        $viewer = Auth::user();
+
+        return $viewer instanceof UserModel && $viewer->can('view', $user);
+    }
+
+    /**
+     * Whether searching accounts by name is offered: only to whoever may list accounts, so a
+     * search never tells which hidden names hold an achievement.
+     */
+    public static function searchesAccounts(): bool
+    {
+        $viewer = Auth::user();
+
+        return $viewer instanceof UserModel && $viewer->can('viewAny', UserModel::class);
     }
 
     private static function manages(UserModel $viewer): bool

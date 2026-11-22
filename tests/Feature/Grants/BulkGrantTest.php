@@ -7,8 +7,10 @@ namespace Modules\Achievements\Tests\Feature\Grants;
 use App\Application\Activity\DTOs\ActivitySubjectDTO;
 use App\Domain\Activity\ActivityRole;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Str;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\DTOs\BulkGrantCountDTO;
 use Modules\Achievements\Application\DTOs\BulkGrantRequestDTO;
@@ -24,6 +26,7 @@ use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementM
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsActivityFacts;
 use Modules\Achievements\Tests\Support\ParticipationActivitySource;
+use PDOException;
 use ReflectionClass;
 use ReflectionNamedType;
 use Tests\Support\Modules\ModuleTestCase;
@@ -51,6 +54,8 @@ final class BulkGrantTest extends ModuleTestCase
 
         $this->actor = UserModel::factory()->create();
         $this->jornadas = $this->achievement(['version' => 1, 'metric' => 'manual'], ['name' => 'Jornadas 2027']);
+        // Off by default
+        $this->app->make(AchievementsSettingsInterface::class)->save(new AchievementsSettings(bulkGrants: true));
     }
 
     protected function tearDown(): void
@@ -152,7 +157,7 @@ final class BulkGrantTest extends ModuleTestCase
     public function test_nothing_is_granted_while_bulk_grants_are_off(): void
     {
         $this->jornadasWith(attendees: [self::ANA]);
-        $this->app->make(AchievementsSettingsInterface::class)->save(new AchievementsSettings(bulkGrants: false));
+        $this->app->make(AchievementsSettingsInterface::class)->save(new AchievementsSettings);
 
         $this->assertSame(BulkGrantOutcome::Disabled, $this->bulk()->preview($this->request(ActivityRole::Attendee), $this->actor)->outcome);
         $result = $this->bulk()->grant($this->request(ActivityRole::Attendee), silent: true, reason: null, actor: $this->actor);
@@ -229,6 +234,74 @@ final class BulkGrantTest extends ModuleTestCase
             $this->bulk()->preview(new BulkGrantRequestDTO(ParticipationActivitySource::TYPE, '7', ActivityRole::Attendee, '0195f3a2-7c1e-7d4b-9a8e-000000000000'), $this->actor)->outcome,
         );
         $this->assertSame(0, DB::table('achievements_grants')->count());
+    }
+
+    public function test_more_people_than_the_cap_grants_nothing(): void
+    {
+        $facts = [];
+
+        for ($i = 0; $i <= BulkGrantInterface::MAX_PEOPLE; $i++) {
+            $facts[] = $this->activityFact((string) Str::uuid7(), ActivityRole::Attendee);
+        }
+
+        ParticipationActivitySource::put('7', 'Jornadas 2027', $facts);
+        $this->ledgerSubject(ParticipationActivitySource::TYPE, '7', 'event', [$this->recordedFact((string) Str::uuid7(), 'attendee')]);
+
+        $preview = $this->bulk()->preview($this->request(ActivityRole::Attendee), $this->actor);
+        $result = $this->bulk()->grant($this->request(ActivityRole::Attendee), silent: true, reason: null, actor: $this->actor);
+
+        $this->assertSame(BulkGrantOutcome::TooMany, $preview->outcome);
+        $this->assertSame(BulkGrantInterface::MAX_PEOPLE + 1, $preview->people);
+        $this->assertSame(BulkGrantOutcome::TooMany, $result->outcome);
+        $this->assertSame(0, DB::table('achievements_grants')->count());
+    }
+
+    public function test_a_batch_that_fails_keeps_what_earlier_batches_granted(): void
+    {
+        $people = [];
+
+        for ($i = 0; $i < BulkGrantInterface::PER_BATCH + 20; $i++) {
+            $people[] = $this->account();
+        }
+
+        ParticipationActivitySource::put('7', 'Jornadas 2027', array_map(fn (string $id) => $this->activityFact($id, ActivityRole::Attendee), $people));
+        $this->ledgerSubject(ParticipationActivitySource::TYPE, '7', 'event', [$this->recordedFact($people[0], 'attendee')]);
+        $real = $this->app->make(AchievementGranterInterface::class);
+        $this->app->instance(AchievementGranterInterface::class, new class($real, BulkGrantInterface::PER_BATCH + 5) implements AchievementGranterInterface
+        {
+            private int $calls = 0;
+
+            public function __construct(private readonly AchievementGranterInterface $real, private readonly int $failAt) {}
+
+            public function grant(NewGrant $grant): ?AchievementGrant
+            {
+                if (++$this->calls === $this->failAt) {
+                    throw new QueryException('pgsql', 'insert', [], new PDOException('deadlock detected'));
+                }
+
+                return $this->real->grant($grant);
+            }
+
+            public function revoke(string $grantId, string $actorId, string $reason): ?AchievementGrant
+            {
+                return $this->real->revoke($grantId, $actorId, $reason);
+            }
+        });
+
+        $result = $this->bulk()->grant($this->request(ActivityRole::Attendee), silent: true, reason: null, actor: $this->actor);
+
+        $this->assertSame(BulkGrantOutcome::Partial, $result->outcome);
+        $this->assertSame(BulkGrantInterface::PER_BATCH, $result->granted);
+        // The first batch stays, the failing one is rolled back whole
+        $this->assertSame(BulkGrantInterface::PER_BATCH, DB::table('achievements_grants')->count());
+        $this->assertSame(BulkGrantInterface::PER_BATCH, DB::table('achievements_grant_log')->count());
+
+        // Granting again finishes the job and skips whoever already holds it
+        $this->app->forgetInstance(AchievementGranterInterface::class);
+        $again = $this->bulk()->grant($this->request(ActivityRole::Attendee), silent: true, reason: null, actor: $this->actor);
+        $this->assertSame(BulkGrantOutcome::Granted, $again->outcome);
+        $this->assertSame(20, $again->granted);
+        $this->assertSame(BulkGrantInterface::PER_BATCH, $again->alreadyHeld);
     }
 
     public function test_the_subjects_offered_are_those_the_viewer_may_see_and_match_the_search(): void
