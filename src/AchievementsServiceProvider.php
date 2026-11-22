@@ -209,6 +209,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
                 name: 'achievements.grant',
                 label: __('achievements::messages.permissions.achievements.grant'),
                 group: __('achievements::messages.title'),
+                description: __('achievements::messages.permissions.achievements.grant_description'),
                 module: $this->moduleName(),
             ),
             new PermissionDTO(

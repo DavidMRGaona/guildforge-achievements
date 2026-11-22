@@ -39,6 +39,19 @@ final class PermissionsTest extends ModuleTestCase
         ], $labels);
     }
 
+    public function test_granting_warns_that_bulk_grants_show_who_took_part(): void
+    {
+        foreach ($this->app->make(PermissionRegistryInterface::class)->forModule('achievements') as $permission) {
+            if ($permission->key === 'achievements:achievements.grant') {
+                $this->assertStringContainsString('ve a quién se lo concede', (string) $permission->description);
+
+                return;
+            }
+        }
+
+        $this->fail('achievements.grant is not registered');
+    }
+
     public function test_only_managing_is_suggested_for_the_content_role(): void
     {
         $suggested = [];

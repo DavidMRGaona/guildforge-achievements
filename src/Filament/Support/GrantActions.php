@@ -53,12 +53,6 @@ final class GrantActions
     private const int MAX_ACCOUNTS = 50;
 
     /**
-     * Whether the bulk dialog says how many already hold the achievement or had it taken away
-     * (previewLines()). Pending a product decision: false shows only how many took part.
-     */
-    private const bool PREVIEW_BREAKDOWN = true;
-
-    /**
      * «Conceder», from an achievement: to one account found by its name, among those the person may
      * see (UserPolicy::view(), as on the account page).
      *
@@ -471,22 +465,17 @@ final class GrantActions
             return self::refusal($preview);
         }
 
-        return implode(' ', self::previewLines($preview, self::PREVIEW_BREAKDOWN));
+        return implode(' ', self::previewLines($preview));
     }
 
     /**
-     * What the dialog says before granting, in numbers only. With the breakdown, how many get it,
-     * how many already hold it and how many had it taken away; without it, only how many took part
-     * with the role (so a subject with one participant never tells whether that person holds it).
+     * What the dialog says before granting, in numbers: how many get it, how many already hold it
+     * and how many had it taken away.
      *
      * @return list<string>
      */
-    public static function previewLines(BulkGrantCountDTO $preview, bool $breakdown): array
+    public static function previewLines(BulkGrantCountDTO $preview): array
     {
-        if (! $breakdown) {
-            return [trans_choice('achievements::messages.grants.bulk.preview.total', $preview->people, ['count' => $preview->people])];
-        }
-
         $lines = [trans_choice('achievements::messages.grants.bulk.preview.people', $preview->toGrant(), ['count' => $preview->toGrant()])];
 
         if ($preview->alreadyHeld > 0) {

@@ -413,7 +413,7 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
             ->assertCanNotSeeTableRecords([$luis]);
     }
 
-    public function test_the_preview_can_show_only_how_many_took_part(): void
+    public function test_the_preview_tells_how_many_get_it_hold_it_or_had_it_taken_away(): void
     {
         $preview = new BulkGrantCountDTO(BulkGrantOutcome::Ready, people: 5, alreadyHeld: 1, revoked: 1);
 
@@ -421,11 +421,7 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
             trans_choice('achievements::messages.grants.bulk.preview.people', 3, ['count' => 3]),
             trans_choice('achievements::messages.grants.bulk.preview.held', 1, ['count' => 1]),
             trans_choice('achievements::messages.grants.bulk.preview.revoked', 1, ['count' => 1]),
-        ], GrantActions::previewLines($preview, breakdown: true));
-        $this->assertSame(
-            [trans_choice('achievements::messages.grants.bulk.preview.total', 5, ['count' => 5])],
-            GrantActions::previewLines($preview, breakdown: false),
-        );
+        ], GrantActions::previewLines($preview));
     }
 
     private function granter(): UserModel
