@@ -17,7 +17,9 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 use Modules\Achievements\AchievementsServiceProvider;
+use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
+use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\ActivityMetricsInterface;
 use Modules\Achievements\Domain\Enums\GrantSource;
 use Modules\Achievements\Domain\ValueObjects\MetricKinds;
@@ -27,6 +29,7 @@ use Modules\Achievements\Filament\Resources\AchievementResource;
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\CreateAchievement;
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\EditAchievement;
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\ListAchievements;
+use Modules\Achievements\Filament\Support\AchievementPanelView;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Policies\AchievementPolicy;
@@ -171,6 +174,54 @@ final class AchievementResourceTest extends ModuleTestCase
         $rules = AchievementModel::query()->orderBy('name')->pluck('rule')->all();
         $this->assertSame(['version' => 1, 'metric' => 'years', 'basis' => 'account', 'threshold' => 3], $rules[0]);
         $this->assertSame(['version' => 1, 'metric' => 'manual'], $rules[1]);
+    }
+
+    public function test_a_people_rule_is_built_and_summed_up_without_naming_anybody(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+
+        Livewire::test(CreateAchievement::class)
+            ->fillForm(['name' => 'Mesa abierta', 'icon' => 'handshake', 'colour' => 'violet', 'points' => 0, 'rule_metric' => 'people', 'rule_kind' => 'game_session', 'rule_role' => 'director', 'rule_with_role' => 'player', 'rule_threshold' => 20])
+            ->assertFormFieldExists('rule_kind', static fn ($field): bool => array_diff(array_keys($field->getOptions()), ['game_session', 'campaign', 'tournament', 'event']) === [])
+            ->assertFormFieldExists('rule_role', static fn ($field): bool => array_keys($field->getOptions()) === ['player', 'director'])
+            ->assertFormFieldExists('rule_with_role', static fn ($field): bool => array_keys($field->getOptions()) === ['player', 'director'])
+            ->assertFormFieldIsHidden('rule_attribute_key')
+            ->assertFormFieldIsHidden('rule_placement_max')
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $people = AchievementModel::query()->where('name', 'Mesa abierta')->firstOrFail();
+        $this->assertSame(['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['role' => 'director', 'with_role' => 'player'], 'threshold' => 20, 'window' => ['type' => 'all_time']], $people->rule);
+        $this->assertSame('Personas distintas: 20 · Partidas · Dirección · con jugador', AchievementPanelView::ruleSummary($people));
+
+        Livewire::test(EditAchievement::class, ['record' => $people->getKey()])
+            ->assertFormSet(['rule_metric' => 'people', 'rule_kind' => 'game_session', 'rule_role' => 'director', 'rule_with_role' => 'player', 'rule_threshold' => 20]);
+    }
+
+    public function test_a_people_rule_of_a_kind_done_alone_is_refused(): void
+    {
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+
+        Livewire::test(CreateAchievement::class)
+            ->fillForm(['name' => 'Foreros', 'icon' => 'users', 'colour' => 'sky', 'points' => 0, 'rule_metric' => 'people', 'rule_kind' => 'forum_post', 'rule_threshold' => 3])
+            ->call('create')
+            ->assertHasFormErrors();
+
+        $this->assertSame(0, AchievementModel::query()->count());
+    }
+
+    public function test_community_achievements_switched_off_say_so_in_the_table(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        $people = $this->achievement(['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'threshold' => 10]);
+        $this->app->make(AchievementsSettingsInterface::class)->save(new AchievementsSettings(community: false));
+        $this->app->forgetScopedInstances();
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+
+        Livewire::test(ListAchievements::class)
+            ->assertTableColumnStateSet('status', 'community_off', $people)
+            ->assertSee('Comunidad apagada');
     }
 
     public function test_a_distinct_rule_needs_its_attribute(): void

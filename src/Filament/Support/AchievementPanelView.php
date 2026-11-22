@@ -45,7 +45,25 @@ final class AchievementPanelView
             MetricType::Manual => self::text('summary.manual'),
             MetricType::Years => self::text($rule->basis === YearsBasis::Membership ? 'summary.membership_years' : 'summary.account_years', ['threshold' => (string) $rule->threshold]),
             MetricType::Count, MetricType::Distinct => self::activitySummary($rule),
+            MetricType::People => self::peopleSummary($rule),
         };
+    }
+
+    private static function peopleSummary(AchievementRule $rule): string
+    {
+        $roles = AchievementRuleForm::roleOptions();
+        $parts = [AchievementRuleForm::kindLabel((string) $rule->kind)];
+
+        if ($rule->role !== null) {
+            $parts[] = $roles[$rule->role] ?? $rule->role;
+        }
+
+        if ($rule->withRole !== null) {
+            // Mid-phrase: «con jugador», never «con Jugador»
+            $parts[] = self::text('summary.with_role', ['role' => mb_strtolower($roles[$rule->withRole] ?? $rule->withRole)]);
+        }
+
+        return self::text('summary.people', ['threshold' => (string) $rule->threshold]).' · '.implode(' · ', $parts);
     }
 
     private static function activitySummary(AchievementRule $rule): string

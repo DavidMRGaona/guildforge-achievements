@@ -5,7 +5,7 @@ summary: Qué son los logros, cómo se consiguen, qué es la rareza, cómo funci
 category: community
 audience: site
 order: 40
-keywords: [logros, insignias, medallas, trofeos, conseguir, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, destacar, destacados, estrella, junto a mi nombre, foro, tarjeta, perfil, ocultar, privacidad, catálogo, retos, reto, objetivo común, entre todos, recompensa, barra de progreso]
+keywords: [logros, insignias, medallas, trofeos, conseguir, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, destacar, destacados, estrella, junto a mi nombre, foro, tarjeta, perfil, ocultar, privacidad, catálogo, comunidad, personas distintas, retos, reto, objetivo común, entre todos, recompensa, barra de progreso]
 related: [core.site.public-profile]
 ---
 Un logro es una insignia que se consigue con lo que haces en {{site_name}}: jugar o dirigir partidas, probar sistemas distintos, ir a eventos, participar en torneos, cumplir años en la web… Se concede solo, en cuanto cumples lo que pide, y no se pierde nunca: aunque una partida deje de contar, lo conseguido se queda.
@@ -29,6 +29,10 @@ Cuando se llega al objetivo, cada persona que contribuyó recibe el logro de rec
 En tu perfil público, la sección **Logros** enseña los que tienes, con la fecha en que los conseguiste y su rareza. Tú ves además los que te faltan y cuánto llevas («7 de 10»); los demás no ven lo que te falta.
 
 Los logros solo dicen totales: «10 partidas», «3 sistemas». Nunca dicen en qué mesa, sesión o evento estuviste.
+
+## Logros de comunidad
+
+Algunos logros premian a quien trae y cuida gente: jugar con 10 personas distintas o dirigir partidas a 20 personas distintas. Solo cuentan personas: ni el logro ni tu progreso dicen quiénes son. Si alguien anonimiza su cuenta, deja de contar, pero un logro que ya conseguiste no se pierde.
 
 Quién ve tu perfil lo decides en **Editar perfil**. Tus logros solo los ve quien puede ver tu perfil. Tus logros secretos no salen uno a uno a quien no los tiene: solo ve cuántos tienes («Y 2 logros secretos»), sin fecha ni rareza, salvo que destaques alguno.
 

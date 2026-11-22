@@ -184,6 +184,20 @@ final class RuleEvaluatorTest extends TestCase
         $this->assertSame(2, $this->value(['metric' => 'years', 'basis' => 'membership', 'threshold' => 2], $facts));
     }
 
+    public function test_a_community_rule_counts_the_people_it_is_given_and_never_the_own_facts(): void
+    {
+        $rule = $this->rule(['metric' => 'people', 'kind' => 'game_session', 'threshold' => 2]);
+        $facts = [$this->fact('s1', 'player'), $this->fact('s2', 'player'), $this->fact('s3', 'player')];
+        $people = [new DateTimeImmutable('2026-03-01 18:00:00'), new DateTimeImmutable('2026-01-10 18:00:00'), new DateTimeImmutable('2026-05-20 18:00:00')];
+
+        $this->assertSame(0, $this->evaluator->value($rule, $facts, $this->now, new DateTimeZone('UTC')));
+        $this->assertFalse($this->evaluator->isMet($rule, $facts, $this->now, new DateTimeZone('UTC')));
+        $this->assertSame(3, $this->evaluator->value($rule, $facts, $this->now, new DateTimeZone('UTC'), $people));
+        $this->assertTrue($this->evaluator->isMet($rule, $facts, $this->now, new DateTimeZone('UTC'), $people));
+        // The second person met, in time order
+        $this->assertEquals(new DateTimeImmutable('2026-03-01 18:00:00'), $this->evaluator->metAt($rule, $facts, $this->now, new DateTimeZone('UTC'), $people));
+    }
+
     public function test_a_manual_rule_is_never_met(): void
     {
         $this->assertSame(0, $this->value(['metric' => 'manual'], [$this->fact('s1')]));
