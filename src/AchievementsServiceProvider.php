@@ -75,8 +75,8 @@ use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\Eloque
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementPointsRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementPreferencesRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementRepository;
-use Modules\Achievements\Infrastructure\Points\AchievementPoints;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentPendingAchievementNoticeRepository;
+use Modules\Achievements\Infrastructure\Points\AchievementPoints;
 use Modules\Achievements\Infrastructure\Profiles\AccountAchievementsTab;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsCountProfileStat;
 use Modules\Achievements\Infrastructure\Profiles\AchievementShowcase;
