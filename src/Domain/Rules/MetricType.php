@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Modules\Achievements\Domain\Rules;
 
 /**
- * What a rule measures. Later issues add their own (community achievements, challenges): a rule
- * with a metric this release does not know is unreadable, so it is never evaluated.
+ * What a rule measures. Later issues add their own (challenges, say): a rule with a metric this
+ * release does not know is unreadable, so it is never evaluated.
  */
 enum MetricType: string
 {
@@ -19,6 +19,18 @@ enum MetricType: string
     /** Years of account or of membership */
     case Years = 'years';
 
+    /** Different people met in subjects of a kind («jugar con 10 personas distintas») */
+    case People = 'people';
+
     /** Never granted by the evaluator: only by hand */
     case Manual = 'manual';
+
+    /**
+     * Community achievements: measured over other people's facts, never over the person's alone,
+     * and evaluated only while the «Logros de comunidad» switch is on.
+     */
+    public function isCommunity(): bool
+    {
+        return $this === self::People;
+    }
 }

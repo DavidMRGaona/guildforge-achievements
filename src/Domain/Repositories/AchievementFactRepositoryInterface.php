@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Achievements\Domain\Repositories;
 
 use Closure;
+use DateTimeImmutable;
 use Modules\Achievements\Domain\Entities\AchievementFact;
 use Modules\Achievements\Domain\ValueObjects\FactsReplacement;
 use Modules\Achievements\Domain\ValueObjects\RecordedFact;
@@ -106,6 +107,27 @@ interface AchievementFactRepositoryInterface
      * How many facts of a kind an account has, optionally in one role (an ActivityRole value).
      */
     public function countForUser(string $userId, string $kind, ?string $role = null): int;
+
+    /**
+     * When each account first met each different other account in subjects of a kind: for every
+     * account asked, one instant per other account (the earliest of the account's own facts in a
+     * subject they share), oldest first. `$role` is the account's own part and `$withRole` the
+     * others' (null: any). Nobody counts themselves, and others that are anonymized or no longer
+     * exist never count; deactivated ones still do. Aggregate queries, never one per account; an
+     * account that met nobody is missing from the answer.
+     *
+     * @param  list<string>  $userIds
+     * @return array<string, list<DateTimeImmutable>>
+     */
+    public function firstMeetings(array $userIds, string $kind, ?string $role, ?string $withRole): array;
+
+    /**
+     * The other accounts that share any subject with this one, sorted: whose community counts it
+     * may take part in.
+     *
+     * @return list<string>
+     */
+    public function userIdsSharingSubjectsWith(string $userId): array;
 
     /**
      * Deletes every fact of an account (anonymization) and returns how many there were.
