@@ -56,6 +56,13 @@ interface AchievementFactRepositoryInterface
     public function subjectIds(string $sourceType): array;
 
     /**
+     * Subjects of a source, the one with the latest fact first (then by id), at most `limit`.
+     *
+     * @return list<string>
+     */
+    public function recentSubjectIds(string $sourceType, int $limit): array;
+
+    /**
      * The accounts with facts in a subject, sorted.
      *
      * @return list<string>

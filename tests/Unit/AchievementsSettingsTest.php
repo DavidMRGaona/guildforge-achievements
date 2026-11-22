@@ -20,7 +20,7 @@ final class AchievementsSettingsTest extends TestCase
         $this->assertTrue($settings->secrets);
         $this->assertTrue($settings->seasonsAndStreaks);
         $this->assertTrue($settings->community);
-        $this->assertTrue($settings->bulkGrants);
+        $this->assertFalse($settings->bulkGrants);
         $this->assertTrue($settings->announcements);
         $this->assertSame(10.0, $settings->announcementsRarityThreshold);
         $this->assertFalse($settings->points);
@@ -134,6 +134,15 @@ final class AchievementsSettingsTest extends TestCase
 
         $this->assertSame([], AchievementsSettings::fromArray(['metric_kinds' => []])->invalidKeys);
         $this->assertSame([], AchievementsSettings::fromArray([])->invalidKeys);
+    }
+
+    public function test_a_malformed_bulk_grants_switch_is_off(): void
+    {
+        $settings = AchievementsSettings::fromArray(['bulk_grants' => 'yes']);
+
+        $this->assertFalse($settings->bulkGrants);
+        $this->assertSame(['bulk_grants'], $settings->invalidKeys);
+        $this->assertTrue(AchievementsSettings::fromArray(['bulk_grants' => true])->bulkGrants);
     }
 
     public function test_a_malformed_secrets_switch_is_off_and_other_switches_keep_their_default(): void

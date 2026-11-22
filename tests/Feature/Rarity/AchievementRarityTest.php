@@ -144,6 +144,22 @@ final class AchievementRarityTest extends ModuleTestCase
         $this->assertSame(100.0, app(AchievementRarityInterface::class)->current()->shareOf($achievement));
     }
 
+    public function test_a_revoke_computes_it_again(): void
+    {
+        $achievement = (string) $this->achievement(['version' => 1, 'metric' => 'manual'])->id;
+        $ana = $this->person('Ana');
+        $this->factAt($ana, '2026-10-01 18:00:00');
+        $grant = app(AchievementGranterInterface::class)->grant(new NewGrant((string) $ana->id, $achievement, GrantSource::Manual, true));
+        $this->assertNotNull($grant);
+        $this->app->forgetScopedInstances();
+        $this->assertSame(100.0, app(AchievementRarityInterface::class)->current()->shareOf($achievement));
+
+        app(AchievementGranterInterface::class)->revoke($grant->id, (string) $this->person('Admin')->id, 'Concedido por error');
+        $this->app->forgetScopedInstances();
+
+        $this->assertSame(0.0, app(AchievementRarityInterface::class)->current()->shareOf($achievement));
+    }
+
     public function test_grants_queue_one_refresh_while_it_waits(): void
     {
         Bus::fake([RefreshAchievementRarityJob::class]);

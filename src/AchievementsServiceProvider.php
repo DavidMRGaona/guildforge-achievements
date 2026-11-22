@@ -15,15 +15,20 @@ use App\Application\Services\TimezoneServiceInterface;
 use App\Domain\Activity\Events\ActivityRecorded;
 use App\Domain\Events\UserAnonymized;
 use App\Domain\Modules\Events\ModuleEnabled;
+use App\Filament\Resources\UserResource\Pages\EditUser;
 use App\Infrastructure\Media\Observers\RefreshMediaUsagesObserver;
 use App\Modules\ModuleServiceProvider;
 use Filament\Pages\Page;
+use Filament\Support\Facades\FilamentView;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
+use Livewire\Livewire;
 use Modules\Achievements\Application\Services\AchievementCatalogueInterface;
 use Modules\Achievements\Application\Services\AchievementEvaluatorInterface;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
@@ -32,22 +37,28 @@ use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\ActivityLedgerInterface;
 use Modules\Achievements\Application\Services\ActivityMetricsInterface;
+use Modules\Achievements\Application\Services\BulkGrantInterface;
 use Modules\Achievements\Application\Services\StarterCatalogueInterface;
 use Modules\Achievements\Console\Commands\InstallStarterCatalogueCommand;
 use Modules\Achievements\Console\Commands\RecalculateAchievementFactsCommand;
 use Modules\Achievements\Domain\Events\AchievementFactsChanged;
 use Modules\Achievements\Domain\Events\AchievementGranted;
+use Modules\Achievements\Domain\Events\AchievementRevoked;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
+use Modules\Achievements\Filament\Livewire\AccountAchievements;
+use Modules\Achievements\Filament\Livewire\AccountGrantLog;
 use Modules\Achievements\Filament\Media\AchievementBadgeImageMediaSource;
 use Modules\Achievements\Filament\Pages\AchievementsSettingsPage;
+use Modules\Achievements\Filament\Support\AccountAchievementsHook;
 use Modules\Achievements\Infrastructure\Activity\ReaderActivityMetrics;
 use Modules\Achievements\Infrastructure\Catalogue\AchievementCatalogue;
 use Modules\Achievements\Infrastructure\Catalogue\StarterCatalogue;
 use Modules\Achievements\Infrastructure\Grants\AchievementEvaluator;
 use Modules\Achievements\Infrastructure\Grants\AchievementGranter;
+use Modules\Achievements\Infrastructure\Grants\BulkGranter;
 use Modules\Achievements\Infrastructure\Observers\EvaluateChangedAchievements;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementFactRepository;
@@ -107,6 +118,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         $this->app->bind(AchievementRepositoryInterface::class, EloquentAchievementRepository::class);
         $this->app->bind(AchievementGrantRepositoryInterface::class, EloquentAchievementGrantRepository::class);
         $this->app->bind(AchievementGranterInterface::class, AchievementGranter::class);
+        $this->app->bind(BulkGrantInterface::class, BulkGranter::class);
         $this->app->scoped(ActivityMetricsInterface::class, ReaderActivityMetrics::class);
         $this->app->bind(AchievementEvaluatorInterface::class, AchievementEvaluator::class);
         $this->app->bind(AchievementCatalogueInterface::class, AchievementCatalogue::class);
@@ -128,6 +140,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountGrants::class);
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountPreferences::class);
         Event::listen(AchievementGranted::class, RefreshRarityAfterGrant::class);
+        Event::listen(AchievementRevoked::class, RefreshRarityAfterGrant::class);
         Event::listen(AchievementFactsChanged::class, EvaluateAchievementsForChangedFacts::class);
         Event::listen(ModuleEnabled::class, EvaluateAchievementsOfEnabledModule::class);
 
@@ -136,6 +149,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
             Limit::perMinute(self::PROFILE_CHOICES_PER_MINUTE)->by('achievements-choices:'.self::requesterKey($request)),
             Limit::perHour(self::PROFILE_CHOICES_PER_HOUR)->by('achievements-choices-hour:'.self::requesterKey($request)),
         ]);
+        $this->showOnTheUserPage();
         $this->keepMediaUsagesUpToDate();
         $this->registerSchedule();
 
@@ -158,6 +172,21 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
     public function registerMediaSources(): array
     {
         return [AchievementBadgeImageMediaSource::class];
+    }
+
+    /**
+     * The account's achievements and their history, at the end of the core's user page (#4).
+     */
+    private function showOnTheUserPage(): void
+    {
+        Livewire::component(AccountAchievements::NAME, AccountAchievements::class);
+        Livewire::component(AccountGrantLog::NAME, AccountGrantLog::class);
+
+        FilamentView::registerRenderHook(
+            PanelsRenderHook::PAGE_END,
+            static fn (): View|string => AccountAchievementsHook::render(),
+            scopes: EditUser::class,
+        );
     }
 
     /**
@@ -270,6 +299,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
                 name: 'achievements.manage',
                 label: __('achievements::messages.permissions.achievements.manage'),
                 group: __('achievements::messages.title'),
+                description: __('achievements::messages.permissions.achievements.manage_description'),
                 module: $this->moduleName(),
                 roles: ['editor'],
             ),
@@ -277,6 +307,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
                 name: 'achievements.grant',
                 label: __('achievements::messages.permissions.achievements.grant'),
                 group: __('achievements::messages.title'),
+                description: __('achievements::messages.permissions.achievements.grant_description'),
                 module: $this->moduleName(),
             ),
             new PermissionDTO(

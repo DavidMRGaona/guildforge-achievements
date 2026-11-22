@@ -39,7 +39,7 @@ final class ModuleAchievementsSettingsTest extends ModuleTestCase
         $this->assertTrue($service->secretsEnabled());
         $this->assertTrue($service->seasonsAndStreaksEnabled());
         $this->assertTrue($service->communityEnabled());
-        $this->assertTrue($service->bulkGrantsEnabled());
+        $this->assertFalse($service->bulkGrantsEnabled());
         $this->assertTrue($service->announcementsEnabled());
         $this->assertSame(10.0, $service->announcementsRarityThreshold());
         $this->assertFalse($service->pointsEnabled());

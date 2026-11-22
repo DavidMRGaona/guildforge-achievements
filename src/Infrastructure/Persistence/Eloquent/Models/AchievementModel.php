@@ -85,6 +85,16 @@ final class AchievementModel extends Model
     }
 
     /**
+     * What happened to its grants, newest last.
+     *
+     * @return HasMany<AchievementGrantLogModel, $this>
+     */
+    public function grantLog(): HasMany
+    {
+        return $this->hasMany(AchievementGrantLogModel::class, 'achievement_id');
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
