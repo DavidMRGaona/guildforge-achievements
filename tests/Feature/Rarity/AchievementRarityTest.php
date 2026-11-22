@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Tests\Feature\Rarity;
 
+use App\Application\Services\TimezoneServiceInterface;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use DateTimeZone;
+use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Facades\Bus;
@@ -160,6 +163,11 @@ final class AchievementRarityTest extends ModuleTestCase
         );
 
         $this->assertCount(1, $events);
+        $event = $events->first();
+        $this->assertInstanceOf(Event::class, $event);
+        $this->assertSame('30 3 * * *', $event->expression);
+        $zone = $event->timezone;
+        $this->assertSame(app(TimezoneServiceInterface::class)->displayTimezone()->getName(), $zone instanceof DateTimeZone ? $zone->getName() : $zone);
     }
 
     public function test_a_cache_that_fails_still_answers_from_the_database(): void

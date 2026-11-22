@@ -115,11 +115,14 @@ export function badgeColour(colour: string): string {
 
 /**
  * A share in percent as people read it: one decimal under 10 % (so a rare one never reads «0 %»),
- * whole numbers above.
+ * whole numbers above, and «< 0,1» below a tenth (never «0»).
  */
 export function formatShare(share: number, locale: string): string {
-    return new Intl.NumberFormat(locale, {
-        maximumFractionDigits: share < 10 ? 1 : 0,
-        minimumFractionDigits: 0,
-    }).format(share);
+    const format = (value: number): string =>
+        new Intl.NumberFormat(locale, {
+            maximumFractionDigits: value < 10 ? 1 : 0,
+            minimumFractionDigits: 0,
+        }).format(value);
+
+    return share < 0.1 ? `< ${format(0.1)}` : format(share);
 }

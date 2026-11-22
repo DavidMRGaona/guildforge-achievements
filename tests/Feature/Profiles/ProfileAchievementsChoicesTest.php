@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Tests\Feature\Profiles;
 
+use App\Application\Impersonation\Services\ImpersonationServiceInterface;
 use App\Domain\Events\UserAnonymized;
+use App\Domain\Impersonation\Enums\ImpersonationMode;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Illuminate\Support\Facades\DB;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
@@ -92,6 +94,19 @@ final class ProfileAchievementsChoicesTest extends ModuleTestCase
         }
 
         $this->actingAs($this->ana)->put('/logros/miembros/nadie-con-este-nombre', ['hidden' => true, 'featured' => []])->assertNotFound();
+        $this->assertDatabaseCount('achievements_preferences', 0);
+    }
+
+    public function test_nothing_is_saved_while_impersonating_read_only(): void
+    {
+        $admin = UserModel::factory()->admin()->create();
+        $this->actingAs($admin);
+        $this->app->make(ImpersonationServiceInterface::class)->start($admin, $this->ana, ImpersonationMode::ReadOnly);
+
+        $this->putJson($this->url($this->ana), ['hidden' => true, 'featured' => []])
+            ->assertForbidden()
+            ->assertJson(['error' => 'impersonation_read_only']);
+
         $this->assertDatabaseCount('achievements_preferences', 0);
     }
 

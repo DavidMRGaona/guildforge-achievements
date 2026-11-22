@@ -12,7 +12,7 @@ Un logro es una insignia que se consigue con lo que haces en {{site_name}}: juga
 
 ## Ver todos los logros
 
-En el menú, abre **Logros**. Ahí están todos los que se pueden conseguir, con lo que pide cada uno y su **rareza**. Con la sesión iniciada, también ves cuáles tienes.
+En el menú, abre **Logros**. Ahí están los que se pueden conseguir ahora, con su descripción y su **rareza**. Con la sesión iniciada, también ves cuáles tienes, aunque ya no se puedan conseguir.
 
 Algunos son **secretos**: salen como «Logro secreto», sin nombre ni descripción, hasta que los consigues.
 
@@ -26,7 +26,7 @@ Quién ve tu perfil lo decides en **Editar perfil**. Tus logros solo los ve quie
 
 ## La rareza
 
-La rareza es la parte de la gente activa que tiene un logro: «Lo tiene el 4 % de la gente activa». Cuenta como activa quien ha participado en algo en los últimos doce meses. Se calcula cada noche y cada vez que alguien consigue un logro.
+La rareza es la parte de la gente activa que tiene un logro: «Lo tiene el 4 % de la gente activa». Cuenta como activa quien ha participado en algo en los últimos doce meses. Si llevas más de un año sin participar, tus logros salen sin rareza. Se calcula cada noche y cada vez que alguien consigue un logro.
 
 ## Destacar tres logros
 
@@ -42,6 +42,6 @@ Si destacas un logro secreto, lo enseñas a todo el mundo con su nombre.
 
 ## Ocultar tus logros
 
-En la sección **Logros** de tu perfil, apaga **Mostrar mis logros a los demás**. Desde ese momento solo los ves tú: desaparecen de tu perfil para los demás, junto con su número y los destacados junto a tu nombre. Puedes volver a encenderlo cuando quieras.
+En la sección **Logros** de tu perfil, apaga **Mostrar mis logros a los demás**. Desde ese momento solo los ves tú: desaparecen de tu perfil para los demás, junto con su número y los destacados junto a tu nombre. Puedes volver a encenderlo cuando quieras. Aunque los ocultes, tus logros siguen contando en la rareza, que solo da totales.
 
 Si no quieres la sección en tu perfil pero sí los destacados junto a tu nombre, quítala en **Editar perfil**: allí eliges qué secciones salen.

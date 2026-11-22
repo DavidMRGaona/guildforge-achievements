@@ -2,6 +2,7 @@ export default {
     achievements: {
         title: 'Achievements',
         rarity: {
+            nobody: 'No active person holds it yet',
             share: 'Held by {share} % of active people',
         },
         profile: {
@@ -26,6 +27,8 @@ export default {
             nowHidden: 'Only you see your achievements now.',
             nowShown: 'Your achievements show on your profile again.',
             saveFailed: 'It could not be saved. Try again.',
+            readOnly: 'Nothing is saved while the site is viewed as another person.',
+            tooMany: 'Too many changes in a row. Wait a moment and try again.',
             seeAll: 'See every achievement',
         },
         catalogue: {

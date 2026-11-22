@@ -7,12 +7,14 @@ namespace Modules\Achievements\Infrastructure\Profiles;
 use App\Application\Exceptions\NothingToDrawException;
 use App\Application\Profiles\Contracts\ProfileSectionInterface;
 use App\Application\Profiles\DTOs\ProfileOwnerDTO;
+use App\Application\Services\EmailVerificationPolicyInterface;
 use App\Domain\Profiles\ProfileRegion;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Modules\Achievements\Application\DTOs\ShowcaseItemDTO;
 use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\ValueObjects\AchievementPreferences;
+use Throwable;
 
 /**
  * «Logros» on the public profile (`achievements.badges`): what the owner got, with its date and
@@ -31,6 +33,7 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
         private AchievementShowcaseInterface $showcase,
         private AchievementsSettingsInterface $settings,
         private ShowcasePresenter $presenter,
+        private EmailVerificationPolicyInterface $verification,
     ) {}
 
     public function key(): string
@@ -89,7 +92,8 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
             throw NothingToDrawException::make();
         }
 
-        $preferences = $isOwner ? $this->showcase->preferences($owner->id) : null;
+        // An owner who must verify their email gets no controls, as the core's profile editor does
+        $preferences = $isOwner && ! $this->mustVerify($viewer) ? $this->showcase->preferences($owner->id) : null;
 
         return [
             'earned' => array_map($this->presenter->earned(...), $earned),
@@ -106,5 +110,21 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
                 'updateUrl' => route('achievements.profile.update', ['handle' => $owner->handle], absolute: false),
             ] : null,
         ];
+    }
+
+    /**
+     * Fails closed: a policy that throws counts as «must verify» (no controls).
+     */
+    private function mustVerify(?Authenticatable $viewer): bool
+    {
+        if (! $viewer instanceof Authenticatable) {
+            return true;
+        }
+
+        try {
+            return $this->verification->mustVerify($viewer);
+        } catch (Throwable) {
+            return true;
+        }
     }
 }

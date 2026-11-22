@@ -61,8 +61,26 @@ function share(rarity: number): string {
     return formatShare(rarity, locale.value);
 }
 
-function isChosen(id: string): boolean {
-    return chosen.value.includes(id);
+function isChosen(id: string | null): boolean {
+    return id !== null && chosen.value.includes(id);
+}
+
+/** What the server answered instead of the profile: shown, and the switch or star goes back */
+function refusal(response: { status?: number; data?: unknown } | undefined): string {
+    const data = response?.data;
+
+    if (
+        response?.status === 403 &&
+        typeof data === 'object' &&
+        data !== null &&
+        (data as Record<string, unknown>).error === 'impersonation_read_only'
+    ) {
+        return t('achievements.profile.readOnly');
+    }
+
+    return response?.status === 429
+        ? t('achievements.profile.tooMany')
+        : t('achievements.profile.saveFailed');
 }
 
 function save(next: { hidden: boolean; featured: string[] }, done: string): void {
@@ -75,27 +93,52 @@ function save(next: { hidden: boolean; featured: string[] }, done: string): void
     saving.value = true;
     status.value = '';
     error.value = '';
+    let saved = false;
 
     router.put(owner.updateUrl, next, {
         preserveScroll: true,
         onSuccess: () => {
+            saved = true;
             status.value = done;
         },
         onError: (errors: Record<string, string>) => {
-            chosen.value = [...owner.chosen];
-            hidden.value = owner.hidden;
             error.value = errors.featured ?? errors.hidden ?? t('achievements.profile.saveFailed');
+        },
+        // A refusal (read-only impersonation, too many requests, a lost profile) is told here, not
+        // in Inertia's error dialog
+        onHttpException: (response: { status?: number; data?: unknown }) => {
+            error.value = refusal(response);
+
+            return false;
+        },
+        onNetworkError: () => {
+            error.value = t('achievements.profile.saveFailed');
+
+            return false;
         },
         onFinish: () => {
             saving.value = false;
+
+            // Whatever went wrong, the switch and the stars show what is saved
+            if (!saved) {
+                chosen.value = [...owner.chosen];
+                hidden.value = owner.hidden;
+                error.value ||= t('achievements.profile.saveFailed');
+            }
         },
     });
 }
 
 function toggleFeatured(item: EarnedAchievement): void {
-    const featured = isChosen(item.id)
-        ? chosen.value.filter((id) => id !== item.id)
-        : [...chosen.value, item.id];
+    const id = item.id;
+
+    if (id === null || saving.value) {
+        return;
+    }
+
+    const featured = isChosen(id)
+        ? chosen.value.filter((chosenId) => chosenId !== id)
+        : [...chosen.value, id];
 
     if (featured.length > maxFeatured.value) {
         return;
@@ -104,13 +147,17 @@ function toggleFeatured(item: EarnedAchievement): void {
     chosen.value = featured;
     save(
         { hidden: hidden.value, featured },
-        isChosen(item.id)
+        isChosen(id)
             ? t('achievements.profile.featuredAdded', { name: item.name })
             : t('achievements.profile.featuredRemoved', { name: item.name })
     );
 }
 
 function toggleHidden(): void {
+    if (saving.value) {
+        return;
+    }
+
     hidden.value = !hidden.value;
     save(
         { hidden: hidden.value, featured: chosen.value },
@@ -199,8 +246,8 @@ function progressPercent(item: LockedAchievement): number {
             </h3>
             <ul class="grid gap-3 sm:grid-cols-2" role="list" data-test="earned">
                 <li
-                    v-for="item in earned"
-                    :key="item.id"
+                    v-for="(item, index) in earned"
+                    :key="item.id ?? `masked-${index}`"
                     class="flex min-w-0 gap-3 rounded-lg border border-[var(--color-border)] p-3"
                 >
                     <AchievementBadge
@@ -214,7 +261,7 @@ function progressPercent(item: LockedAchievement): number {
                                 {{ item.name }}
                             </p>
                             <button
-                                v-if="owner && !item.masked"
+                                v-if="owner && item.id !== null"
                                 type="button"
                                 class="-m-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-base-muted hover:text-primary-600 dark:hover:text-primary-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
                                 :aria-pressed="isChosen(item.id)"
@@ -275,8 +322,8 @@ function progressPercent(item: LockedAchievement): number {
             </h3>
             <ul class="grid gap-3 sm:grid-cols-2" role="list" data-test="locked">
                 <li
-                    v-for="item in locked"
-                    :key="item.id"
+                    v-for="(item, index) in locked"
+                    :key="item.id ?? `masked-${index}`"
                     class="flex min-w-0 gap-3 rounded-lg border border-dashed border-[var(--color-border-strong)] p-3"
                 >
                     <AchievementBadge

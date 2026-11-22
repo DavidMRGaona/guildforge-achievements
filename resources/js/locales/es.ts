@@ -2,6 +2,7 @@ export default {
     achievements: {
         title: 'Logros',
         rarity: {
+            nobody: 'Ninguna persona activa lo tiene todavía',
             share: 'Lo tiene el {share} % de la gente activa',
         },
         profile: {
@@ -25,6 +26,8 @@ export default {
             nowHidden: 'Tus logros ya solo los ves tú.',
             nowShown: 'Tus logros vuelven a verse en tu perfil.',
             saveFailed: 'No se ha podido guardar. Inténtalo de nuevo.',
+            readOnly: 'Mientras se mira la web como otra persona no se guarda nada.',
+            tooMany: 'Demasiados cambios seguidos. Espera un momento y vuelve a probar.',
             seeAll: 'Ver todos los logros',
         },
         catalogue: {

@@ -6,6 +6,7 @@ namespace Modules\Achievements\Tests\Feature\Profiles;
 
 use App\Application\Profiles\Services\ProfileSectionRegistryInterface;
 use App\Application\Profiles\Services\ProfileStatRegistryInterface;
+use App\Application\Services\EmailVerificationPolicyInterface;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
@@ -101,8 +102,9 @@ final class AchievementsProfileSectionTest extends ModuleTestCase
         $this->assertSame(['value' => 7, 'threshold' => 10], $props['locked'][0]['progress']);
         $this->assertTrue($props['locked'][1]['manual']);
         $this->assertNull($props['locked'][1]['progress']);
-        // A secret keeps its rule too: no progress that would hint at it
+        // A secret keeps its rule and its id too: nothing that would hint at it
         $this->assertTrue($props['locked'][2]['masked']);
+        $this->assertNull($props['locked'][2]['id']);
         $this->assertNull($props['locked'][2]['progress']);
         $this->assertSame((string) $ten->id, $props['locked'][0]['id']);
         $this->assertSame(['hidden' => false, 'chosen' => [], 'maxFeatured' => 3, 'updateUrl' => '/logros/miembros/'.$this->handleOf($this->ana)], $props['owner']);
@@ -150,12 +152,40 @@ final class AchievementsProfileSectionTest extends ModuleTestCase
         $owner = $this->achievementsSection($this->render($this->ana, $this->ana))?->props['earned'][0];
 
         foreach ([$other, $guest] as $masked) {
-            $this->assertSame(['Logro secreto', true, 'sparkles', null], [$masked['name'], $masked['masked'], $masked['icon'], $masked['rarity']]);
+            $this->assertSame(['Logro secreto', true, 'sparkles', null, null], [$masked['name'], $masked['masked'], $masked['icon'], $masked['rarity'], $masked['id']]);
+            $this->assertStringNotContainsString((string) $secret->id, (string) json_encode($masked));
             $this->assertStringNotContainsString('pasó', (string) json_encode($masked));
         }
 
         $this->assertSame(['El secreto', false], [$holder['name'], $holder['masked']]);
         $this->assertSame(['El secreto', false], [$owner['name'], $owner['masked']]);
+    }
+
+    public function test_an_owner_who_is_not_active_sees_no_share_of_zero(): void
+    {
+        $first = $this->achievement($this->countRule(), ['name' => 'Primera partida']);
+        $this->grantAt($this->ana, (string) $first->id);
+        $this->factAt($this->luis, '2026-10-01 18:00:00');
+        $this->refreshRarity();
+
+        foreach ([$this->ana, $this->luis] as $viewer) {
+            $this->assertSame([null], array_column($this->achievementsSection($this->render($this->ana, $viewer))?->props['earned'] ?? [], 'rarity'));
+        }
+    }
+
+    public function test_an_owner_who_must_verify_their_email_gets_no_controls(): void
+    {
+        $this->grantAt($this->ana, (string) $this->achievement($this->countRule())->id);
+        $policy = $this->createStub(EmailVerificationPolicyInterface::class);
+        $policy->method('mustVerify')->willReturn(true);
+        $this->app->instance(EmailVerificationPolicyInterface::class, $policy);
+
+        $props = $this->achievementsSection($this->render($this->ana, $this->ana))?->props;
+
+        $this->assertIsArray($props);
+        $this->assertArrayHasKey('owner', $props);
+        $this->assertNull($props['owner']);
+        $this->assertCount(1, $props['earned']);
     }
 
     public function test_a_secret_the_owner_features_shows_to_everybody(): void

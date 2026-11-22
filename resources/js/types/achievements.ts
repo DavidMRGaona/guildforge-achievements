@@ -1,6 +1,7 @@
 /** An achievement as the server sends it: never its rule, points or holders */
 export interface AchievementSummary {
-    id: string;
+    /** Null for a masked secret: its id would tell who else holds it */
+    id: string | null;
     name: string;
     description: string;
     /** One of the core's badge icons (`ProfileBadgeIcons::NAMES`) */

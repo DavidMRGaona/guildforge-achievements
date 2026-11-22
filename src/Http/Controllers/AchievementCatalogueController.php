@@ -12,19 +12,22 @@ use Inertia\Inertia;
 use Inertia\Response;
 use Modules\Achievements\Application\DTOs\AchievementRarityDTO;
 use Modules\Achievements\Application\DTOs\AchievementViewDTO;
-use Modules\Achievements\Application\Services\AchievementCatalogueInterface;
 use Modules\Achievements\Application\Services\AchievementRarityInterface;
+use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Infrastructure\Profiles\AchievementShowcase;
 use Modules\Achievements\Infrastructure\Profiles\ShowcasePresenter;
 
 /**
- * `/logros`: every achievement that can be shown, with how rare it is. A secret achievement the
- * person does not hold keeps its name, look and rarity to itself; nothing names who holds what.
+ * `/logros`: what the person holds and every achievement that can still be got, with how rare it
+ * is (the features follow the modules installed: an achievement without a source is not offered). A
+ * secret achievement the person does not hold keeps its name, look, id and rarity to itself;
+ * nothing names who holds what.
  */
 final class AchievementCatalogueController extends Controller
 {
     public function __construct(
-        private readonly AchievementCatalogueInterface $catalogue,
+        private readonly AchievementShowcaseInterface $showcase,
         private readonly AchievementRarityInterface $rarity,
         private readonly AchievementsSettingsInterface $settings,
         private readonly ShowcasePresenter $presenter,
@@ -41,8 +44,13 @@ final class AchievementCatalogueController extends Controller
         return Inertia::render('Achievements/Index', [
             'achievements' => array_map(fn (AchievementViewDTO $view): array => $this->presenter->achievement($view) + [
                 'held' => $view->held,
-                'rarity' => $view->masked ? null : $rarity?->shareOf($view->id),
-            ], $this->catalogue->forViewer($viewerId)),
+                // 0 of what the viewer holds only says they are not active: not shown
+                'rarity' => match (true) {
+                    $view->masked => null,
+                    $view->held => AchievementShowcase::knownShare($rarity?->shareOf($view->id)),
+                    default => $rarity?->shareOf($view->id),
+                },
+            ], $this->showcase->catalogueFor($viewerId)),
             'showsRarity' => $showsRarity && $rarity instanceof AchievementRarityDTO && $rarity->activePeople > 0,
             'signedIn' => $viewer !== null,
             'seo' => $this->seo->forPage(new SeoPageDTO(

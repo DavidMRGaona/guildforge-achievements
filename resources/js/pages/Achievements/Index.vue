@@ -59,8 +59,8 @@ const heldCount = computed(() => props.achievements.filter((item) => item.held).
             </p>
             <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="list" data-test="catalogue">
                 <li
-                    v-for="item in achievements"
-                    :key="item.id"
+                    v-for="(item, index) in achievements"
+                    :key="item.id ?? `masked-${index}`"
                     class="flex min-w-0 gap-4 rounded-lg bg-surface p-4 shadow dark:shadow-depth"
                     :class="item.held ? 'ring-2 ring-primary-500/60' : ''"
                 >
@@ -81,13 +81,16 @@ const heldCount = computed(() => props.achievements.filter((item) => item.held).
                         <p
                             class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-muted"
                         >
-                            <span v-if="showsRarity && item.rarity !== null">
-                                {{
-                                    t('achievements.rarity.share', {
-                                        share: formatShare(item.rarity, locale),
-                                    })
-                                }}
-                            </span>
+                            <template v-if="showsRarity && item.rarity !== null">
+                                <span v-if="item.rarity > 0">
+                                    {{
+                                        t('achievements.rarity.share', {
+                                            share: formatShare(item.rarity, locale),
+                                        })
+                                    }}
+                                </span>
+                                <span v-else>{{ t('achievements.rarity.nobody') }}</span>
+                            </template>
                             <span
                                 v-if="item.held"
                                 class="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2 py-0.5 font-medium text-primary-800 dark:bg-primary-900 dark:text-primary-100"

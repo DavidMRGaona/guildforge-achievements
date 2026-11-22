@@ -26,7 +26,9 @@ describe('Achievements/Index', () => {
             props: {
                 achievements: [
                     achievement(),
-                    achievement({ id: 's', name: 'Logro secreto', masked: true, rarity: null }),
+                    achievement({ id: null, name: 'Logro secreto', masked: true, rarity: null }),
+                    achievement({ id: 'c', name: 'Común', rarity: 0 }),
+                    achievement({ id: 'r', name: 'Rarísimo', rarity: 0.04 }),
                 ],
                 showsRarity: true,
             },
@@ -34,10 +36,12 @@ describe('Achievements/Index', () => {
         });
 
         const items = wrapper.findAll('[data-test="catalogue"] li');
-        expect(items).toHaveLength(2);
+        expect(items).toHaveLength(4);
         expect(items[0]?.text()).toContain('Lo tiene el 50 % de la gente activa');
         expect(items[1]?.text()).toContain('Logro secreto');
         expect(items[1]?.text()).not.toContain('gente activa');
+        expect(items[2]?.text()).toContain('Ninguna persona activa lo tiene todavía');
+        expect(items[3]?.text()).toContain('Lo tiene el < 0,1 % de la gente activa');
     });
 
     it('marks what the signed-in person holds', () => {

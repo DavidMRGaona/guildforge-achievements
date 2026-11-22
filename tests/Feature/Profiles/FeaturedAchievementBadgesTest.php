@@ -62,6 +62,28 @@ final class FeaturedAchievementBadgesTest extends ModuleTestCase
         $this->assertSame([$rare, $uncommon, $fairly], array_map(static fn (string $key): string => substr($key, 13), $this->keys($this->ana)));
     }
 
+    public function test_a_share_of_zero_counts_as_unknown_and_goes_last(): void
+    {
+        // Ana is not active; Luis and Marta are
+        $marta = $this->person('Marta');
+        $this->factAt($this->luis, '2026-10-01 18:00:00');
+        $this->factAt($marta, '2026-10-01 18:00:00');
+        $half = (string) $this->achievement($this->countRule(), ['name' => 'La mitad'])->id;
+        $everybody = (string) $this->achievement($this->countRule(), ['name' => 'Todo el mundo'])->id;
+        $onlyAna = (string) $this->achievement(['version' => 1, 'metric' => 'manual'], ['name' => 'Solo Ana'])->id;
+
+        foreach ([$half, $everybody, $onlyAna] as $id) {
+            $this->grantAt($this->ana, $id, '2026-11-20 18:00:00');
+        }
+
+        $this->grantAt($this->luis, $half);
+        $this->grantAt($this->luis, $everybody);
+        $this->grantAt($marta, $everybody);
+        $this->refreshRarity();
+
+        $this->assertSame(['La mitad', 'Todo el mundo', 'Solo Ana'], $this->labels($this->ana));
+    }
+
     public function test_the_owners_choice_wins_in_their_order(): void
     {
         $first = $this->held('Primera');

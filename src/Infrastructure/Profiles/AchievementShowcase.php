@@ -9,6 +9,8 @@ use App\Domain\Activity\ActivityIdentifierRule;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\Date;
 use Modules\Achievements\Application\DTOs\AchievementRarityDTO;
+use Modules\Achievements\Application\DTOs\AchievementsSettings;
+use Modules\Achievements\Application\DTOs\AchievementViewDTO;
 use Modules\Achievements\Application\DTOs\ShowcaseItemDTO;
 use Modules\Achievements\Application\Enums\AchievementStatus;
 use Modules\Achievements\Application\Services\AchievementCatalogueInterface;
@@ -97,7 +99,8 @@ final class AchievementShowcase implements AchievementShowcaseInterface
             $items[] = new ShowcaseItemDTO(
                 achievement: $this->presenter->present($achievement, $revealed),
                 grantedAt: $grant->grantedAt,
-                rarity: $revealed ? $rarity?->shareOf($achievementId) : null,
+                // Held by the owner, so a share of 0 only says they are not active: not shown
+                rarity: $revealed ? self::knownShare($rarity?->shareOf($achievementId)) : null,
                 featured: $revealed && in_array($achievementId, $featured, true),
             );
         }
@@ -125,12 +128,11 @@ final class AchievementShowcase implements AchievementShowcaseInterface
                 continue;
             }
 
-            $status = $this->status->status($achievement, $settings, $kindsWithSource);
-
-            if ($status !== AchievementStatus::Evaluated && $status !== AchievementStatus::Manual) {
-                // It cannot be got now: no source, its kind or the secrets switched off, a broken rule
+            if (! $this->canBeGot($achievement, $settings, $kindsWithSource)) {
                 continue;
             }
+
+            $status = $this->status->status($achievement, $settings, $kindsWithSource);
 
             $candidates[] = [$achievement, $status];
             $kind = $achievement->rule?->evaluatedKind();
@@ -175,6 +177,33 @@ final class AchievementShowcase implements AchievementShowcaseInterface
         ]);
 
         return $items;
+    }
+
+    public function catalogueFor(?string $viewerId): array
+    {
+        $viewerId = $viewerId === null ? null : ActivityIdentifierRule::userId($viewerId);
+        $held = $viewerId === null ? [] : $this->heldBy($viewerId);
+        $settings = $this->settings->settings();
+        $kindsWithSource = $this->metrics->kindsWithSource();
+        $views = [];
+
+        foreach ($this->catalogue() as $id => $achievement) {
+            if (isset($held[$id])) {
+                $views[] = $this->presenter->present($achievement, true);
+
+                continue;
+            }
+
+            if ($achievement->active && $this->canBeGot($achievement, $settings, $kindsWithSource)) {
+                $views[] = $this->presenter->present($achievement, false);
+            }
+        }
+
+        // By the name shown, then id: the catalogue's order (by the real name) would tell where a
+        // masked one falls
+        usort($views, static fn (AchievementViewDTO $a, AchievementViewDTO $b): int => [mb_strtolower($a->name), $a->id] <=> [mb_strtolower($b->name), $b->id]);
+
+        return $views;
     }
 
     public function heldCount(string $ownerId): int
@@ -245,13 +274,27 @@ final class AchievementShowcase implements AchievementShowcaseInterface
             $achievement = $catalogue[$id] ?? null;
 
             if ($achievement instanceof Achievement && ! $achievement->secret) {
-                $candidates[] = [$rarity?->shareOf($id) ?? 100.0, -$grant->grantedAt->getTimestamp(), $id];
+                // An unknown share (rarity off, or 0: nobody active holds it) goes after every known one
+                $candidates[] = [self::knownShare($rarity?->shareOf($id)) ?? 101.0, -$grant->grantedAt->getTimestamp(), $id];
             }
         }
 
         sort($candidates);
 
         return array_map(static fn (array $candidate): string => $candidate[2], array_slice($candidates, 0, AchievementPreferences::MAX_FEATURED));
+    }
+
+    /**
+     * Whether an achievement can be got now, automatically or by hand: not without a source, of a
+     * kind switched off, secret while secrets are off, inactive or with a broken rule.
+     *
+     * @param  array<string, true>  $kindsWithSource
+     */
+    private function canBeGot(Achievement $achievement, AchievementsSettings $settings, array $kindsWithSource): bool
+    {
+        $status = $this->status->status($achievement, $settings, $kindsWithSource);
+
+        return $status === AchievementStatus::Evaluated || $status === AchievementStatus::Manual;
     }
 
     /**
@@ -303,6 +346,15 @@ final class AchievementShowcase implements AchievementShowcaseInterface
     private function isOwner(string $ownerId, ?string $viewerId): bool
     {
         return $viewerId !== null && strtolower($viewerId) === strtolower($ownerId);
+    }
+
+    /**
+     * A share worth showing for something somebody holds: 0 only means no active person holds it,
+     * which is never true of an achievement someone is looking at as theirs.
+     */
+    public static function knownShare(?float $share): ?float
+    {
+        return $share === null || $share <= 0.0 ? null : $share;
     }
 
     /**

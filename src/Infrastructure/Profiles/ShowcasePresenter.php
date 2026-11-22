@@ -20,12 +20,15 @@ final readonly class ShowcasePresenter
     ) {}
 
     /**
-     * @return array{id: string, name: string, description: string, icon: string, colour: string, imageUrl: string|null, masked: bool}
+     * A masked secret carries no id: one revealed elsewhere (a featured badge) would tell who else
+     * holds the same secret. Masked items cannot be featured, so nothing needs it.
+     *
+     * @return array{id: string|null, name: string, description: string, icon: string, colour: string, imageUrl: string|null, masked: bool}
      */
     public function achievement(AchievementViewDTO $view): array
     {
         return [
-            'id' => $view->id,
+            'id' => $view->masked ? null : $view->id,
             'name' => $view->name,
             'description' => $view->description,
             'icon' => $view->icon,

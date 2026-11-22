@@ -11,6 +11,7 @@ use App\Application\Modules\DTOs\PermissionDTO;
 use App\Application\Profiles\Contracts\ProfileBadgeSourceInterface;
 use App\Application\Profiles\Contracts\ProfileSectionInterface;
 use App\Application\Profiles\Contracts\ProfileStatInterface;
+use App\Application\Services\TimezoneServiceInterface;
 use App\Domain\Activity\Events\ActivityRecorded;
 use App\Domain\Events\UserAnonymized;
 use App\Domain\Modules\Events\ModuleEnabled;
@@ -189,8 +190,10 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
             $schedule->job(new EvaluateAchievementsJob(silent: false, onlyAccountYears: true))
                 ->daily()
                 ->name('achievements:account-years');
+            // At night where people are: the display zone, not the server's
             $schedule->job(new RefreshAchievementRarityJob)
                 ->dailyAt('03:30')
+                ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
                 ->name('achievements:rarity');
         });
     }

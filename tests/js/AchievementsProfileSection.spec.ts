@@ -161,10 +161,61 @@ describe('AchievementsProfileSection', () => {
         expect(wrapper.find('[data-test="feature"]').attributes('aria-pressed')).toBe('false');
     });
 
+    it('puts the choice back and explains a read-only impersonation', async () => {
+        vi.mocked(router.put).mockImplementation((_url, _data, options) => {
+            options?.onHttpException?.({
+                status: 403,
+                data: { error: 'impersonation_read_only' },
+            } as never);
+            options?.onFinish?.({} as never);
+        });
+        const wrapper = mount(AchievementsProfileSection, {
+            props: { earned: [earned()], catalogueUrl: '/logros', owner },
+        });
+
+        await wrapper.find('[data-test="visibility-switch"]').trigger('click');
+
+        expect(wrapper.find('[role="alert"]').text()).toBe(
+            'Mientras se mira la web como otra persona no se guarda nada.'
+        );
+        expect(wrapper.find('[data-test="visibility-switch"]').attributes('aria-checked')).toBe(
+            'true'
+        );
+    });
+
+    it('puts the choice back when the server answers something else', async () => {
+        vi.mocked(router.put).mockImplementation((_url, _data, options) => {
+            options?.onHttpException?.({ status: 429, data: {} } as never);
+            options?.onFinish?.({} as never);
+        });
+        const wrapper = mount(AchievementsProfileSection, {
+            props: { earned: [earned()], catalogueUrl: '/logros', owner },
+        });
+
+        await wrapper.find('[data-test="feature"]').trigger('click');
+
+        expect(wrapper.find('[role="alert"]').text()).toContain('Demasiados cambios seguidos');
+        expect(wrapper.find('[data-test="feature"]').attributes('aria-pressed')).toBe('false');
+    });
+
+    it('ignores the switch while a change is being saved', async () => {
+        vi.mocked(router.put).mockImplementation(() => undefined);
+        const wrapper = mount(AchievementsProfileSection, {
+            props: { earned: [earned()], catalogueUrl: '/logros', owner },
+        });
+        const toggle = wrapper.find('[data-test="visibility-switch"]');
+
+        await toggle.trigger('click');
+        await toggle.trigger('click');
+
+        expect(router.put).toHaveBeenCalledTimes(1);
+        expect(toggle.attributes('aria-checked')).toBe('false');
+    });
+
     it('offers no star on a masked secret', () => {
         const wrapper = mount(AchievementsProfileSection, {
             props: {
-                earned: [earned({ name: 'Logro secreto', masked: true, rarity: null })],
+                earned: [earned({ id: null, name: 'Logro secreto', masked: true, rarity: null })],
                 catalogueUrl: '/logros',
                 owner,
             },

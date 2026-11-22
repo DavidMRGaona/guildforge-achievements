@@ -46,6 +46,16 @@ interface AchievementShowcaseInterface
     public function locked(string $ownerId): array;
 
     /**
+     * The catalogue for `/logros`: what the viewer holds (whatever its state now), plus every
+     * active achievement that can still be got, automatically or by hand. Left out: those without a
+     * source, of a kind switched off, secret while secrets are off, or with a broken rule. Secret
+     * ones the viewer does not hold come masked; sorted by the name shown, then id.
+     *
+     * @return list<AchievementViewDTO>
+     */
+    public function catalogueFor(?string $viewerId): array;
+
+    /**
      * How many achievements the owner holds.
      */
     public function heldCount(string $ownerId): int;
