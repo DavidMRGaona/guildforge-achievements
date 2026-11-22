@@ -68,7 +68,7 @@ Solo una persona con permiso para conceder logros puede retirar uno, a mano y co
 
 ## Lo que ve la gente
 
-Cada persona ve sus logros en la sección **Logros** de su perfil público, con su fecha y su **rareza**, y quien puede ver ese perfil los ve también. Solo el dueño ve los que le faltan y cuánto lleva («7 de 10»), mientras **Progreso visible** esté encendido en los ajustes. Hasta tres logros destacados salen junto a su nombre, en su perfil, en su tarjeta y en el foro: los que marque con la estrella o, si no elige, sus tres más raros. Cada persona puede ocultar sus logros a los demás desde su sección.
+Cada persona ve sus logros en la sección **Logros** de su perfil público, con el día en que los consiguió y su **rareza**, y quien puede ver ese perfil los ve también, con la rareza y solo el mes y el año. Solo el dueño ve los que le faltan y cuánto lleva («7 de 10»), mientras **Progreso visible** esté encendido en los ajustes. Hasta tres logros destacados salen junto a su nombre, en su perfil, en su tarjeta y en el foro: los que marque con la estrella o, si no elige, sus tres más raros. Cada persona puede ocultar sus logros a los demás desde su sección.
 
 La **rareza** es la parte de la gente activa que tiene un logro: cuentas que han participado en algo en los últimos doce meses, sin las desactivadas ni las anonimizadas. Se calcula cada noche y cada vez que se concede un logro. Con **Rareza** apagada en los ajustes no se enseña en ningún sitio.
 

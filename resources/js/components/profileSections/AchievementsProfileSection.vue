@@ -9,10 +9,11 @@ import { formatShare } from '../../utils/badgeLook';
 import type { EarnedAchievement, LockedAchievement, ShowcaseOwner } from '../../types/achievements';
 
 /**
- * «Logros» (`achievements.badges`) on a public profile: what the owner got, newest first, with its
- * date and rarity. The owner also sees what is left with their progress, stars up to three to
- * feature them under their name, and may hide them from everybody else. The card and its title are
- * the core's; the server already left out what this viewer may not see.
+ * «Logros» (`achievements.badges`) on a public profile: what the owner got, with its rarity. The
+ * owner gets it newest first with the day; anybody else by month and name with the month alone
+ * (the server trims it). The owner also sees what is left with their progress, stars up to three
+ * to feature them under their name, and may hide them from everybody else. The card and its title
+ * are the core's; the server already left out what this viewer may not see.
  */
 interface Props {
     earned: EarnedAchievement[];
@@ -51,6 +52,7 @@ watch(
 const maxFeatured = computed(() => props.owner?.maxFeatured ?? 3);
 const full = computed(() => chosen.value.length >= maxFeatured.value);
 
+// VENUE_TIMEZONE is the display zone: the core reads it from the server's `display-timezone` meta
 function formatDay(iso: string): string {
     return new Date(iso).toLocaleDateString(locale.value, {
         timeZone: VENUE_TIMEZONE,
