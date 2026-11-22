@@ -146,7 +146,7 @@ final class PointsAndLevelsTest extends ModuleTestCase
             ->assertStatus(303);
 
         $choices = app(AchievementPreferencesRepositoryInterface::class)->find((string) $this->ana->id);
-        $this->assertFalse($choices->leaderboard);
+        $this->assertFalse($choices->inLeaderboard);
 
         // Leaving it out keeps it as it was
         $this->actingAs($this->ana)
@@ -154,7 +154,7 @@ final class PointsAndLevelsTest extends ModuleTestCase
             ->assertStatus(303);
 
         $choices = app(AchievementPreferencesRepositoryInterface::class)->find((string) $this->ana->id);
-        $this->assertFalse($choices->leaderboard);
+        $this->assertFalse($choices->inLeaderboard);
         $this->assertTrue($choices->hidden);
     }
 

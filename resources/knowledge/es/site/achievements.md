@@ -1,11 +1,11 @@
 ---
 id: achievements.site.achievements
 title: Tus logros
-summary: Qué son los logros, cómo se consiguen, qué es la rareza, los puntos, los niveles y la clasificación, cómo destacar tres junto a tu nombre y cómo ocultarlos.
+summary: Qué son los logros, cómo se consiguen, qué es la rareza, los puntos, los niveles y la clasificación, cómo destacar tres junto a tu nombre, cómo ocultarlos y qué avisos llegan.
 category: community
 audience: site
 order: 40
-keywords: [logros, insignias, medallas, trofeos, conseguir, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, destacar, destacados, estrella, junto a mi nombre, foro, tarjeta, perfil, ocultar, privacidad, catálogo, puntos, nivel, niveles, clasificación, ranking, puesto, temporada, salir de la clasificación]
+keywords: [logros, insignias, medallas, trofeos, conseguir, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, destacar, destacados, estrella, junto a mi nombre, foro, tarjeta, perfil, ocultar, privacidad, catálogo, aviso, avisos, campana, anunciar, anuncio, logros raros, clasificación, ajustes de la cuenta, puntos, nivel, niveles, ranking, puesto, temporada, salir de la clasificación]
 related: [core.site.public-profile]
 ---
 Un logro es una insignia que se consigue con lo que haces en {{site_name}}: jugar o dirigir partidas, probar sistemas distintos, ir a eventos, participar en torneos, cumplir años en la web… Se concede solo, en cuanto cumples lo que pide, y no se pierde nunca: aunque una partida deje de contar, lo conseguido se queda.
@@ -46,6 +46,27 @@ En la sección **Logros** de tu perfil, apaga **Mostrar mis logros a los demás*
 
 Si no quieres la sección en tu perfil pero sí los destacados junto a tu nombre, quítala en **Editar perfil**: allí eliges qué secciones salen.
 
+## Avisos de logros
+
+Cuando consigues un logro, te llega un aviso a la campana: «Has conseguido «Diez partidas»». Si consigues varios a la vez, llegan juntos en un solo aviso. No llegan correos.
+
+No hay aviso de lo que ya tenías ganado antes de que existiera el logro, ni de lo que la asociación concede en lote sin aviso.
+
+Puedes apagar estos avisos en **Ajustes de la cuenta → Avisos**, en **Logros que consigo**.
+
+## Anunciar tus logros raros
+
+Si quieres, la gente que puede ver tu perfil recibe un aviso cuando consigues un logro raro, que tiene poca gente activa (menos del 10 %, o lo que decida la asociación), o el logro de un reto: «Ana ha conseguido «Maestro de campañas»». Viene apagado.
+
+Para encenderlo:
+
+1. Abre **Ajustes de la cuenta** y entra en la pestaña **Logros**.
+2. Enciende **Anunciar mis logros raros**. Se guarda al momento.
+
+El anuncio solo dice el nombre del logro: nunca en qué mesa, sesión o evento estuviste. Solo llega a quien puede ver tu perfil en ese momento. Un logro secreto solo se nombra a quien también lo tiene, o si lo has destacado; a los demás les llega «Ana ha conseguido un logro secreto». Lo que la asociación concede en lote no se anuncia nunca. Si ocultas tus logros, no se anuncia ninguno.
+
+Cada persona elige si recibe estos anuncios en **Ajustes de la cuenta → Avisos**, en **Logros poco comunes de otras personas**.
+
 ## Puntos y niveles
 
 Si la asociación los ha encendido, cada logro da unos **puntos**, que ves en su ficha en **Logros**. Tus puntos son la suma de los de todos tus logros, secretos incluidos: el total no dice cuáles son. En tu perfil salen tus puntos desde siempre y los de la **temporada** en curso, que es el año natural.
@@ -60,9 +81,4 @@ En **Logros**, con la sesión iniciada, **Ver la clasificación** enseña quién
 
 En la clasificación solo salen los perfiles que tú puedes ver, con su nombre público, y tu puesto se cuenta solo entre ellos. No salen las cuentas desactivadas o anonimizadas, las que no tienen nombre público, quien oculta sus logros ni quien ha elegido no salir.
 
-Para no salir:
-
-1. Abre tu perfil público.
-2. En la sección **Logros**, apaga **Aparecer en la clasificación**. Se guarda al momento.
-
-Puedes volver a encenderlo cuando quieras. Si ocultas tus logros, tampoco sales en la clasificación.
+Apareces en ella salvo que no quieras. Para salir, apaga **Aparecer en la clasificación** en **Ajustes de la cuenta → Logros** o en la sección **Logros** de tu perfil público: es el mismo ajuste y se guarda al momento. Puedes volver a encenderlo cuando quieras. Si ocultas tus logros, tampoco sales en la clasificación.

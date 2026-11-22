@@ -140,7 +140,7 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
             )),
             'maxFeatured' => AchievementPreferences::MAX_FEATURED,
             'updateUrl' => route('achievements.profile.update', ['handle' => $owner->handle], absolute: false),
-        ] + ($this->settings->leaderboardShown() ? ['leaderboard' => $preferences->leaderboard] : []);
+        ] + ($this->settings->leaderboardShown() ? ['leaderboard' => $preferences->inLeaderboard] : []);
     }
 
     /**

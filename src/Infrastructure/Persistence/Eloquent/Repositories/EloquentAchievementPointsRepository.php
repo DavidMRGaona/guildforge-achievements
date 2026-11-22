@@ -56,7 +56,7 @@ final readonly class EloquentAchievementPointsRepository implements AchievementP
             ->whereNull('users.anonymized_at')
             // No row means nothing chosen: shown, and in the leaderboard
             ->where(static fn (Builder $query): Builder => $query->whereNull('preferences.user_id')->orWhere(
-                static fn (Builder $chosen): Builder => $chosen->where('preferences.hidden', false)->where('preferences.leaderboard', true),
+                static fn (Builder $chosen): Builder => $chosen->where('preferences.hidden', false)->where('preferences.in_leaderboard', true),
             ))
             ->groupBy('achievements_grants.user_id')
             ->havingRaw('sum(achievements_catalogue.points) > 0')

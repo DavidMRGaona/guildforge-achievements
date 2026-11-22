@@ -39,6 +39,25 @@ export default {
             leaderboardOut: 'Ya no apareces en la clasificación.',
             seeAll: 'Ver todos los logros',
         },
+        account: {
+            tabLabel: 'Logros',
+            title: 'Logros',
+            announceRare: {
+                label: 'Anunciar mis logros raros',
+                help: 'Quien puede ver tu perfil recibe un aviso cuando consigues un logro que tiene menos del {threshold} % de la gente activa o el de un reto. Solo se dice el nombre del logro.',
+                hidden: 'Ahora mismo tus logros están ocultos: no se anuncia ninguno.',
+                on: 'Tus logros raros se anunciarán.',
+                off: 'Tus logros ya no se anuncian.',
+            },
+            inLeaderboard: {
+                label: 'Aparecer en la clasificación',
+                help: 'Tu nombre y tus puntos salen en la clasificación de logros, que solo ve la gente con sesión iniciada que puede ver tu perfil.',
+                on: 'Apareces en la clasificación.',
+                off: 'Ya no apareces en la clasificación.',
+            },
+            notices: 'Los avisos de logros de la campana se eligen en',
+            noticesLink: 'Avisos',
+        },
         catalogue: {
             title: 'Logros',
             subtitle:

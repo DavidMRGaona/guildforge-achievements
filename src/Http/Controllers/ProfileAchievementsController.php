@@ -24,7 +24,7 @@ final class ProfileAchievementsController extends Controller
         $choices = $preferences->find($request->ownerId())->with($request->hidden(), $request->featuredIds());
         $appears = $request->leaderboard();
 
-        $preferences->save($appears === null ? $choices : $choices->withLeaderboard($appears));
+        $preferences->save($appears === null ? $choices : $choices->withChoices(announceRare: $choices->announceRare, inLeaderboard: $appears));
         // Choices are read again on every request; this only lets someone who came back appear at once
         $leaderboard->forget();
 

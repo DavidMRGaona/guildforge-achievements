@@ -11,7 +11,7 @@ El core rechaza el módulo si no se cumplen (`module.json` → `requires`).
 
 ## Qué hace
 
-Un catálogo de logros que se conceden solos con lo que cada persona hace en la asociación, a partir del registro de actividad, o a mano y en lote desde el panel, con su historial, y que se ven en el perfil público, junto al nombre (perfil, tarjeta y foro) y en la página `/logros`. Cada mecánica restante (avisos, temporadas, retos…) llega con su propia issue.
+Un catálogo de logros que se conceden solos con lo que cada persona hace en la asociación, a partir del registro de actividad, o a mano y en lote desde el panel, con su historial, y que se ven en el perfil público, junto al nombre (perfil, tarjeta y foro) y en la página `/logros`. Avisa en la campana de lo que cada persona consigue y, si la persona quiere, anuncia sus logros raros a quien puede ver su perfil; sus elecciones están en la pestaña «Logros» de los ajustes de la cuenta. Cada mecánica restante (temporadas, retos…) llega con su propia issue.
 
 ## Registro de actividad
 
@@ -141,7 +141,7 @@ El perfil lo dibuja el core, y solo después de que su regla de acceso (`Profile
   3. Fuera quien no tiene nombre público, también para sí: nadie sale con el nombre de la cuenta. Las elecciones se leen de nuevo en cada petición, así que ocultar los logros o salir de la clasificación se nota al momento.
   4. Los puestos se cuentan entre lo que queda, con empates («1, 2, 2, 4»): un hueco nunca delata a alguien que quien mira no puede ver. 25 por página; la fila de quien mira se envía aparte si está en otra página, y si no sale se le dice por qué (solo de sí).
   Si algo falla, la página no enseña a nadie (`available: false`) y se avisa una vez al día.
-- **Salir de la clasificación.** `achievements_preferences.leaderboard` (por defecto, salir). El dueño lo cambia desde su sección, en la misma ruta de sus elecciones (`leaderboard`, opcional); la pestaña «Logros» de la cuenta (#6) guarda la misma columna.
+- **Salir de la clasificación.** `achievements_preferences.in_leaderboard` (#6; por defecto, salir). Se cambia en la pestaña «Logros» de la cuenta y también desde la sección del perfil, en la misma ruta de las elecciones del dueño (`leaderboard`, opcional).
 
 ### Rareza
 
@@ -152,6 +152,35 @@ La parte de la gente activa que tiene cada logro. Gente activa: cuentas con al m
 ### Página `/logros`
 
 `achievements.index`, para todo el mundo: los logros que se pueden conseguir ahora (estado *Activo* o *Solo a mano*, con `AchievementStatusRule`), con la rareza de cada uno y los secretos ocultos, más los que la persona ya tiene, aunque ya no se puedan conseguir. Con **Puntos** encendido, cada logro lleva sus puntos (un secreto enmascarado, no); con la clasificación encendida, quien tiene sesión ve el enlace a ella. Las funciones siguen a los módulos instalados: un logro sin fuente no se ofrece. Al habilitar el módulo por primera vez, `AchievementsMenuLinkSeeder` añade «Logros» al final del menú de la cabecera, como enlace del módulo: se mueve o se borra en *Sitio web → Navegación* y no vuelve.
+
+## Avisos y anuncios
+
+Dos categorías de avisos, solo en la campana (nunca por correo, así que no hay resumen diario), opcionales y encendidas por defecto; cada persona las apaga en *Ajustes de la cuenta → Avisos* (`AchievementNoticeCategories`, icono `trophy`):
+
+- **`achievements.earned`** («Has conseguido…»): al dueño, de lo que acaba de conseguir. Sus propios logros, así que los secretos van con su nombre.
+- **`achievements.announcements`** («Ana ha conseguido…»): los logros raros y los de retos de otra persona.
+
+**Cuándo.** `QueueAchievementNotice` escucha `AchievementGranted` (en cola, tras el commit). Una concesión silenciosa no avisa nunca: un recálculo, lo que ya se cumplía antes (`AnnouncementWindow`) o un lote marcado «en silencio». Las demás se apuntan en `achievements_pending_notices` (una fila por concesión, que se va con ella si se retira o se anonimiza la cuenta) y encolan `DeliverAchievementNoticesJob` un minuto después (`DELAY_SECONDS`), único por persona mientras espera. Ese job se lleva todas las concesiones pendientes de la persona de una vez y manda un solo aviso: una evaluación que concede cientos da un aviso («Has conseguido 120 logros», con tres nombres y «y 117 más»). Repetirlo no avisa dos veces. Los avisos agrupados de la campana se juntan en una fila mientras no se leen, y a las notificaciones del navegador solo les llega el id del aviso, como a todos los del core.
+
+**Anuncios** (`AnnouncementRule`). Se decide al repartir, y falla cerrado:
+
+- el interruptor **Anuncios de logros raros** encendido, con los ajustes leídos con `readStrictly()`;
+- el dueño lo ha pedido (`achievements_preferences.announce_rare`, apagado por defecto) y no oculta sus logros;
+- cada concesión es de un reto (`GrantSource::Challenge`) o de un logro que tiene **menos** gente activa que el umbral (`AchievementRarityInterface::current()`; con la rareza desconocida no se anuncia);
+- nunca un lote: dice quién participó en una cosa, y eso los demás solo lo ven como totales.
+
+Se reparte en tandas de 100 cuentas (`DeliverAchievementAnnouncementsJob`, directo al canal de la campana del core, como las noticias del sitio), sin el dueño ni las cuentas anonimizadas. Al entregar cada aviso se vuelve a mirar todo lo anterior y, además, si quien lo recibe puede ver el perfil del dueño (`PublicProfileServiceInterface::findByHandle()`, la regla de la página del perfil). Un logro secreto solo se nombra a quien también lo tiene, o si el dueño lo ha destacado; a los demás se les cuenta («un logro secreto»). El aviso dice solo el nombre del logro y enlaza al perfil: nunca la mesa, la sesión o el evento.
+
+El módulo no depende del módulo de anuncios: todo va por los contratos de avisos del core (`HasMailCategory`, `HasSiteNotification`).
+
+## Pestaña «Logros» de la cuenta
+
+`/perfil?tab=achievements`, en el hueco `profile-sections` con `profileTab` (`AccountAchievementsTab`, props compartidas `achievementsAccount` y `achievementsAccountVisible`, solo en `profile.show`):
+
+- **Anunciar mis logros raros** (`announce_rare`, apagado), mientras **Anuncios de logros raros** esté encendido;
+- **Aparecer en la clasificación** (`in_leaderboard`, encendido), mientras **Clasificación** esté encendida; la usa la clasificación (#10).
+
+Sin ninguna de las dos, o mientras la persona deba verificar su correo, no hay pestaña. Cada interruptor se guarda al momento con `PUT /logros/preferencias` (`achievements.account.update`, `auth`, mismo límite que la sección del perfil); una elección cuya mecánica está apagada se queda como estaba, y lo que eligió en la sección del perfil (ocultar, destacados) no cambia. Una impersonación de solo lectura no guarda nada.
 
 ## Catálogo inicial
 

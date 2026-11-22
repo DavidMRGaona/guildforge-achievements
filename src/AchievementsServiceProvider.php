@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Modules\Achievements;
 
+use App\Application\Mail\DTOs\MailCategoryDTO;
 use App\Application\Media\Contracts\MediaUsageSourceInterface;
 use App\Application\Modules\DTOs\ModuleRouteDTO;
 use App\Application\Modules\DTOs\PagePrefixDTO;
 use App\Application\Modules\DTOs\PermissionDTO;
+use App\Application\Modules\DTOs\SlotRegistrationDTO;
 use App\Application\Profiles\Contracts\ProfileBadgeSourceInterface;
 use App\Application\Profiles\Contracts\ProfileSectionInterface;
 use App\Application\Profiles\Contracts\ProfileStatInterface;
@@ -28,6 +30,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
+use Inertia\Inertia;
 use Livewire\Livewire;
 use Modules\Achievements\Application\Services\AchievementCatalogueInterface;
 use Modules\Achievements\Application\Services\AchievementEvaluatorInterface;
@@ -51,6 +54,7 @@ use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface
 use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\PendingAchievementNoticeRepositoryInterface;
 use Modules\Achievements\Filament\Livewire\AccountAchievements;
 use Modules\Achievements\Filament\Livewire\AccountGrantLog;
 use Modules\Achievements\Filament\Media\AchievementBadgeImageMediaSource;
@@ -72,6 +76,8 @@ use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\Eloque
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementPreferencesRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementRepository;
 use Modules\Achievements\Infrastructure\Points\AchievementPoints;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentPendingAchievementNoticeRepository;
+use Modules\Achievements\Infrastructure\Profiles\AccountAchievementsTab;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsCountProfileStat;
 use Modules\Achievements\Infrastructure\Profiles\AchievementShowcase;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsLevelProfileStat;
@@ -89,8 +95,10 @@ use Modules\Achievements\Listeners\ForgetAnonymizedAccountFacts;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountGrants;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountPreferences;
 use Modules\Achievements\Listeners\ForgetLeaderboardStandings;
+use Modules\Achievements\Listeners\QueueAchievementNotice;
 use Modules\Achievements\Listeners\RecordActivityFacts;
 use Modules\Achievements\Listeners\RefreshRarityAfterGrant;
+use Modules\Achievements\Notifications\AchievementNoticeCategories;
 use Modules\Achievements\Policies\AchievementPolicy;
 
 /**
@@ -106,6 +114,13 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
     private const int PROFILE_CHOICES_PER_MINUTE = 20;
 
     private const int PROFILE_CHOICES_PER_HOUR = 200;
+
+    /** Shared props of the account settings' «Logros» tab (#6) */
+    public const string ACCOUNT_TAB_PROP = 'achievementsAccount';
+
+    public const string ACCOUNT_TAB_VISIBLE_PROP = 'achievementsAccountVisible';
+
+    private const string ACCOUNT_TAB_ATTRIBUTE = 'achievements.account_tab';
 
     public function moduleName(): string
     {
@@ -143,6 +158,9 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         $this->app->bind(AchievementPointsRepositoryInterface::class, EloquentAchievementPointsRepository::class);
         $this->app->scoped(AchievementPointsInterface::class, AchievementPoints::class);
         $this->app->bind(AchievementLeaderboardInterface::class, Leaderboard::class);
+
+        // Grants waiting to be told to their holders, a little later and together (#6)
+        $this->app->bind(PendingAchievementNoticeRepositoryInterface::class, EloquentPendingAchievementNoticeRepository::class);
     }
 
     public function boot(): void
@@ -154,6 +172,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountGrants::class);
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountPreferences::class);
         Event::listen(AchievementGranted::class, RefreshRarityAfterGrant::class);
+        Event::listen(AchievementGranted::class, QueueAchievementNotice::class);
         Event::listen(AchievementRevoked::class, RefreshRarityAfterGrant::class);
         Event::listen(AchievementGranted::class, ForgetLeaderboardStandings::class);
         Event::listen(AchievementRevoked::class, ForgetLeaderboardStandings::class);
@@ -173,6 +192,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
             Limit::perHour(self::PROFILE_CHOICES_PER_HOUR)->by('achievements-choices-hour:'.self::requesterKey($request)),
         ]);
         $this->showOnTheUserPage();
+        $this->shareAccountTab();
         $this->keepMediaUsagesUpToDate();
         $this->registerSchedule();
 
@@ -210,6 +230,34 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
             static fn (): View|string => AccountAchievementsHook::render(),
             scopes: EditUser::class,
         );
+    }
+
+    /**
+     * The «Logros» tab of the account settings (#6): computed on `/perfil` alone, once per request.
+     */
+    private function shareAccountTab(): void
+    {
+        $resolve = static function (): ?array {
+            $request = request();
+            $user = $request->user();
+
+            if ($request->route()?->getName() !== 'profile.show' || $user === null) {
+                return null;
+            }
+
+            // Kept on the request, not in the closure: a long-lived process serves many requests
+            if (! $request->attributes->has(self::ACCOUNT_TAB_ATTRIBUTE)) {
+                $request->attributes->set(self::ACCOUNT_TAB_ATTRIBUTE, app(AccountAchievementsTab::class)->props($user));
+            }
+
+            $props = $request->attributes->get(self::ACCOUNT_TAB_ATTRIBUTE);
+
+            return is_array($props) ? $props : null;
+        };
+        $onProfile = static fn (): bool => request()->route()?->getName() === 'profile.show' && auth()->user() !== null;
+
+        Inertia::share(self::ACCOUNT_TAB_PROP, $resolve);
+        Inertia::share(self::ACCOUNT_TAB_VISIBLE_PROP, static fn (): ?bool => $onProfile() ? $resolve() !== null : null);
     }
 
     /**
@@ -258,6 +306,41 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         $user = $request->user();
 
         return $user === null ? 'ip:'.$request->ip() : 'user:'.$user->getAuthIdentifier();
+    }
+
+    /**
+     * The notices of the bell (#6): what one just got, and others' rare achievements.
+     *
+     * @return list<MailCategoryDTO>
+     */
+    public function registerMailCategories(): array
+    {
+        return AchievementNoticeCategories::all();
+    }
+
+    /**
+     * The «Logros» tab of the account settings (#6), shown while one of its choices is offered.
+     *
+     * @return array<SlotRegistrationDTO>
+     */
+    public function registerSlots(): array
+    {
+        return [
+            new SlotRegistrationDTO(
+                slot: 'profile-sections',
+                component: 'components/profile/AchievementsAccountTab.vue',
+                module: $this->moduleName(),
+                order: 60,
+                // visibleKey is read from the slot's props, so it is listed too
+                dataKeys: [self::ACCOUNT_TAB_PROP, self::ACCOUNT_TAB_VISIBLE_PROP],
+                profileTab: [
+                    'tabId' => AccountAchievementsTab::TAB,
+                    'icon' => 'trophy',
+                    'labelKey' => 'achievements.account.tabLabel',
+                    'visibleKey' => self::ACCOUNT_TAB_VISIBLE_PROP,
+                ],
+            ),
+        ];
     }
 
     /**

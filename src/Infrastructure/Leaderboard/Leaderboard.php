@@ -195,7 +195,7 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
                 return LeaderboardViewerStatus::Hidden;
             }
 
-            if (! $choices->leaderboard) {
+            if (! $choices->inLeaderboard) {
                 return LeaderboardViewerStatus::OptedOut;
             }
 

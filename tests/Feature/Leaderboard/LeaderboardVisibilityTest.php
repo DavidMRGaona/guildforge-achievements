@@ -381,7 +381,8 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
     private function optOut(UserModel $user): void
     {
         $repository = app(AchievementPreferencesRepositoryInterface::class);
-        $repository->save($repository->find((string) $user->id)->withLeaderboard(false));
+        $choices = $repository->find((string) $user->id);
+        $repository->save($choices->withChoices(announceRare: $choices->announceRare, inLeaderboard: false));
     }
 
     private function seasonGrant(UserModel $user, AchievementModel $achievement, string $season, string $when): void
