@@ -14,7 +14,14 @@ vi.mock('@inertiajs/vue3', async () => {
 
     return {
         usePage: (): typeof currentPage => currentPage,
-        router: { visit: vi.fn(), reload: vi.fn(), delete: vi.fn(), post: vi.fn(), get: vi.fn() },
+        router: {
+            visit: vi.fn(),
+            reload: vi.fn(),
+            delete: vi.fn(),
+            post: vi.fn(),
+            put: vi.fn(),
+            get: vi.fn(),
+        },
         Link: defineComponent({
             // Inertia's own name, which the stand-in keeps
             // eslint-disable-next-line vue/multi-word-component-names, vue/no-reserved-component-names

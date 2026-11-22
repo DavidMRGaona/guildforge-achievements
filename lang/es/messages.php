@@ -391,4 +391,24 @@ return [
             'proposal' => 'Propuestas',
         ],
     ],
+
+    'profile' => [
+        'section' => [
+            'label' => 'Logros',
+            'description' => 'Los logros que tienes, con su fecha y lo raros que son; tú ves también los que te faltan.',
+        ],
+        'count' => [
+            'label' => 'Logros',
+            'description' => 'Cuántos logros tiene.',
+        ],
+        'featured' => [
+            'not_held' => 'Solo puedes destacar logros que tengas.',
+            'too_many' => 'Puedes destacar :max logros como mucho.',
+        ],
+    ],
+
+    'pages' => [
+        'index_title' => 'Logros',
+        'index_description' => 'Los logros que se pueden conseguir en la asociación y lo raro que es cada uno.',
+    ],
 ];

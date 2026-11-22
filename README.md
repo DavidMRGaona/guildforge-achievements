@@ -11,7 +11,7 @@ El core rechaza el módulo si no se cumplen (`module.json` → `requires`).
 
 ## Qué hace
 
-Un catálogo de logros que se conceden solos con lo que cada persona hace en la asociación, a partir del registro de actividad, o a mano y en lote desde el panel, con su historial. Cada mecánica restante (perfil, avisos, temporadas, retos…) llega con su propia issue.
+Un catálogo de logros que se conceden solos con lo que cada persona hace en la asociación, a partir del registro de actividad, o a mano y en lote desde el panel, con su historial, y que se ven en el perfil público, junto al nombre (perfil, tarjeta y foro) y en la página `/logros`. Cada mecánica restante (avisos, temporadas, retos…) llega con su propia issue.
 
 ## Registro de actividad
 
@@ -28,7 +28,7 @@ Los logros se calculan con lo que cuentan las fuentes de actividad del core (`do
 *Personas → Logros* (orden 50), con la política `AchievementPolicy`: `achievements.view_any`, `manage` o `grant` para ver la tabla, `achievements.manage` para crear, editar y borrar. Quien no gestiona el catálogo abre cada logro en su página de ver (un secreto, nunca). Cada logro tiene nombre (60 caracteres), descripción (200), icono y color de las listas cerradas del core (`ProfileBadgeIcons::NAMES`, `ProfileBadgeColour`), imagen opcional, puntos, secreto, activo y una regla. Tabla `achievements_catalogue` (el prefijo del módulo es obligatorio).
 
 - **Imagen.** Se sube a Cloudinary por el disco `images`, en `achievements/badges/<año>/<mes>/`, o se elige de la biblioteca de medios. La fuente de medios `achievements.badge-image` reclama esa carpeta; el modelo libera la imagen sustituida o borrada a través del core. El uso de un logro secreto se titula «Logro secreto», pero su miniatura sí se ve en la biblioteca (que solo abre el equipo, con `media.view_any`): el core solo puede ocultar carpetas enteras, y nunca borra lo que hay en ellas. Ocultar un uso concreto llegará con DavidMRGaona/GuildForge#830.
-- **Secretos.** Quien no tiene un logro secreto ve «Logro secreto», sin nombre, regla, icono ni imagen: en el panel (quien no puede gestionar el catálogo; tampoco lo encuentra al buscar), en el título de su uso en la biblioteca de medios y en `AchievementCatalogueInterface`, la lectura que usarán las páginas. Con los logros secretos apagados en los ajustes, los secretos no se evalúan.
+- **Secretos.** A quien no lo tiene, un logro secreto del dueño no se le enseña uno a uno: la sección solo dice cuántos hay (`secretCount`, «Y 2 logros secretos»), sin fecha, rareza ni posición, porque las concesiones de una misma tanda comparten segundo y una fecha ataría el secreto a uno revelado en otro sitio (y a la partida o el evento de detrás). El dueño ve los suyos. Destacar un secreto es enseñarlo a todo el mundo; si un logro destacado pasa a ser secreto, `ForgetFeaturedWhenMadeSecret` lo quita de las destacadas de todo el mundo. En `/logros` y en lo que le falta al dueño, los enmascarados no llevan id ni fecha.
 - **Estado.** La columna *Estado* dice si el evaluador mira el logro y, si no, por qué: *Activo*, *Desactivado*, *Solo a mano*, *Regla no válida*, *Sin fuente* (ningún módulo activo informa de su tipo), *Tipo apagado* o *Secretos apagados*. Es la misma decisión que toma el evaluador (`AchievementStatusRule`).
 - **Borrar** solo se ofrece mientras nadie tiene el logro (`AchievementPolicy::delete()`, y la clave ajena `restrictOnDelete` en la base de datos), y pide una casilla. Un logro que alguien tiene solo se desactiva.
 
@@ -113,6 +113,31 @@ php artisan achievements:recalculate
 - Las cuentas afectadas se evalúan después, en cola y en silencio: lo que conceda no avisa a nadie.
 - `--achievement=<id>` evalúa un logro para todo el mundo con el registro tal como está, sin leer las fuentes, y en silencio: después de crear un logro o cambiar un umbral (el panel ya lo hace solo). `--user=<id>` evalúa una sola cuenta; las dos juntas, un logro para una cuenta. No se combinan con `--source`. Con `--dry-run` cuentan lo que concederían.
 - Al terminar muestra, por fuente, cuántas cosas ha leído, cuántas ha actualizado y cuántas ha retirado. Sale con error si alguna fuente no se ha podido leer entera.
+
+## En el perfil y en `/logros`
+
+El perfil lo dibuja el core, y solo después de que su regla de acceso (`ProfileAccessRule`) deje ver el perfil a quien mira: el módulo nunca decide eso. Decide lo que dejan ver las elecciones de la persona y los secretos, en `AchievementShowcaseInterface` (`scoped`), que leen la sección, el contador y las insignias:
+
+- **Sección `achievements.badges`** (columna principal, orden 20, encendida por defecto). Los logros conseguidos, del más reciente al más antiguo, con su fecha y su rareza. El dueño ve además los que le faltan y aún puede conseguir (con fuente y encendidos, o solo a mano), con su progreso («7 de 10», `RuleEvaluator::value()` frente al umbral) mientras **Progreso visible** esté encendido; los secretos salen como «Logro secreto», sin progreso, y al final.
+- **Secretos.** Un logro secreto se ve como «Logro secreto», sin rareza y sin id, a quien no lo tiene, salvo que su dueño lo destaque: destacarlo es enseñarlo a todo el mundo. Sin id, porque uno revelado en otro sitio diría quién más tiene el mismo secreto; lo enmascarado no se puede destacar.
+- **Rareza 0.** En un logro conseguido, una rareza de 0 solo dice que su dueño no está activo: no se enseña, y en el orden de las destacadas cuenta como desconocida (al final). En el navegador, menos de 0,1 % se escribe «< 0,1 %».
+- **Solo totales.** Nada nombra la mesa, la sesión o el evento que concedió un logro; las props nunca llevan la regla ni los puntos.
+- **Contador `achievements.count`** («Logros», orden 50): cuántos logros tiene, secretos incluidos; nada con cero.
+- **Ocultar mis logros.** El dueño los oculta desde la propia sección (`achievements_preferences.hidden`): nadie más ve la sección, el contador ni las insignias destacadas.
+- **Insignias destacadas** (`FeaturedAchievementBadges`, fuente de insignias del perfil del core): hasta tres, las que el dueño marca con la estrella en su sección (`achievements_preferences.featured`, en su orden), o, si no elige, sus tres logros no secretos más raros (los más recientes con la rareza apagada). Solo logros que tiene: uno retirado o borrado se salta. El core las enseña bajo el nombre del perfil, en su tarjeta y junto al autor en el foro, y solo si quien mira puede ver ese perfil. Una lectura por página para todas las cuentas.
+- **Correo sin verificar.** Un dueño que debe verificar su correo (`EmailVerificationPolicyInterface::mustVerify()`) ve sus logros sin los controles, como el editor del perfil del core.
+- **La ruta del dueño.** `PUT /logros/miembros/{handle}` (`achievements.profile.update`, `auth`, límite `achievements-profile-choices`: 20 por minuto y 200 por hora por cuenta) con `hidden` y `featured`. Solo pasa el dueño del perfil en esa dirección, con la regla del editor del perfil del core (`OwnsProfile`, `ProfileEditorInterface::ownerId()`), antes de validar nada; cualquier otra persona, administración incluida, recibe el 404 de una dirección desconocida. Una impersonación de solo lectura no guarda nada. Si el guardado falla por cualquier motivo (validación, 403, 429, 404, red), la estrella o el interruptor vuelven a lo guardado y la sección dice por qué.
+- **Anonimizar** una cuenta borra sus elecciones (en cola).
+
+### Rareza
+
+La parte de la gente activa que tiene cada logro. Gente activa: cuentas con al menos un hecho en el registro desde el mismo día de la zona de visualización de hace doce meses, ni desactivadas ni anonimizadas, y solo cuentas que siguen existiendo (los hechos de una cuenta borrada del todo, que no tienen clave foránea, no cuentan). El índice `achievements_facts (occurred_at, user_id)` sirve esa consulta.
+
+`AchievementRarityInterface` (`scoped`) la calcula con dos consultas agregadas y la guarda en la caché (`achievements:rarity:v1`, dos días). `RefreshAchievementRarityJob` la recalcula cada noche (`achievements:rarity`, a las 03:30 de la zona de visualización) y tras cada concesión o retirada (`AchievementGranted`, `AchievementRevoked`; único mientras espera, así que una evaluación que concede cientos encola uno). Si la caché o la base de datos fallan, la página sale sin rareza y se avisa una vez al día. Con **Rareza** apagada no se enseña en ningún sitio.
+
+### Página `/logros`
+
+`achievements.index`, para todo el mundo: los logros que se pueden conseguir ahora (estado *Activo* o *Solo a mano*, con `AchievementStatusRule`), con la rareza de cada uno y los secretos ocultos, más los que la persona ya tiene, aunque ya no se puedan conseguir. Las funciones siguen a los módulos instalados: un logro sin fuente no se ofrece. Al habilitar el módulo por primera vez, `AchievementsMenuLinkSeeder` añade «Logros» al final del menú de la cabecera, como enlace del módulo: se mueve o se borra en *Sitio web → Navegación* y no vuelve.
 
 ## Catálogo inicial
 

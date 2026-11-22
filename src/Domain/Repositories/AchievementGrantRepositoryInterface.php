@@ -68,6 +68,15 @@ interface AchievementGrantRepositoryInterface
      */
     public function forUser(string $userId): array;
 
+    /**
+     * Every grant of each account asked, oldest first, in one query per 500 accounts, keyed by
+     * account id in lower case; accounts holding nothing are missing.
+     *
+     * @param  list<string>  $userIds
+     * @return array<string, list<AchievementGrant>>
+     */
+    public function forUsers(array $userIds): array;
+
     public function holds(string $userId, string $achievementId): bool;
 
     /**

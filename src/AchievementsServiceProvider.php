@@ -5,8 +5,13 @@ declare(strict_types=1);
 namespace Modules\Achievements;
 
 use App\Application\Media\Contracts\MediaUsageSourceInterface;
+use App\Application\Modules\DTOs\ModuleRouteDTO;
 use App\Application\Modules\DTOs\PagePrefixDTO;
 use App\Application\Modules\DTOs\PermissionDTO;
+use App\Application\Profiles\Contracts\ProfileBadgeSourceInterface;
+use App\Application\Profiles\Contracts\ProfileSectionInterface;
+use App\Application\Profiles\Contracts\ProfileStatInterface;
+use App\Application\Services\TimezoneServiceInterface;
 use App\Domain\Activity\Events\ActivityRecorded;
 use App\Domain\Events\UserAnonymized;
 use App\Domain\Modules\Events\ModuleEnabled;
@@ -16,14 +21,19 @@ use App\Modules\ModuleServiceProvider;
 use Filament\Pages\Page;
 use Filament\Support\Facades\FilamentView;
 use Filament\View\PanelsRenderHook;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Livewire;
 use Modules\Achievements\Application\Services\AchievementCatalogueInterface;
 use Modules\Achievements\Application\Services\AchievementEvaluatorInterface;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
+use Modules\Achievements\Application\Services\AchievementRarityInterface;
+use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\ActivityLedgerInterface;
 use Modules\Achievements\Application\Services\ActivityMetricsInterface;
@@ -32,8 +42,11 @@ use Modules\Achievements\Application\Services\StarterCatalogueInterface;
 use Modules\Achievements\Console\Commands\InstallStarterCatalogueCommand;
 use Modules\Achievements\Console\Commands\RecalculateAchievementFactsCommand;
 use Modules\Achievements\Domain\Events\AchievementFactsChanged;
+use Modules\Achievements\Domain\Events\AchievementGranted;
+use Modules\Achievements\Domain\Events\AchievementRevoked;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
 use Modules\Achievements\Filament\Livewire\AccountAchievements;
 use Modules\Achievements\Filament\Livewire\AccountGrantLog;
@@ -47,19 +60,29 @@ use Modules\Achievements\Infrastructure\Grants\AchievementEvaluator;
 use Modules\Achievements\Infrastructure\Grants\AchievementGranter;
 use Modules\Achievements\Infrastructure\Grants\BulkGranter;
 use Modules\Achievements\Infrastructure\Observers\EvaluateChangedAchievements;
+use Modules\Achievements\Infrastructure\Observers\ForgetFeaturedWhenMadeSecret;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementFactRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementGrantRepository;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementPreferencesRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementRepository;
+use Modules\Achievements\Infrastructure\Profiles\AchievementsCountProfileStat;
+use Modules\Achievements\Infrastructure\Profiles\AchievementShowcase;
+use Modules\Achievements\Infrastructure\Profiles\AchievementsProfileSection;
+use Modules\Achievements\Infrastructure\Profiles\FeaturedAchievementBadges;
+use Modules\Achievements\Infrastructure\Rarity\CachedAchievementRarity;
 use Modules\Achievements\Infrastructure\Services\ActivityLedger;
 use Modules\Achievements\Infrastructure\Settings\ModuleAchievementsSettings;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
+use Modules\Achievements\Jobs\RefreshAchievementRarityJob;
 use Modules\Achievements\Listeners\EvaluateAchievementsForChangedFacts;
 use Modules\Achievements\Listeners\EvaluateAchievementsOfEnabledModule;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountFacts;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountGrants;
+use Modules\Achievements\Listeners\ForgetAnonymizedAccountPreferences;
 use Modules\Achievements\Listeners\RecordActivityFacts;
+use Modules\Achievements\Listeners\RefreshRarityAfterGrant;
 use Modules\Achievements\Policies\AchievementPolicy;
 
 /**
@@ -69,6 +92,13 @@ use Modules\Achievements\Policies\AchievementPolicy;
  */
 final class AchievementsServiceProvider extends ModuleServiceProvider
 {
+    /** The owner's choices from the profile section (featured badges, hiding them) */
+    public const string PROFILE_CHOICES_LIMITER = 'achievements-profile-choices';
+
+    private const int PROFILE_CHOICES_PER_MINUTE = 20;
+
+    private const int PROFILE_CHOICES_PER_HOUR = 200;
+
     public function moduleName(): string
     {
         return 'achievements';
@@ -95,6 +125,11 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         $this->app->bind(AchievementCatalogueInterface::class, AchievementCatalogue::class);
         $this->app->bind(StarterCatalogueInterface::class, StarterCatalogue::class);
         $this->app->singleton(AchievementWarnings::class);
+
+        // What profiles show: the choices, the catalogue and the rarity, read once per request or job
+        $this->app->bind(AchievementPreferencesRepositoryInterface::class, EloquentAchievementPreferencesRepository::class);
+        $this->app->scoped(AchievementRarityInterface::class, CachedAchievementRarity::class);
+        $this->app->scoped(AchievementShowcaseInterface::class, AchievementShowcase::class);
     }
 
     public function boot(): void
@@ -104,10 +139,18 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         Event::listen(ActivityRecorded::class, RecordActivityFacts::class);
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountFacts::class);
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountGrants::class);
+        Event::listen(UserAnonymized::class, ForgetAnonymizedAccountPreferences::class);
+        Event::listen(AchievementGranted::class, RefreshRarityAfterGrant::class);
+        Event::listen(AchievementRevoked::class, RefreshRarityAfterGrant::class);
         Event::listen(AchievementFactsChanged::class, EvaluateAchievementsForChangedFacts::class);
         Event::listen(ModuleEnabled::class, EvaluateAchievementsOfEnabledModule::class);
 
         AchievementModel::observe(EvaluateChangedAchievements::class);
+        AchievementModel::observe(ForgetFeaturedWhenMadeSecret::class);
+        RateLimiter::for(self::PROFILE_CHOICES_LIMITER, static fn (Request $request): array => [
+            Limit::perMinute(self::PROFILE_CHOICES_PER_MINUTE)->by('achievements-choices:'.self::requesterKey($request)),
+            Limit::perHour(self::PROFILE_CHOICES_PER_HOUR)->by('achievements-choices-hour:'.self::requesterKey($request)),
+        ]);
         $this->showOnTheUserPage();
         $this->keepMediaUsagesUpToDate();
         $this->registerSchedule();
@@ -170,7 +213,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
 
     /**
      * Years of account change with the date alone: they are evaluated every night (not silently:
-     * these are real anniversaries).
+     * these are real anniversaries). Rarity too: people stop being active with the date alone.
      */
     private function registerSchedule(): void
     {
@@ -178,7 +221,63 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
             $schedule->job(new EvaluateAchievementsJob(silent: false, onlyAccountYears: true))
                 ->daily()
                 ->name('achievements:account-years');
+            // At night where people are: the display zone, not the server's
+            $schedule->job(new RefreshAchievementRarityJob)
+                ->dailyAt('03:30')
+                ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
+                ->name('achievements:rarity');
         });
+    }
+
+    /**
+     * The signed-in account (the route needs one), else the network address.
+     */
+    private static function requesterKey(Request $request): string
+    {
+        $user = $request->user();
+
+        return $user === null ? 'ip:'.$request->ip() : 'user:'.$user->getAuthIdentifier();
+    }
+
+    /**
+     * @return array<class-string<ProfileSectionInterface>>
+     */
+    public function registerProfileSections(): array
+    {
+        return [AchievementsProfileSection::class];
+    }
+
+    /**
+     * @return array<class-string<ProfileStatInterface>>
+     */
+    public function registerProfileStats(): array
+    {
+        return [AchievementsCountProfileStat::class];
+    }
+
+    /**
+     * @return array<class-string<ProfileBadgeSourceInterface>>
+     */
+    public function registerProfileBadgeSources(): array
+    {
+        return [FeaturedAchievementBadges::class];
+    }
+
+    /**
+     * The catalogue page, for the menu editor (Sitio web → Navegación). The link itself is added
+     * once, when the module is first enabled (AchievementsMenuLinkSeeder).
+     *
+     * @return array<ModuleRouteDTO>
+     */
+    public function registerRoutes(): array
+    {
+        return [
+            new ModuleRouteDTO(
+                routeName: 'achievements.index',
+                label: __('achievements::messages.title'),
+                module: $this->moduleName(),
+            ),
+        ];
     }
 
     /**
