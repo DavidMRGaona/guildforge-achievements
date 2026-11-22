@@ -26,7 +26,7 @@ Cuando se llega al objetivo, cada persona que contribuyó recibe el logro de rec
 
 ## Tus logros en tu perfil
 
-En tu perfil público, la sección **Logros** enseña los que tienes, con la fecha en que los conseguiste y su rareza. Tú ves además los que te faltan y cuánto llevas («7 de 10»); los demás no ven lo que te falta.
+En tu perfil público, la sección **Logros** enseña los que tienes y su rareza. Tú ves el día en que conseguiste cada uno; los demás solo ven el mes y el año («noviembre de 2026»), porque quienes juegan juntos consiguen sus logros a la vez y la hora exacta diría con quién jugaste. Tú ves además los que te faltan y cuánto llevas («7 de 10»); los demás no ven lo que te falta.
 
 Los logros solo dicen totales: «10 partidas», «3 sistemas». Nunca dicen en qué mesa, sesión o evento estuviste.
 

@@ -17,7 +17,8 @@ use Modules\Achievements\Domain\ValueObjects\AchievementPreferences;
  * - an owner who hid their achievements shows nothing to anybody else;
  * - a secret achievement shows as «Logro secreto» (with no rarity) to anybody who does not hold it,
  *   unless the owner featured it, which shows it to everybody;
- * - only totals: never the tables, sessions or events behind an achievement.
+ * - only totals: never the tables, sessions or events behind an achievement, and to anybody but
+ *   the owner never the instant of a grant (only its month).
  */
 interface AchievementShowcaseInterface
 {
@@ -30,8 +31,11 @@ interface AchievementShowcaseInterface
     public function isVisibleTo(string $ownerId, ?string $viewerId): bool;
 
     /**
-     * The owner's achievements, newest first, as the viewer may see them. Empty when they are hidden
-     * from the viewer.
+     * The owner's achievements as the viewer may see them. Empty when they are hidden from the
+     * viewer. The owner gets them newest first with the instant of each grant; anybody else gets the
+     * display month alone, sorted by month and then by the name shown, since grants of one
+     * evaluation share their second and the instant would tell who played or went somewhere
+     * together.
      *
      * @return list<ShowcaseItemDTO>
      */
