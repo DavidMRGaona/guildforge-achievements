@@ -18,14 +18,20 @@ use JsonException;
  *     {"version": 1, "metric": "distinct", "kind": "game_session", "key": "game_system", "filters": {…}, "threshold": 3}
  *     {"version": 1, "metric": "years", "basis": "account" | "membership", "threshold": 5}
  *     {"version": 1, "metric": "manual"}
+ *     {"version": 1, "metric": "manual", "window": {"type": "season"}}
+ *
+ * The window (RuleWindow) says which facts count: all of them, those of one season, or a run of
+ * months in a row (count only). A seasonal window (a season, or a streak per season) makes the
+ * achievement repeatable, granted once per season; a manual rule may be seasonal too («La mejor
+ * partida de la temporada», granted by hand each year). Years rules count every fact.
  *
  * Reading never throws, and anything it does not understand makes the whole rule unreadable
  * (tryFrom() answers null): another version, an unknown metric, kind, role, basis or window, a key
  * it does not expect, a value of the wrong type or out of range. An unreadable rule is never
  * evaluated, never «matches everything»: grants are permanent, so a rule half understood must grant
- * nothing. Later issues fit in this shape: seasons and streaks as new window types, community
- * achievements and challenges as new metrics; each needs a release that reads them, and until then
- * a rule using them is unreadable for an older one.
+ * nothing. Later issues fit in this shape: community achievements and challenges as new metrics;
+ * each needs a release that reads them, and until then a rule using them is unreadable for an
+ * older one (as a season or streak window is for a release before them).
  *
  * `filters.attribute.label` is only the value's name when the rule was saved, for the panel; it
  * never takes part in the evaluation.
@@ -40,15 +46,18 @@ final readonly class AchievementRule
 
     public const int MAX_LABEL_LENGTH = 191;
 
-    /** The only window of this release: every fact, whenever it happened */
+    /** Every fact, whenever it happened */
     public const string WINDOW_ALL_TIME = 'all_time';
 
     private const array KEYS = [
         'count' => ['version', 'metric', 'kind', 'filters', 'threshold', 'window'],
         'distinct' => ['version', 'metric', 'kind', 'key', 'filters', 'threshold', 'window'],
         'years' => ['version', 'metric', 'basis', 'threshold', 'window'],
-        'manual' => ['version', 'metric'],
+        'manual' => ['version', 'metric', 'window'],
     ];
+
+    /** Which facts count: all of them unless the rule says otherwise */
+    public RuleWindow $window;
 
     private function __construct(
         public MetricType $metric,
@@ -61,9 +70,12 @@ final readonly class AchievementRule
         public ?int $placementMax = null,
         public ?string $distinctKey = null,
         public ?YearsBasis $basis = null,
-    ) {}
+        ?RuleWindow $window = null,
+    ) {
+        $this->window = $window ?? RuleWindow::allTime();
+    }
 
-    public static function count(string $kind, int $threshold, ?string $role = null, ?string $attributeKey = null, ?string $attributeValue = null, ?string $attributeLabel = null, ?int $placementMax = null): ?self
+    public static function count(string $kind, int $threshold, ?string $role = null, ?string $attributeKey = null, ?string $attributeValue = null, ?string $attributeLabel = null, ?int $placementMax = null, ?RuleWindow $window = null): ?self
     {
         return self::tryFrom(self::withoutNulls([
             'version' => self::VERSION,
@@ -71,10 +83,11 @@ final readonly class AchievementRule
             'kind' => $kind,
             'filters' => self::filters($role, $attributeKey, $attributeValue, $attributeLabel, $placementMax),
             'threshold' => $threshold,
+            'window' => $window?->toArray(),
         ]));
     }
 
-    public static function distinct(string $kind, string $key, int $threshold, ?string $role = null, ?string $attributeKey = null, ?string $attributeValue = null, ?string $attributeLabel = null, ?int $placementMax = null): ?self
+    public static function distinct(string $kind, string $key, int $threshold, ?string $role = null, ?string $attributeKey = null, ?string $attributeValue = null, ?string $attributeLabel = null, ?int $placementMax = null, ?RuleWindow $window = null): ?self
     {
         return self::tryFrom(self::withoutNulls([
             'version' => self::VERSION,
@@ -83,6 +96,7 @@ final readonly class AchievementRule
             'key' => $key,
             'filters' => self::filters($role, $attributeKey, $attributeValue, $attributeLabel, $placementMax),
             'threshold' => $threshold,
+            'window' => $window?->toArray(),
         ]));
     }
 
@@ -91,9 +105,12 @@ final readonly class AchievementRule
         return self::tryFrom(['version' => self::VERSION, 'metric' => MetricType::Years->value, 'basis' => $basis->value, 'threshold' => $threshold]);
     }
 
-    public static function manual(): self
+    /**
+     * Granted by hand only; once per season when `perSeason`.
+     */
+    public static function manual(bool $perSeason = false): self
     {
-        return new self(MetricType::Manual);
+        return new self(MetricType::Manual, window: $perSeason ? RuleWindow::season() : null);
     }
 
     /**
@@ -119,13 +136,19 @@ final readonly class AchievementRule
             return null;
         }
 
+        $window = array_key_exists('window', $raw) ? RuleWindow::tryFrom($raw['window']) : RuleWindow::allTime();
+
+        if (! $window instanceof RuleWindow || ! self::allows($metric, $window)) {
+            return null;
+        }
+
         if ($metric === MetricType::Manual) {
-            return self::manual();
+            return self::manual($window->isSeasonal());
         }
 
         $threshold = self::integer($raw['threshold'] ?? null, self::MAX_THRESHOLD);
 
-        if ($threshold === null || ! self::readsAllTime($raw)) {
+        if ($threshold === null) {
             return null;
         }
 
@@ -135,12 +158,29 @@ final readonly class AchievementRule
             return $basis instanceof YearsBasis ? new self($metric, $threshold, basis: $basis) : null;
         }
 
-        return self::readActivityRule($metric, $threshold, $raw);
+        return self::readActivityRule($metric, $threshold, $raw, $window);
     }
 
     public function isManual(): bool
     {
         return $this->metric === MetricType::Manual;
+    }
+
+    /**
+     * Granted once per season (a season window, or a streak counted inside each season).
+     */
+    public function isSeasonal(): bool
+    {
+        return $this->window->isSeasonal();
+    }
+
+    /**
+     * What progress is measured against: the months of a streak (its threshold is what each month
+     * needs), the threshold otherwise.
+     */
+    public function target(): int
+    {
+        return $this->window->isStreak() ? (int) $this->window->months : $this->threshold;
     }
 
     /**
@@ -164,7 +204,7 @@ final readonly class AchievementRule
     public function toArray(): array
     {
         return match ($this->metric) {
-            MetricType::Manual => ['version' => self::VERSION, 'metric' => $this->metric->value],
+            MetricType::Manual => ['version' => self::VERSION, 'metric' => $this->metric->value] + ($this->window->isAllTime() ? [] : ['window' => $this->window->toArray()]),
             MetricType::Years => [
                 'version' => self::VERSION,
                 'metric' => $this->metric->value,
@@ -178,7 +218,7 @@ final readonly class AchievementRule
                 'key' => $this->distinctKey,
                 'filters' => self::filters($this->role, $this->attributeKey, $this->attributeValue, $this->attributeLabel, $this->placementMax),
                 'threshold' => $this->threshold,
-                'window' => ['type' => self::WINDOW_ALL_TIME],
+                'window' => $this->window->toArray(),
             ]),
         };
     }
@@ -186,7 +226,7 @@ final readonly class AchievementRule
     /**
      * @param  array<string, mixed>  $raw
      */
-    private static function readActivityRule(MetricType $metric, int $threshold, array $raw): ?self
+    private static function readActivityRule(MetricType $metric, int $threshold, array $raw, RuleWindow $window): ?self
     {
         $kind = is_string($raw['kind'] ?? null) ? ActivityKind::tryFrom($raw['kind']) : null;
 
@@ -264,21 +304,21 @@ final readonly class AchievementRule
             attributeLabel: $attributeLabel,
             placementMax: $placement,
             distinctKey: $distinctKey,
+            window: $window,
         );
     }
 
     /**
-     * @param  array<string, mixed>  $raw
+     * Which windows each metric reads: a streak counts subjects month by month, so only count has
+     * one; years always look at every fact; a manual rule is either once or once per season.
      */
-    private static function readsAllTime(array $raw): bool
+    private static function allows(MetricType $metric, RuleWindow $window): bool
     {
-        if (! array_key_exists('window', $raw)) {
-            return true;
-        }
-
-        $window = $raw['window'];
-
-        return self::isMap($window) && array_keys($window) === ['type'] && $window['type'] === self::WINDOW_ALL_TIME;
+        return match ($metric) {
+            MetricType::Count => true,
+            MetricType::Distinct, MetricType::Manual => ! $window->isStreak(),
+            MetricType::Years => $window->isAllTime(),
+        };
     }
 
     private static function integer(mixed $value, int $max): ?int

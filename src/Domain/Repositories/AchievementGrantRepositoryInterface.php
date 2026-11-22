@@ -35,13 +35,13 @@ interface AchievementGrantRepositoryInterface
     public function revoke(string $grantId, string $actorId, string $reason): ?AchievementGrant;
 
     /**
-     * The accounts among these whose latest history entry for the achievement (seasonless) is a
-     * revoke: what grant() refuses for anything but a grant by hand. In lower case.
+     * The accounts among these whose latest history entry for the achievement (in that season, ''
+     * without one) is a revoke: what grant() refuses for anything but a grant by hand. In lower case.
      *
      * @param  list<string>  $userIds
      * @return list<string>
      */
-    public function revokedAmong(string $achievementId, array $userIds): array;
+    public function revokedAmong(string $achievementId, array $userIds, string $seasonKey = ''): array;
 
     /**
      * For each of these accounts, the achievements (seasonless) whose latest history entry is a
@@ -53,8 +53,27 @@ interface AchievementGrantRepositoryInterface
     public function revokedAchievementIds(array $userIds): array;
 
     /**
-     * Ids of the achievements each account holds (seasonless grants), keyed by account id in lower
-     * case; accounts holding nothing are missing.
+     * For each of these accounts, every achievement it holds with the seasons of its grants ('' for
+     * a grant without a season), keyed by account id in lower case; accounts holding nothing are
+     * missing. What the evaluator skips, season by season.
+     *
+     * @param  list<string>  $userIds
+     * @return array<string, array<string, array<string, true>>>
+     */
+    public function heldSeasonKeys(array $userIds): array;
+
+    /**
+     * For each of these accounts, the achievements and seasons ('' without one) whose latest history
+     * entry is a revoke, keyed like heldSeasonKeys(): what a rule never grants again.
+     *
+     * @param  list<string>  $userIds
+     * @return array<string, array<string, array<string, true>>>
+     */
+    public function revokedSeasonKeys(array $userIds): array;
+
+    /**
+     * Ids of the achievements each account holds (in any season), each once, keyed by account id in
+     * lower case; accounts holding nothing are missing.
      *
      * @param  list<string>  $userIds
      * @return array<string, list<string>>

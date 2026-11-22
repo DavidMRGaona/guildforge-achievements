@@ -70,6 +70,7 @@ return [
             'no_source' => 'Sin fuente',
             'kind_off' => 'Tipo apagado',
             'secrets_off' => 'Secretos apagados',
+            'seasons_off' => 'Temporadas apagadas',
         ],
 
         'delete' => [
@@ -89,6 +90,10 @@ return [
                 'placement_max' => 'Puesto máximo',
                 'basis' => 'Años de',
                 'threshold' => 'Cuántos hacen falta',
+                'threshold_per_month' => 'Cuántas hacen falta cada mes',
+                'window' => 'Cuándo cuenta',
+                'streak_months' => 'Meses seguidos',
+                'streak_per_season' => 'Dentro de cada temporada',
             ],
             'helpers' => [
                 'metric' => '«Solo a mano» no se concede nunca solo.',
@@ -99,6 +104,16 @@ return [
                 'placement_max' => 'Para torneos: 1 es ganar y 3, subir al podio. Vacío, cualquier puesto.',
                 'basis' => 'Los de cuenta se cumplen solos con la fecha; los de socio, con cada año que informa el módulo de socios.',
                 'threshold' => 'Número de cosas, de valores distintos o de años.',
+                'threshold_per_month' => 'Actividades distintas que hacen falta en cada uno de esos meses. Con 1 basta una al mes.',
+                'window' => 'Una temporada es un año natural. Por temporada, se vuelve a conseguir cada año y la concesión guarda el año («Temporada 2027»).',
+                'window_streak' => 'Meses naturales seguidos con actividad. Un mes sin ella corta la racha.',
+                'streak_months' => 'De 2 a 36 meses; dentro de una temporada, 12 como mucho.',
+                'streak_per_season' => 'La racha empieza de cero cada año y se puede conseguir una vez por temporada. Sin marcar, se consigue una sola vez.',
+            ],
+            'windows' => [
+                'all_time' => 'Siempre (una sola vez)',
+                'season' => 'Por temporada (cada año)',
+                'streak' => 'Racha de meses seguidos',
             ],
             'placeholders' => [
                 'any_role' => 'Cualquier papel',
@@ -139,6 +154,9 @@ return [
                 'membership_years' => ':threshold años como socio',
                 'distinct' => ':threshold de :attribute distintos',
                 'placement' => 'puesto ≤ :placement',
+                'season' => 'por temporada',
+                'streak' => 'racha de :months mes|racha de :months meses',
+                'season_streak' => 'racha de :months mes en la temporada|racha de :months meses en la temporada',
             ],
         ],
 
@@ -221,6 +239,7 @@ return [
             'action' => 'Qué pasó',
             'source' => 'Origen',
             'granted_at' => 'Concedido',
+            'season' => 'Temporada',
             'when' => 'Cuándo',
             'reason' => 'Motivo',
         ],
@@ -405,6 +424,10 @@ return [
             'not_held' => 'Solo puedes destacar logros que tengas.',
             'too_many' => 'Puedes destacar :max logros como mucho.',
         ],
+    ],
+
+    'seasons' => [
+        'label' => 'Temporada :season',
     ],
 
     'pages' => [

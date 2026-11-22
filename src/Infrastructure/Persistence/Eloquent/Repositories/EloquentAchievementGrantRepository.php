@@ -167,7 +167,7 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
         }, self::TRANSACTION_ATTEMPTS);
     }
 
-    public function revokedAmong(string $achievementId, array $userIds): array
+    public function revokedAmong(string $achievementId, array $userIds, string $seasonKey = ''): array
     {
         if (! AchievementIds::isWellFormed($achievementId)) {
             return [];
@@ -179,7 +179,7 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
         foreach (array_chunk($userIds, 500) as $chunk) {
             $rows = $this->db->table(self::LOG_TABLE)
                 ->where('achievement_id', strtolower($achievementId))
-                ->where('season_key', '')
+                ->where('season_key', $seasonKey)
                 ->whereIn('user_id', $chunk)
                 ->orderBy('created_at')
                 ->orderBy('id')
@@ -225,6 +225,57 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
         return $revoked;
     }
 
+    public function heldSeasonKeys(array $userIds): array
+    {
+        $userIds = array_values(array_unique(array_map(strtolower(...), $userIds)));
+        $held = [];
+
+        foreach (array_chunk($userIds, 500) as $chunk) {
+            $rows = $this->table()
+                ->whereIn('user_id', $chunk)
+                ->get(['user_id', 'achievement_id', 'season_key']);
+
+            foreach ($rows as $row) {
+                $held[strtolower((string) $row->user_id)][strtolower((string) $row->achievement_id)][(string) $row->season_key] = true;
+            }
+        }
+
+        return $held;
+    }
+
+    public function revokedSeasonKeys(array $userIds): array
+    {
+        $userIds = array_values(array_unique(array_map(strtolower(...), $userIds)));
+        $latest = [];
+
+        foreach (array_chunk($userIds, 500) as $chunk) {
+            $rows = $this->db->table(self::LOG_TABLE)
+                ->whereIn('user_id', $chunk)
+                ->whereNotNull('achievement_id')
+                ->orderBy('created_at')
+                ->orderBy('id')
+                ->get(['user_id', 'achievement_id', 'season_key', 'action']);
+
+            foreach ($rows as $row) {
+                $latest[strtolower((string) $row->user_id)][strtolower((string) $row->achievement_id)][(string) $row->season_key] = (string) $row->action;
+            }
+        }
+
+        $revoked = [];
+
+        foreach ($latest as $userId => $achievements) {
+            foreach ($achievements as $achievementId => $seasons) {
+                foreach ($seasons as $seasonKey => $action) {
+                    if ($action === GrantLogAction::Revoked->value) {
+                        $revoked[(string) $userId][(string) $achievementId][(string) $seasonKey] = true;
+                    }
+                }
+            }
+        }
+
+        return $revoked;
+    }
+
     public function heldAchievementIds(array $userIds): array
     {
         $userIds = array_values(array_unique(array_map(strtolower(...), $userIds)));
@@ -233,12 +284,17 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
         foreach (array_chunk($userIds, 500) as $chunk) {
             $rows = $this->table()
                 ->whereIn('user_id', $chunk)
-                ->where('season_key', '')
                 ->orderBy('achievement_id')
                 ->get(['user_id', 'achievement_id']);
 
             foreach ($rows as $row) {
-                $held[strtolower((string) $row->user_id)][] = strtolower((string) $row->achievement_id);
+                $userId = strtolower((string) $row->user_id);
+                $achievementId = strtolower((string) $row->achievement_id);
+
+                // One per achievement, whatever seasons it was held in
+                if (! in_array($achievementId, $held[$userId] ?? [], true)) {
+                    $held[$userId][] = $achievementId;
+                }
             }
         }
 

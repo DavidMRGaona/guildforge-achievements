@@ -7,12 +7,16 @@ namespace Modules\Achievements\Filament\Support;
 use App\Domain\Activity\ActivityRole;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
+use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\ActivityMetricsInterface;
 use Modules\Achievements\Domain\Rules\AchievementRule;
 use Modules\Achievements\Domain\Rules\MetricType;
+use Modules\Achievements\Domain\Rules\RuleWindow;
+use Modules\Achievements\Domain\Rules\WindowType;
 use Modules\Achievements\Domain\Rules\YearsBasis;
 use Modules\Achievements\Domain\ValueObjects\MetricKinds;
 
@@ -22,6 +26,10 @@ use Modules\Achievements\Domain\ValueObjects\MetricKinds;
  * kind of the rule being edited, marked «sin fuente»); attributes and their values from the sources
  * of the kind chosen (OffersActivityAttributes), plus the edited rule's own. A combination
  * AchievementRule cannot read is refused on save.
+ *
+ * The window (when it counts: always, per season, or months in a row) is offered while seasons and
+ * streaks are on, and always on a rule that already has one, so it can be seen and taken off; a
+ * streak only for «Número de actividades», and years never have one.
  */
 final class AchievementRuleForm
 {
@@ -43,18 +51,26 @@ final class AchievementRuleForm
 
     public const string THRESHOLD = 'rule_threshold';
 
+    public const string WINDOW = 'rule_window';
+
+    public const string STREAK_MONTHS = 'rule_streak_months';
+
+    public const string STREAK_PER_SEASON = 'rule_streak_per_season';
+
     /** @var list<string> */
     public const array FIELDS = [
         self::METRIC, self::KIND, self::ROLE, self::ATTRIBUTE_KEY, self::ATTRIBUTE_VALUE,
         self::PLACEMENT_MAX, self::DISTINCT_KEY, self::BASIS, self::THRESHOLD,
+        self::WINDOW, self::STREAK_MONTHS, self::STREAK_PER_SEASON,
     ];
 
     /**
-     * @return list<Select|TextInput>
+     * @return list<Select|TextInput|Toggle>
      */
     public static function components(): array
     {
         $activity = static fn (Get $get): bool => in_array($get(self::METRIC), [MetricType::Count->value, MetricType::Distinct->value], true);
+        $streak = static fn (Get $get): bool => $get(self::METRIC) === MetricType::Count->value && $get(self::WINDOW) === WindowType::Streak->value;
 
         return [
             Select::make(self::METRIC)
@@ -127,9 +143,35 @@ final class AchievementRuleForm
                 ->required(static fn (Get $get): bool => $get(self::METRIC) === MetricType::Years->value)
                 ->visible(static fn (Get $get): bool => $get(self::METRIC) === MetricType::Years->value),
 
+            Select::make(self::WINDOW)
+                ->label(self::text('fields.window'))
+                ->helperText(static fn (Get $get): string => self::text($get(self::WINDOW) === WindowType::Streak->value ? 'helpers.window_streak' : 'helpers.window'))
+                ->options(static fn (Get $get): array => self::windowOptions(self::string($get(self::METRIC))))
+                ->default(WindowType::AllTime->value)
+                ->selectablePlaceholder(false)
+                ->native(false)
+                ->visible(static fn (Get $get, ?Model $record): bool => $get(self::METRIC) !== MetricType::Years->value && self::offersWindows($record))
+                ->live(),
+
+            TextInput::make(self::STREAK_MONTHS)
+                ->label(self::text('fields.streak_months'))
+                ->helperText(self::text('helpers.streak_months'))
+                ->integer()
+                ->minValue(RuleWindow::MIN_STREAK_MONTHS)
+                ->maxValue(static fn (Get $get): int => $get(self::STREAK_PER_SEASON) === true ? RuleWindow::MAX_SEASON_STREAK_MONTHS : RuleWindow::MAX_STREAK_MONTHS)
+                ->default(3)
+                ->required($streak)
+                ->visible($streak),
+
+            Toggle::make(self::STREAK_PER_SEASON)
+                ->label(self::text('fields.streak_per_season'))
+                ->helperText(self::text('helpers.streak_per_season'))
+                ->visible($streak)
+                ->live(),
+
             TextInput::make(self::THRESHOLD)
-                ->label(self::text('fields.threshold'))
-                ->helperText(self::text('helpers.threshold'))
+                ->label(static fn (Get $get): string => self::text($streak($get) ? 'fields.threshold_per_month' : 'fields.threshold'))
+                ->helperText(static fn (Get $get): string => self::text($streak($get) ? 'helpers.threshold_per_month' : 'helpers.threshold'))
                 ->integer()
                 ->minValue(1)
                 ->maxValue(AchievementRule::MAX_THRESHOLD)
@@ -162,6 +204,9 @@ final class AchievementRuleForm
             self::DISTINCT_KEY => $rule->distinctKey,
             self::BASIS => $rule->basis?->value,
             self::THRESHOLD => $rule->isManual() ? null : $rule->threshold,
+            self::WINDOW => $rule->window->type->value,
+            self::STREAK_MONTHS => $rule->window->months,
+            self::STREAK_PER_SEASON => $rule->window->perSeason,
         ];
     }
 
@@ -192,9 +237,14 @@ final class AchievementRuleForm
     {
         $metric = MetricType::tryFrom((string) self::string($data[self::METRIC] ?? null));
         $threshold = self::integer($data[self::THRESHOLD] ?? null);
+        $window = self::window($data);
+
+        if (! $window instanceof RuleWindow) {
+            return null;
+        }
 
         if ($metric === MetricType::Manual) {
-            return AchievementRule::manual();
+            return $window->isStreak() ? null : AchievementRule::manual(perSeason: $window->isSeasonal());
         }
 
         if (! $metric instanceof MetricType || $threshold === null) {
@@ -228,10 +278,61 @@ final class AchievementRuleForm
         if ($metric === MetricType::Distinct) {
             $key = self::string($data[self::DISTINCT_KEY] ?? null);
 
-            return $key === null ? null : AchievementRule::distinct($kind, $key, $threshold, $role, $attributeKey, $attributeValue, $attributeLabel, $placement);
+            return $key === null ? null : AchievementRule::distinct($kind, $key, $threshold, $role, $attributeKey, $attributeValue, $attributeLabel, $placement, $window);
         }
 
-        return AchievementRule::count($kind, $threshold, $role, $attributeKey, $attributeValue, $attributeLabel, $placement);
+        return AchievementRule::count($kind, $threshold, $role, $attributeKey, $attributeValue, $attributeLabel, $placement, $window);
+    }
+
+    /**
+     * The window of the form data; null for one that cannot be read (a streak without a valid
+     * length). Without the field (hidden: years, or seasons off on a rule that had none), every
+     * fact counts.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public static function window(array $data): ?RuleWindow
+    {
+        $type = WindowType::tryFrom((string) self::string($data[self::WINDOW] ?? null)) ?? WindowType::AllTime;
+
+        return match ($type) {
+            WindowType::AllTime => RuleWindow::allTime(),
+            WindowType::Season => RuleWindow::season(),
+            WindowType::Streak => ($months = self::integer($data[self::STREAK_MONTHS] ?? null)) === null
+                ? null
+                : RuleWindow::streak($months, ($data[self::STREAK_PER_SEASON] ?? false) === true),
+        };
+    }
+
+    /**
+     * The windows a metric can have: a streak only when counting activities.
+     *
+     * @return array<string, string>
+     */
+    public static function windowOptions(?string $metric): array
+    {
+        $options = [
+            WindowType::AllTime->value => self::text('windows.all_time'),
+            WindowType::Season->value => self::text('windows.season'),
+        ];
+
+        if ($metric === MetricType::Count->value) {
+            $options[WindowType::Streak->value] = self::text('windows.streak');
+        }
+
+        return $options;
+    }
+
+    /**
+     * Whether the window is offered: while seasons and streaks are on, and on a rule that already
+     * has one whatever the switch.
+     */
+    private static function offersWindows(?Model $record): bool
+    {
+        $stored = self::stored($record);
+
+        return ($stored instanceof AchievementRule && ! $stored->window->isAllTime())
+            || app(AchievementsSettingsInterface::class)->seasonsAndStreaksEnabled();
     }
 
     /**

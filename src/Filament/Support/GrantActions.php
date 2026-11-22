@@ -29,18 +29,22 @@ use Modules\Achievements\Application\Enums\BulkGrantOutcome;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\BulkGrantInterface;
+use Modules\Achievements\Application\Services\SeasonClock;
 use Modules\Achievements\Domain\Entities\AchievementGrant;
 use Modules\Achievements\Domain\Enums\GrantSource;
 use Modules\Achievements\Domain\ValueObjects\GrantReason;
 use Modules\Achievements\Domain\ValueObjects\NewGrant;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementGrantModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementRepository;
 use Modules\Achievements\Policies\AchievementPolicy;
 
 /**
  * The grant actions of the panel, shared by the achievement page (who holds it) and the account page.
  * Each is authorized by AchievementPolicy, which Filament checks both to show it and again when it
- * runs; none is marked as reading, so a read-only impersonation refuses them all.
+ * runs; none is marked as reading, so a read-only impersonation refuses them all. An achievement that
+ * repeats per season is granted for the season going on (SeasonClock), and «does not hold it» means
+ * «not this season».
  */
 final class GrantActions
 {
@@ -315,6 +319,7 @@ final class GrantActions
             source: GrantSource::Manual,
             silent: ! (bool) ($data['notify'] ?? true),
             actorId: (string) Auth::id(),
+            season: self::seasonKey($achievement) === '' ? null : self::seasonKey($achievement),
             reason: is_string($data['reason'] ?? null) ? $data['reason'] : null,
         ));
 
@@ -353,7 +358,7 @@ final class GrantActions
                 $query->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", [$pattern])
                     ->orWhereRaw("LOWER(COALESCE(display_name, '')) LIKE ? ESCAPE '!'", [$pattern]);
             })
-            ->whereNotIn('id', AchievementGrantModel::query()->select('user_id')->where('achievement_id', $achievement->id)->where('season_key', ''))
+            ->whereNotIn('id', AchievementGrantModel::query()->select('user_id')->where('achievement_id', $achievement->id)->where('season_key', self::seasonKey($achievement)))
             ->orderBy('name')
             ->limit(self::MAX_ACCOUNTS)
             ->get(['id', 'name'])
@@ -371,7 +376,15 @@ final class GrantActions
         return $viewer instanceof UserModel
             && $user instanceof UserModel
             && $viewer->can('view', $user)
-            && AchievementGrantModel::query()->where('achievement_id', $achievement->id)->where('user_id', strtolower($userId))->where('season_key', '')->doesntExist();
+            && AchievementGrantModel::query()->where('achievement_id', $achievement->id)->where('user_id', strtolower($userId))->where('season_key', self::seasonKey($achievement))->doesntExist();
+    }
+
+    /**
+     * The season a grant by hand of this achievement goes to now ('' when it does not repeat).
+     */
+    public static function seasonKey(AchievementModel $achievement): string
+    {
+        return app(SeasonClock::class)->keyForGrantOf(EloquentAchievementRepository::toEntity($achievement));
     }
 
     /**
@@ -381,10 +394,20 @@ final class GrantActions
      */
     private static function grantableFor(string $userId): array
     {
-        $held = AchievementGrantModel::query()->where('user_id', strtolower($userId))->where('season_key', '')->pluck('achievement_id')->all();
+        $held = [];
+
+        foreach (AchievementGrantModel::query()->where('user_id', strtolower($userId))->get(['achievement_id', 'season_key']) as $grant) {
+            $held[strtolower((string) $grant->achievement_id)][$grant->season_key] = true;
+        }
+
         $options = [];
 
-        foreach (AchievementModel::query()->where('is_active', true)->whereNotIn('id', $held)->orderBy('name')->get() as $achievement) {
+        foreach (AchievementModel::query()->where('is_active', true)->orderBy('name')->get() as $achievement) {
+            // Held this season (or for good): not offered
+            if (isset($held[strtolower((string) $achievement->id)][self::seasonKey($achievement)])) {
+                continue;
+            }
+
             if (Gate::allows('grant', $achievement)) {
                 $options[(string) $achievement->id] = $achievement->name;
             }

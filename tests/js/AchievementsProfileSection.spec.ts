@@ -20,6 +20,8 @@ function earned(overrides: Partial<EarnedAchievement> = {}): EarnedAchievement {
         grantedAt: '2026-10-01T20:00:00+02:00',
         rarity: 4.5,
         featured: false,
+        repeats: false,
+        seasons: [],
         ...overrides,
     };
 }
@@ -33,8 +35,10 @@ function locked(overrides: Partial<LockedAchievement> = {}): LockedAchievement {
         colour: 'teal',
         imageUrl: null,
         masked: false,
-        progress: { value: 7, threshold: 10 },
+        repeats: false,
+        progress: { value: 7, threshold: 10, inMonths: false },
         manual: false,
+        season: null,
         ...overrides,
     };
 }
@@ -104,6 +108,41 @@ describe('AchievementsProfileSection', () => {
         expect(bar.attributes('aria-valuetext')).toBe('7 de 10');
         expect(wrapper.text()).toContain('Te faltan (2)');
         expect(wrapper.text()).toContain('Se concede a mano.');
+    });
+
+    it('lists the seasons an achievement was got in, oldest first', () => {
+        const wrapper = mount(AchievementsProfileSection, {
+            props: {
+                earned: [earned({ repeats: true, seasons: ['2027', '2026', '2025'] })],
+                catalogueUrl: '/logros',
+            },
+        });
+
+        expect(wrapper.find('[data-test="seasons"]').text()).toBe(
+            'Conseguido en 2025, 2026 y 2027'
+        );
+    });
+
+    it('shows the owner this season and a streak in months', () => {
+        const wrapper = mount(AchievementsProfileSection, {
+            props: {
+                earned: [],
+                locked: [
+                    locked({
+                        repeats: true,
+                        season: '2027',
+                        progress: { value: 2, threshold: 6, inMonths: true },
+                    }),
+                ],
+                catalogueUrl: '/logros',
+                owner,
+            },
+        });
+
+        expect(wrapper.find('[data-test="season"]').text()).toBe('Temporada 2027');
+        expect(wrapper.find('[role="progressbar"]').attributes('aria-valuetext')).toBe(
+            '2 de 6 meses seguidos'
+        );
     });
 
     it('stars an achievement and saves it with the visibility', async () => {

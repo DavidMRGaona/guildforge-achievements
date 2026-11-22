@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Date;
 use Modules\Achievements\Application\DTOs\AchievementRarityDTO;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\DTOs\AchievementViewDTO;
+use Modules\Achievements\Application\DTOs\SeasonStandingDTO;
 use Modules\Achievements\Application\DTOs\ShowcaseItemDTO;
 use Modules\Achievements\Application\Enums\AchievementStatus;
 use Modules\Achievements\Application\Services\AchievementCatalogueInterface;
@@ -19,6 +20,7 @@ use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\AchievementStatusRule;
 use Modules\Achievements\Application\Services\ActivityMetricsInterface;
+use Modules\Achievements\Application\Services\SeasonClock;
 use Modules\Achievements\Domain\Entities\Achievement;
 use Modules\Achievements\Domain\Entities\AchievementGrant;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
@@ -28,6 +30,7 @@ use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
 use Modules\Achievements\Domain\Rules\AchievementRule;
 use Modules\Achievements\Domain\Rules\RuleEvaluator;
 use Modules\Achievements\Domain\ValueObjects\AchievementPreferences;
+use Modules\Achievements\Domain\ValueObjects\Season;
 
 /**
  * Bound "scoped": the catalogue and each account's choices are read once per request or job, and
@@ -44,6 +47,9 @@ final class AchievementShowcase implements AchievementShowcaseInterface
     /** @var array<string, array<string, AchievementGrant>> */
     private array $held = [];
 
+    /** @var array<string, array<string, list<string>>> */
+    private array $seasons = [];
+
     public function __construct(
         private readonly AchievementRepositoryInterface $achievements,
         private readonly AchievementGrantRepositoryInterface $grants,
@@ -56,6 +62,7 @@ final class AchievementShowcase implements AchievementShowcaseInterface
         private readonly AchievementStatusRule $status,
         private readonly RuleEvaluator $rules,
         private readonly TimezoneServiceInterface $time,
+        private readonly SeasonClock $clock,
     ) {}
 
     public function preferences(string $userId): AchievementPreferences
@@ -102,6 +109,8 @@ final class AchievementShowcase implements AchievementShowcaseInterface
                 // Held by the owner, so a share of 0 only says they are not active: not shown
                 rarity: $revealed ? self::knownShare($rarity?->shareOf($achievementId)) : null,
                 featured: $revealed && in_array($achievementId, $featured, true),
+                // Which seasons, never what was played in them
+                seasons: $this->seasonsBy($ownerId)[$achievementId] ?? [],
             );
         }
 
@@ -117,14 +126,14 @@ final class AchievementShowcase implements AchievementShowcaseInterface
         }
 
         $ownerId = strtolower($ownerId);
-        $held = $this->heldBy($ownerId);
         $settings = $this->settings->settings();
         $kindsWithSource = $this->metrics->kindsWithSource();
         $candidates = [];
         $kinds = [];
 
-        foreach ($this->catalogue() as $id => $achievement) {
-            if (isset($held[$id]) || ! $achievement->active) {
+        foreach ($this->catalogue() as $achievement) {
+            // One that repeats is still to get while this season's is not held
+            if ($this->holdsNow($ownerId, $achievement) || ! $achievement->active) {
                 continue;
             }
 
@@ -159,8 +168,10 @@ final class AchievementShowcase implements AchievementShowcaseInterface
 
             $items[] = new ShowcaseItemDTO(
                 achievement: $view,
-                progress: min($rule->threshold, $this->rules->value($rule, $facts, $now, $zone)),
-                threshold: $rule->threshold,
+                progress: min($rule->target(), $this->rules->value($rule, $facts, $now, $zone)),
+                threshold: $rule->target(),
+                season: $rule->isSeasonal() ? $this->clock->current()->key() : null,
+                inMonths: $rule->window->isStreak(),
             );
         }
 
@@ -206,6 +217,55 @@ final class AchievementShowcase implements AchievementShowcaseInterface
         return $views;
     }
 
+    public function seasonStandings(?string $viewerId): array
+    {
+        $viewerId = $viewerId === null ? null : ActivityIdentifierRule::userId($viewerId);
+        $settings = $this->settings->settings();
+
+        if (! $settings->seasonsAndStreaks) {
+            return [];
+        }
+
+        $current = $this->clock->current()->key();
+        $seasonal = [];
+        $kinds = [];
+
+        foreach ($this->catalogue() as $id => $achievement) {
+            $rule = $achievement->rule;
+
+            if ($rule instanceof AchievementRule && $rule->isSeasonal()) {
+                $seasonal[$id] = [$achievement, $rule];
+                $kind = $rule->evaluatedKind();
+
+                if ($kind !== null && $viewerId !== null && $settings->progress && ! $achievement->secret) {
+                    $kinds[$kind] = true;
+                }
+            }
+        }
+
+        $facts = $kinds === [] || $viewerId === null ? [] : $this->facts->forUser($viewerId, array_keys($kinds));
+        $now = DateTimeImmutable::createFromInterface(Date::now());
+        $zone = $this->time->displayTimezone();
+        $standings = [];
+
+        foreach ($seasonal as $id => [$achievement, $rule]) {
+            $seasons = $viewerId === null ? [] : ($this->seasonsBy($viewerId)[$id] ?? []);
+            $heldNow = in_array($current, $seasons, true);
+            $measured = ! $heldNow && ! $rule->isManual() && $viewerId !== null && $settings->progress && ! $achievement->secret;
+
+            $standings[$id] = new SeasonStandingDTO(
+                season: $current,
+                heldNow: $heldNow,
+                pastSeasons: array_values(array_filter($seasons, static fn (string $season): bool => $season !== $current)),
+                progress: $measured ? min($rule->target(), $this->rules->value($rule, $facts, $now, $zone)) : null,
+                target: $measured ? $rule->target() : null,
+                inMonths: $rule->window->isStreak(),
+            );
+        }
+
+        return $standings;
+    }
+
     public function heldCount(string $ownerId): int
     {
         return count(array_intersect_key($this->heldBy(strtolower($ownerId)), $this->catalogue()));
@@ -234,6 +294,7 @@ final class AchievementShowcase implements AchievementShowcaseInterface
 
         foreach ($shown as $userId) {
             $this->held[$userId] = $this->byAchievement($grants[$userId] ?? []);
+            $this->seasons[$userId] = $this->seasonKeys($grants[$userId] ?? []);
             $views = [];
 
             foreach ($this->featuredIds($this->held[$userId], $this->preferences[$userId], $rarity) as $achievementId) {
@@ -298,13 +359,49 @@ final class AchievementShowcase implements AchievementShowcaseInterface
     }
 
     /**
-     * Each achievement an account holds with its first grant, oldest first.
+     * Each achievement an account holds with its latest grant (the newest season of one that
+     * repeats), in the order of those grants.
      *
      * @return array<string, AchievementGrant>
      */
     private function heldBy(string $userId): array
     {
-        return $this->held[$userId] ??= $this->byAchievement($this->grants->forUser($userId));
+        if (! isset($this->held[$userId])) {
+            $grants = $this->grants->forUser($userId);
+            $this->held[$userId] = $this->byAchievement($grants);
+            $this->seasons[$userId] = $this->seasonKeys($grants);
+        }
+
+        return $this->held[$userId];
+    }
+
+    /**
+     * The seasons in which an account holds each achievement that repeats, newest first.
+     *
+     * @return array<string, list<string>>
+     */
+    private function seasonsBy(string $userId): array
+    {
+        $this->heldBy($userId);
+
+        return $this->seasons[$userId] ?? [];
+    }
+
+    /**
+     * Whether the account holds the achievement as far as getting it goes: this season's grant for
+     * one that repeats, any grant otherwise.
+     */
+    private function holdsNow(string $userId, Achievement $achievement): bool
+    {
+        $id = strtolower($achievement->id);
+
+        if (! isset($this->heldBy($userId)[$id])) {
+            return false;
+        }
+
+        $season = $this->clock->forGrantOf($achievement);
+
+        return ! $season instanceof Season || in_array($season->key(), $this->seasonsBy($userId)[$id] ?? [], true);
     }
 
     /**
@@ -316,10 +413,36 @@ final class AchievementShowcase implements AchievementShowcaseInterface
         $held = [];
 
         foreach ($grants as $grant) {
-            $held[strtolower($grant->achievementId)] ??= $grant;
+            $id = strtolower($grant->achievementId);
+            // Moved to the end, so the order follows each one's latest grant
+            unset($held[$id]);
+            $held[$id] = $grant;
         }
 
         return $held;
+    }
+
+    /**
+     * @param  list<AchievementGrant>  $grants
+     * @return array<string, list<string>>
+     */
+    private function seasonKeys(array $grants): array
+    {
+        $seasons = [];
+
+        foreach ($grants as $grant) {
+            if ($grant->season !== null && $grant->season !== '') {
+                $seasons[strtolower($grant->achievementId)][] = $grant->season;
+            }
+        }
+
+        foreach ($seasons as $id => $keys) {
+            $keys = array_values(array_unique($keys));
+            rsort($keys, SORT_STRING);
+            $seasons[$id] = $keys;
+        }
+
+        return $seasons;
     }
 
     /**

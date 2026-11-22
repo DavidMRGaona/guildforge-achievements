@@ -11,7 +11,7 @@ El core rechaza el módulo si no se cumplen (`module.json` → `requires`).
 
 ## Qué hace
 
-Un catálogo de logros que se conceden solos con lo que cada persona hace en la asociación, a partir del registro de actividad, o a mano y en lote desde el panel, con su historial, y que se ven en el perfil público, junto al nombre (perfil, tarjeta y foro) y en la página `/logros`. Cada mecánica restante (avisos, temporadas, retos…) llega con su propia issue.
+Un catálogo de logros que se conceden solos con lo que cada persona hace en la asociación, a partir del registro de actividad, o a mano y en lote desde el panel, con su historial, y que se ven en el perfil público, junto al nombre (perfil, tarjeta y foro) y en la página `/logros`. Los logros pueden repetirse cada temporada o pedir rachas de meses seguidos. Cada mecánica restante (avisos, retos…) llega con su propia issue.
 
 ## Registro de actividad
 
@@ -29,7 +29,7 @@ Los logros se calculan con lo que cuentan las fuentes de actividad del core (`do
 
 - **Imagen.** Se sube a Cloudinary por el disco `images`, en `achievements/badges/<año>/<mes>/`, o se elige de la biblioteca de medios. La fuente de medios `achievements.badge-image` reclama esa carpeta; el modelo libera la imagen sustituida o borrada a través del core. El uso de un logro secreto se titula «Logro secreto», pero su miniatura sí se ve en la biblioteca (que solo abre el equipo, con `media.view_any`): el core solo puede ocultar carpetas enteras, y nunca borra lo que hay en ellas. Ocultar un uso concreto llegará con DavidMRGaona/GuildForge#830.
 - **Secretos.** A quien no lo tiene, un logro secreto del dueño no se le enseña uno a uno: la sección solo dice cuántos hay (`secretCount`, «Y 2 logros secretos»), sin fecha, rareza ni posición, porque las concesiones de una misma tanda comparten segundo y una fecha ataría el secreto a uno revelado en otro sitio (y a la partida o el evento de detrás). El dueño ve los suyos. Destacar un secreto es enseñarlo a todo el mundo; si un logro destacado pasa a ser secreto, `ForgetFeaturedWhenMadeSecret` lo quita de las destacadas de todo el mundo. En `/logros` y en lo que le falta al dueño, los enmascarados no llevan id ni fecha.
-- **Estado.** La columna *Estado* dice si el evaluador mira el logro y, si no, por qué: *Activo*, *Desactivado*, *Solo a mano*, *Regla no válida*, *Sin fuente* (ningún módulo activo informa de su tipo), *Tipo apagado* o *Secretos apagados*. Es la misma decisión que toma el evaluador (`AchievementStatusRule`).
+- **Estado.** La columna *Estado* dice si el evaluador mira el logro y, si no, por qué: *Activo*, *Desactivado*, *Solo a mano*, *Regla no válida*, *Sin fuente* (ningún módulo activo informa de su tipo), *Tipo apagado*, *Secretos apagados* o *Temporadas apagadas*. Es la misma decisión que toma el evaluador (`AchievementStatusRule`).
 - **Borrar** solo se ofrece mientras nadie tiene el logro (`AchievementPolicy::delete()`, y la clave ajena `restrictOnDelete` en la base de datos), y pide una casilla. Un logro que alguien tiene solo se desactiva.
 
 ### La regla
@@ -43,6 +43,9 @@ JSON versionado en la columna `rule`, leído por `AchievementRule::tryFrom()`:
 {"version": 1, "metric": "distinct", "kind": "game_session", "key": "game_system", "threshold": 3}
 {"version": 1, "metric": "years", "basis": "account", "threshold": 5}
 {"version": 1, "metric": "manual"}
+{"version": 1, "metric": "count", "kind": "game_session", "threshold": 10, "window": {"type": "season"}}
+{"version": 1, "metric": "count", "kind": "game_session", "threshold": 1, "window": {"type": "streak", "months": 3, "per_season": true}}
+{"version": 1, "metric": "manual", "window": {"type": "season"}}
 ```
 
 - `count`: cosas (tipo de fuente + id) del tipo de actividad en las que la persona tiene un hecho que pasa todos los filtros; varios papeles en la misma cosa cuentan una vez. `placement_max` deja fuera los hechos sin puesto.
@@ -50,14 +53,25 @@ JSON versionado en la columna `rule`, leído por `AchievementRule::tryFrom()`:
 - `years`: `account`, años completos desde el primer hecho de tipo `account`, contados en la zona de visualización; `membership`, cosas de tipo `membership_year`.
 - `manual`: nunca se concede solo.
 - La lectura nunca lanza excepciones, y lo que no entiende deja la regla **ilegible**, nunca «cumplida por todo el mundo»: otra versión, una métrica, tipo, papel, base o ventana desconocidos, una clave inesperada, un valor del tipo equivocado o fuera de rango. Un logro con la regla ilegible no se evalúa y se avisa una vez al día.
-- Sitio para lo que viene: temporadas y rachas serán tipos nuevos de `window`; los logros de comunidad y los retos, métricas nuevas. Hasta que una versión las lea, una regla que las use es ilegible para las anteriores.
+- `window` (`RuleWindow`) dice qué hechos cuentan. Sin ella, o con `all_time`, todos, y el logro se concede una vez. Con `season`, solo los de una temporada (un año natural en la zona de visualización), y se concede una vez en cada temporada en que se cumpla. Con `streak`, `months` meses naturales seguidos (de 2 a 36) con al menos `threshold` cosas cada uno; un mes sin ellas corta la racha. Se concede una vez, o una vez por temporada con `per_season` (la racha no pasa de una temporada a la siguiente, y entonces tiene 12 meses como mucho). La racha solo vale para `count`, los años nunca tienen ventana y un logro `manual` puede ser por temporada (se concede a mano una vez cada año).
+- Sitio para lo que viene: los logros de comunidad y los retos serán métricas nuevas. Hasta que una versión las lea, una regla que las use es ilegible para las anteriores (como lo es una ventana de temporada o de racha para las versiones de antes de ellas).
 - `filters.attribute.label` es solo el nombre del valor al guardar, para el panel; no interviene en la evaluación.
 
-El formulario construye la regla con los tipos que ofrecen las fuentes activas ahora (más el del logro que se edita, marcado «sin fuente») y con los atributos y valores que ofrecen (`OffersActivityAttributes`). Una combinación que `AchievementRule` no lee se rechaza al guardar.
+El formulario construye la regla con los tipos que ofrecen las fuentes activas ahora (más el del logro que se edita, marcado «sin fuente») y con los atributos y valores que ofrecen (`OffersActivityAttributes`). *Cuándo cuenta* (siempre, por temporada o racha de meses seguidos, con sus meses y si va *Dentro de cada temporada*) sale mientras *Temporadas y rachas* está encendido, y siempre en un logro que ya tiene una ventana, para poder verla y quitarla. Una combinación que `AchievementRule` no lee se rechaza al guardar.
+
+### Temporadas y rachas
+
+Una temporada es un año natural en la zona de visualización: la clave de la concesión es el año (`Season`, «2027»), y en pantalla «Temporada 2027». El día, el mes y el año de un hecho salen de su fecha en la zona de visualización, nunca del instante guardado: una partida a las 23:30 del 31 de diciembre en Madrid es de esa temporada aunque se guarde como las 22:30 UTC, y los meses de una racha siguen el calendario de Madrid también con el cambio de hora. La temporada en curso es la de hoy en esa zona (`SeasonClock`, con `TimezoneServiceInterface::today()`).
+
+- **Evaluación.** El evaluador pregunta a una regla por temporadas (`RuleEvaluator::seasons()`) por cada temporada en la que la persona tiene un hecho que pasa sus filtros, hasta la actual, y concede cada una que se cumpla y no tenga (ni se le haya retirado). Un recálculo concede también las temporadas pasadas, en silencio. Una racha se cumple cuando una serie de meses llega a `months`; el momento es el del hecho que completó el último mes, y sobre él se decide si se avisa.
+- **Lo concedido se queda.** Si una fuente publica de nuevo una cosa sin la persona, el registro cambia y el progreso se recalcula, pero la concesión de esa temporada se conserva.
+- **A mano y en lote.** Un logro por temporada se concede para la temporada en curso; «ya lo tiene» quiere decir «ya lo tiene esta temporada». Las tablas de concesiones y el historial tienen la columna *Temporada* (desde `xl`; en pantallas más estrechas, en *Ver detalles*).
+- **Retirar** una temporada no toca las demás, y esa temporada no vuelve sola.
+- **Apagado.** Con *Temporadas y rachas* apagado, las reglas con temporada o racha no se evalúan (estado *Temporadas apagadas*), tampoco se conceden a mano, no se ofrecen en `/logros` ni en lo que le falta al dueño, y lo ya concedido se conserva y se enseña con sus temporadas. Al volver a encenderlo, todos los logros se evalúan de nuevo, en silencio.
 
 ## Concesiones
 
-Tabla `achievements_grants`: cuenta, logro, temporada (nula por ahora), `granted_at`, origen (`rule`, `manual`, `bulk` o `challenge`), quién la hizo (`actor_id`) y `silent`. Única por cuenta, logro y temporada (`season_key`, `''` sin temporada, porque dos NULL nunca chocan en un índice único).
+Tabla `achievements_grants`: cuenta, logro, temporada (el año, en los logros por temporada; nula en los demás), `granted_at`, origen (`rule`, `manual`, `bulk` o `challenge`), quién la hizo (`actor_id`) y `silent`. Única por cuenta, logro y temporada (`season_key`, `''` sin temporada, porque dos NULL nunca chocan en un índice único).
 
 - Se concede solo a través de `AchievementGranterInterface::grant(NewGrant)`. Lo ya concedido no se vuelve a conceder (`INSERT … ON CONFLICT DO NOTHING`, así que dos trabajos a la vez escriben una fila), ni a una cuenta que no existe o está anonimizada (se lee con bloqueo compartido), ni a un logro borrado.
 - Cada concesión nueva lanza `AchievementGranted` (ids, origen, `silent`) cuando su transacción se confirma; nunca dentro de la red de seguridad de la impersonación.
@@ -122,6 +136,7 @@ El perfil lo dibuja el core, y solo después de que su regla de acceso (`Profile
 - **Secretos.** Un logro secreto se ve como «Logro secreto», sin rareza y sin id, a quien no lo tiene, salvo que su dueño lo destaque: destacarlo es enseñarlo a todo el mundo. Sin id, porque uno revelado en otro sitio diría quién más tiene el mismo secreto; lo enmascarado no se puede destacar.
 - **Rareza 0.** En un logro conseguido, una rareza de 0 solo dice que su dueño no está activo: no se enseña, y en el orden de las destacadas cuenta como desconocida (al final). En el navegador, menos de 0,1 % se escribe «< 0,1 %».
 - **Solo totales.** Nada nombra la mesa, la sesión o el evento que concedió un logro; las props nunca llevan la regla ni los puntos.
+- **Temporadas.** Un logro por temporada se ve una vez, con las temporadas en que se consiguió («Conseguido en 2025 y 2026»: solo años) y la fecha de la última. Mientras no tenga la de este año, el dueño lo ve también entre lo que le falta, con el progreso de esta temporada («Temporada 2027», «3 de 10»). Una racha enseña la serie que lleva ahora («2 de 6 meses seguidos»): la que llega a este mes o, si este mes aún no tiene nada, al anterior; un mes perdido la deja en 0.
 - **Contador `achievements.count`** («Logros», orden 50): cuántos logros tiene, secretos incluidos; nada con cero.
 - **Ocultar mis logros.** El dueño los oculta desde la propia sección (`achievements_preferences.hidden`): nadie más ve la sección, el contador ni las insignias destacadas.
 - **Insignias destacadas** (`FeaturedAchievementBadges`, fuente de insignias del perfil del core): hasta tres, las que el dueño marca con la estrella en su sección (`achievements_preferences.featured`, en su orden), o, si no elige, sus tres logros no secretos más raros (los más recientes con la rareza apagada). Solo logros que tiene: uno retirado o borrado se salta. El core las enseña bajo el nombre del perfil, en su tarjeta y junto al autor en el foro, y solo si quien mira puede ver ese perfil. Una lectura por página para todas las cuentas.
@@ -137,7 +152,7 @@ La parte de la gente activa que tiene cada logro. Gente activa: cuentas con al m
 
 ### Página `/logros`
 
-`achievements.index`, para todo el mundo: los logros que se pueden conseguir ahora (estado *Activo* o *Solo a mano*, con `AchievementStatusRule`), con la rareza de cada uno y los secretos ocultos, más los que la persona ya tiene, aunque ya no se puedan conseguir. Las funciones siguen a los módulos instalados: un logro sin fuente no se ofrece. Al habilitar el módulo por primera vez, `AchievementsMenuLinkSeeder` añade «Logros» al final del menú de la cabecera, como enlace del módulo: se mueve o se borra en *Sitio web → Navegación* y no vuelve.
+`achievements.index`, para todo el mundo: los logros que se pueden conseguir ahora (estado *Activo* o *Solo a mano*, con `AchievementStatusRule`), con la rareza de cada uno y los secretos ocultos, más los que la persona ya tiene, aunque ya no se puedan conseguir. Los que se repiten llevan «Cada temporada», y la página dice qué temporada es. A quien ha iniciado sesión, y solo a esa persona, cada uno de ellos le dice si lo tiene esta temporada, en qué temporadas anteriores lo consiguió y cuánto lleva en la actual (`AchievementShowcaseInterface::seasonStandings()`); nunca se construye la posición de otra persona. Las funciones siguen a los módulos instalados: un logro sin fuente no se ofrece. Al habilitar el módulo por primera vez, `AchievementsMenuLinkSeeder` añade «Logros» al final del menú de la cabecera, como enlace del módulo: se mueve o se borra en *Sitio web → Navegación* y no vuelve.
 
 ## Catálogo inicial
 

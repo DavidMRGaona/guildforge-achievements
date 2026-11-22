@@ -19,6 +19,7 @@ use Modules\Achievements\Application\Enums\BulkGrantOutcome;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\BulkGrantInterface;
+use Modules\Achievements\Application\Services\SeasonClock;
 use Modules\Achievements\Domain\Entities\Achievement;
 use Modules\Achievements\Domain\Entities\AchievementGrant;
 use Modules\Achievements\Domain\Enums\GrantSource;
@@ -36,6 +37,7 @@ final readonly class BulkGranter implements BulkGrantInterface
         private AchievementGrantRepositoryInterface $grants,
         private AchievementGranterInterface $granter,
         private AchievementsSettingsInterface $settings,
+        private SeasonClock $seasons,
         private Connection $db,
     ) {}
 
@@ -174,6 +176,7 @@ final readonly class BulkGranter implements BulkGrantInterface
                 source: GrantSource::Bulk,
                 silent: $silent,
                 actorId: $actorId,
+                season: $this->seasonKey($request->achievementId) === '' ? null : $this->seasonKey($request->achievementId),
                 reason: $reason,
             ));
 
@@ -231,7 +234,8 @@ final readonly class BulkGranter implements BulkGrantInterface
     }
 
     /**
-     * Of these accounts, who already holds the achievement and who had it taken away.
+     * Of these accounts, who already holds the achievement and who had it taken away (this season,
+     * for one that repeats per season).
      *
      * @param  list<string>  $people
      * @return array{list<string>, list<string>}
@@ -239,16 +243,25 @@ final readonly class BulkGranter implements BulkGrantInterface
     private function alreadyDecided(string $achievementId, array $people): array
     {
         $achievementId = strtolower($achievementId);
+        $seasonKey = $this->seasonKey($achievementId);
         $held = [];
 
-        foreach ($this->grants->heldAchievementIds($people) as $userId => $achievementIds) {
-            if (in_array($achievementId, $achievementIds, true)) {
+        foreach ($this->grants->heldSeasonKeys($people) as $userId => $achievements) {
+            if (isset($achievements[$achievementId][$seasonKey])) {
                 $held[] = (string) $userId;
             }
         }
 
-        $revoked = array_values(array_diff($this->grants->revokedAmong($achievementId, $people), $held));
+        $revoked = array_values(array_diff($this->grants->revokedAmong($achievementId, $people, $seasonKey), $held));
 
         return [$held, $revoked];
+    }
+
+    /**
+     * The season a bulk grant of this achievement goes to now ('' when it does not repeat).
+     */
+    private function seasonKey(string $achievementId): string
+    {
+        return $this->seasons->keyForGrantOf($this->achievements->find($achievementId));
     }
 }

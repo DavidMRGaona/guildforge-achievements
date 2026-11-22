@@ -12,7 +12,9 @@ use Modules\Achievements\Domain\Rules\AchievementRule;
 /**
  * The one decision of whether an achievement is evaluated, shared by the evaluator and the panel.
  * What the rule cannot tell comes first (unreadable, manual, without a source), so the panel shows
- * «Sin fuente» also on an achievement switched off for that reason.
+ * «Sin fuente» also on an achievement switched off for that reason. A seasonal or streak window
+ * while seasons and streaks are off stops even a manual rule: the mechanic is off, so nobody gets
+ * a season of it, by hand or not.
  */
 final class AchievementStatusRule
 {
@@ -29,8 +31,10 @@ final class AchievementStatusRule
 
         $kind = $rule->evaluatedKind();
 
+        $seasonsOff = ! $rule->window->isAllTime() && ! $settings->seasonsAndStreaks;
+
         if ($rule->isManual() || $kind === null) {
-            return AchievementStatus::Manual;
+            return $seasonsOff ? AchievementStatus::SeasonsOff : AchievementStatus::Manual;
         }
 
         if (! isset($kindsWithSource[$kind])) {
@@ -47,6 +51,10 @@ final class AchievementStatusRule
 
         if ($achievement->secret && ! $settings->secrets) {
             return AchievementStatus::SecretsOff;
+        }
+
+        if ($seasonsOff) {
+            return AchievementStatus::SeasonsOff;
         }
 
         return AchievementStatus::Evaluated;
