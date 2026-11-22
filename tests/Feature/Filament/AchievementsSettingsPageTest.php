@@ -11,6 +11,7 @@ use App\Infrastructure\Persistence\Eloquent\Models\RoleModel;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 use Modules\Achievements\AchievementsServiceProvider;
@@ -18,6 +19,7 @@ use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\ValueObjects\MetricKinds;
 use Modules\Achievements\Filament\Pages\AchievementsSettingsPage;
+use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Tests\Support\Modules\ModuleTestCase;
 
 final class AchievementsSettingsPageTest extends ModuleTestCase
@@ -256,6 +258,25 @@ final class AchievementsSettingsPageTest extends ModuleTestCase
         $component->call('save')->assertForbidden();
 
         $this->assertNull(DB::table('settings')->where('key', 'module_settings:achievements')->first());
+    }
+
+    public function test_switching_a_kind_or_the_secrets_back_on_evaluates_everybody_again(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        $this->app->make(AchievementsSettingsInterface::class)->save(new AchievementsSettings(secrets: false, metricKinds: [MetricKinds::EVENT => false]));
+        $this->app->forgetScopedInstances();
+        $this->actingAs($this->userWith(AchievementsSettingsPage::PERMISSION));
+
+        Livewire::test(AchievementsSettingsPage::class)->fillForm(['points' => true])->call('save');
+        Bus::assertNotDispatched(EvaluateAchievementsJob::class);
+
+        $this->app->forgetScopedInstances();
+        Livewire::test(AchievementsSettingsPage::class)->fillForm(['metric_kinds.event' => true])->call('save');
+        Bus::assertDispatched(EvaluateAchievementsJob::class, static fn (EvaluateAchievementsJob $job): bool => $job->achievementIds === null && $job->silent && ! $job->onlyAccountYears);
+
+        $this->app->forgetScopedInstances();
+        Livewire::test(AchievementsSettingsPage::class)->fillForm(['secrets' => true])->call('save');
+        Bus::assertDispatchedTimes(EvaluateAchievementsJob::class, 2);
     }
 
     private function userWith(string $permissionKey): UserModel

@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Tests\Integration\Infrastructure;
 
+use App\Application\Services\SettingsServiceInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Mockery\MockInterface;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\ValueObjects\MetricKinds;
+use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Tests\Support\Modules\ModuleTestCase;
 
 final class ModuleAchievementsSettingsTest extends ModuleTestCase
@@ -106,6 +110,70 @@ final class ModuleAchievementsSettingsTest extends ModuleTestCase
         $this->assertTrue($service->progressEnabled());
         $this->assertSame(10.0, $service->announcementsRarityThreshold());
         $this->assertTrue($service->metricKindEnabled(MetricKinds::EVENT));
+    }
+
+    public function test_the_strict_read_gives_the_defaults_when_nothing_was_ever_saved(): void
+    {
+        $settings = $this->service()->readStrictly();
+
+        $this->assertInstanceOf(AchievementsSettings::class, $settings);
+        $this->assertEquals(new AchievementsSettings, $settings);
+    }
+
+    public function test_the_strict_read_gives_what_was_saved(): void
+    {
+        $this->service()->save(new AchievementsSettings(secrets: false, metricKinds: [MetricKinds::EVENT => false]));
+        $this->app->forgetScopedInstances();
+
+        $settings = $this->app->make(AchievementsSettingsInterface::class)->readStrictly();
+
+        $this->assertInstanceOf(AchievementsSettings::class, $settings);
+        $this->assertFalse($settings->secrets);
+        $this->assertFalse($settings->metricKindEnabled(MetricKinds::EVENT));
+    }
+
+    public function test_the_strict_read_reads_the_table_not_the_cache(): void
+    {
+        $this->service()->settings();
+        DB::table('settings')->insert(['id' => (string) Str::uuid(), 'key' => 'module_settings:achievements', 'value' => '{"secrets":false}', 'created_at' => now(), 'updated_at' => now()]);
+        $this->app->forgetScopedInstances();
+
+        $settings = $this->app->make(AchievementsSettingsInterface::class)->readStrictly();
+
+        $this->assertInstanceOf(AchievementsSettings::class, $settings);
+        $this->assertFalse($settings->secrets);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function unreadableValues(): iterable
+    {
+        yield 'broken JSON' => ['{"secrets":'];
+        yield 'a list' => ['[true, false]'];
+        yield 'a number' => ['12'];
+        yield 'a string' => ['"on"'];
+    }
+
+    #[DataProvider('unreadableValues')]
+    public function test_a_stored_value_that_is_not_an_object_cannot_be_read_strictly(string $value): void
+    {
+        DB::table('settings')->insert(['id' => (string) Str::uuid(), 'key' => 'module_settings:achievements', 'value' => $value, 'created_at' => now(), 'updated_at' => now()]);
+
+        $this->assertNull($this->service()->readStrictly());
+        // The tolerant read still answers with the defaults, for the pages
+        $this->assertTrue($this->service()->secretsEnabled());
+    }
+
+    public function test_an_unreachable_table_cannot_be_read_strictly(): void
+    {
+        // Renaming the table would abort PostgreSQL's test transaction: the core's read throws instead
+        $this->mock(SettingsServiceInterface::class, static function (MockInterface $mock): void {
+            $mock->shouldReceive('getStored')->andThrow(new RuntimeException('The database is away.'));
+        });
+        $this->app->forgetScopedInstances();
+
+        $this->assertNull($this->app->make(AchievementsSettingsInterface::class)->readStrictly());
     }
 
     private function service(): AchievementsSettingsInterface

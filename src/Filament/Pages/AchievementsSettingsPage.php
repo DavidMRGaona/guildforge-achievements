@@ -19,13 +19,15 @@ use Filament\Schemas\Schema;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\ValueObjects\MetricKinds;
+use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 
 /**
  * «Sistema → Configuración → Logros»: the switch of every mechanic of the module.
  *
  * A mechanic that is off is hidden, its routes answer 404 and its rules are not evaluated; what it
  * already granted stays. The values are read through AchievementsSettingsInterface, which is what
- * the rest of the module asks.
+ * the rest of the module asks. Switching a kind of activity or the secret achievements back on
+ * evaluates everybody again, silently, from the ledger.
  *
  * @property Schema $form
  */
@@ -161,7 +163,7 @@ final class AchievementsSettingsPage extends Page implements HasForms
         $state = $this->form->getState();
         $current = $this->service()->settings();
 
-        $this->service()->save(new AchievementsSettings(
+        $saved = new AchievementsSettings(
             progress: (bool) ($state['progress'] ?? $current->progress),
             rarity: (bool) ($state['rarity'] ?? $current->rarity),
             secrets: (bool) ($state['secrets'] ?? $current->secrets),
@@ -182,7 +184,15 @@ final class AchievementsSettingsPage extends Page implements HasForms
                 : $current->recognitionsWindowDays,
             challenges: (bool) ($state['challenges'] ?? $current->challenges),
             metricKinds: $this->submittedKinds($state['metric_kinds'] ?? null, $current),
-        ));
+        );
+
+        $this->service()->save($saved);
+
+        // What was switched off was not evaluated meanwhile: the ledger kept its facts, so evaluating
+        // everybody again (silently) grants what was met while it was off
+        if ($this->switchedBackOn($current, $saved)) {
+            EvaluateAchievementsJob::dispatch();
+        }
 
         Notification::make()
             ->title(__('achievements::messages.settings.saved'))
@@ -225,6 +235,15 @@ final class AchievementsSettingsPage extends Page implements HasForms
         }
 
         return $kinds;
+    }
+
+    private function switchedBackOn(AchievementsSettings $before, AchievementsSettings $after): bool
+    {
+        if (! $before->secrets && $after->secrets) {
+            return true;
+        }
+
+        return array_any(MetricKinds::ALL, fn ($kind) => ! $before->metricKindEnabled($kind) && $after->metricKindEnabled($kind));
     }
 
     private function service(): AchievementsSettingsInterface

@@ -1,0 +1,293 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Achievements\Filament\Resources;
+
+use App\Application\Profiles\ProfileBadgeIcons;
+use App\Domain\Profiles\ProfileBadgeColour;
+use App\Filament\Actions\RowDetailsAction;
+use App\Filament\Forms\Components\MediaLibraryPicker;
+use App\Filament\Resources\BaseResource;
+use App\Filament\Support\PanelNavigationGroup;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Str;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Modules\Achievements\Application\Enums\AchievementStatus;
+use Modules\Achievements\Filament\Resources\AchievementResource\Pages\CreateAchievement;
+use Modules\Achievements\Filament\Resources\AchievementResource\Pages\EditAchievement;
+use Modules\Achievements\Filament\Resources\AchievementResource\Pages\ListAchievements;
+use Modules\Achievements\Filament\Support\AchievementPanelView;
+use Modules\Achievements\Filament\Support\AchievementRuleForm;
+use Modules\Achievements\Infrastructure\Media\AchievementBadgeImageMediaSource;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
+
+/**
+ * «Personas → Logros»: the catalogue. Listed with `achievements.view_any`, written with
+ * `achievements.manage` (AchievementPolicy). Whoever cannot manage it sees each secret achievement
+ * as «Logro secreto», without its rule, and searching never matches one.
+ */
+final class AchievementResource extends BaseResource
+{
+    protected static ?string $model = AchievementModel::class;
+
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-trophy';
+
+    protected static ?int $navigationSort = 50;
+
+    protected static ?string $slug = 'logros';
+
+    public static function getNavigationGroup(): string
+    {
+        return PanelNavigationGroup::People->getLabel();
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('achievements::messages.catalogue.navigation');
+    }
+
+    public static function getModelLabel(): string
+    {
+        return __('achievements::messages.catalogue.model.singular');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('achievements::messages.catalogue.model.plural');
+    }
+
+    public static function form(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                Section::make(self::text('sections.badge'))
+                    ->description(self::text('sections.badge_description'))
+                    ->schema([
+                        TextInput::make('name')
+                            ->label(self::text('fields.name'))
+                            ->required()
+                            ->maxLength(60),
+
+                        Textarea::make('description')
+                            ->label(self::text('fields.description'))
+                            ->helperText(self::text('helpers.description'))
+                            ->maxLength(200)
+                            ->rows(2)
+                            ->dehydrateStateUsing(static fn (mixed $state): string => is_string($state) ? trim($state) : ''),
+
+                        Select::make('icon')
+                            ->label(self::text('fields.icon'))
+                            ->options(self::iconOptions())
+                            ->searchable()
+                            ->native(false)
+                            ->required(),
+
+                        Select::make('colour')
+                            ->label(self::text('fields.colour'))
+                            ->options(self::colourOptions())
+                            ->native(false)
+                            ->required(),
+
+                        MediaLibraryPicker::attachTo(FileUpload::make('image_public_id')
+                            ->label(self::text('fields.image'))
+                            ->helperText(self::text('helpers.image'))
+                            ->image()
+                            ->disk('images')
+                            ->directory(fn (): string => AchievementBadgeImageMediaSource::FOLDER.now()->format('Y/m'))
+                            ->getUploadedFileNameForStorageUsing(
+                                fn (TemporaryUploadedFile $file): string => Str::uuid()->toString().'.'.$file->getClientOriginalExtension()
+                            )
+                            ->maxSize(1024)
+                            ->nullable()
+                            ->columnSpanFull()),
+
+                        TextInput::make('points')
+                            ->label(self::text('fields.points'))
+                            ->helperText(self::text('helpers.points'))
+                            ->integer()
+                            ->minValue(0)
+                            ->maxValue(10_000)
+                            ->default(0)
+                            ->required(),
+
+                        Toggle::make('is_secret')
+                            ->label(self::text('fields.is_secret'))
+                            ->helperText(self::text('helpers.is_secret')),
+
+                        Toggle::make('is_active')
+                            ->label(self::text('fields.is_active'))
+                            ->helperText(self::text('helpers.is_active'))
+                            ->default(true),
+                    ])
+                    ->columns(2),
+
+                Section::make(self::text('sections.rule'))
+                    ->description(self::text('sections.rule_description'))
+                    ->schema(AchievementRuleForm::components())
+                    ->columns(2),
+            ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                TextColumn::make('name')
+                    ->label(self::text('fields.name'))
+                    ->formatStateUsing(static fn (AchievementModel $record): string => self::shownName($record))
+                    ->searchable(query: static fn (Builder $query, string $search): Builder => self::search($query, $search))
+                    ->sortable()
+                    ->wrap(),
+
+                TextColumn::make('status')
+                    ->label(self::text('fields.status'))
+                    ->state(static fn (AchievementModel $record): string => AchievementPanelView::status($record)->value)
+                    ->formatStateUsing(static fn (string $state): string => AchievementStatus::from($state)->label())
+                    ->color(static fn (string $state): string => AchievementStatus::from($state)->colour())
+                    ->badge(),
+
+                TextColumn::make('grants_count')
+                    ->label(self::text('fields.holders'))
+                    ->counts('grants')
+                    ->sortable()
+                    ->alignCenter()
+                    ->visibleFrom('sm'),
+
+                TextColumn::make('rule_summary')
+                    ->label(self::text('fields.rule'))
+                    ->state(static fn (AchievementModel $record): string => self::masks($record) ? '—' : AchievementPanelView::ruleSummary($record))
+                    ->wrap()
+                    ->visibleFrom('md'),
+
+                TextColumn::make('points')
+                    ->label(self::text('fields.points'))
+                    ->sortable()
+                    ->alignCenter()
+                    ->visibleFrom('xl'),
+
+                IconColumn::make('is_secret')
+                    ->label(self::text('fields.is_secret'))
+                    ->boolean()
+                    ->visibleFrom('xl'),
+            ])
+            ->filters([
+                TernaryFilter::make('is_active')
+                    ->label(self::text('fields.is_active')),
+                TernaryFilter::make('is_secret')
+                    ->label(self::text('fields.is_secret')),
+            ])
+            ->recordActions([
+                ActionGroup::make([
+                    RowDetailsAction::make(),
+                    EditAction::make(),
+                    DeleteAction::make()
+                        ->modalDescription(static fn (AchievementModel $record): string => self::text('delete.description', [
+                            'holders' => (string) $record->grants()->count(),
+                        ]))
+                        ->schema([
+                            Checkbox::make('confirmation')
+                                ->label(self::text('delete.confirmation'))
+                                ->accepted()
+                                ->required(),
+                        ]),
+                ]),
+            ])
+            ->defaultSort('name');
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => ListAchievements::route('/'),
+            'create' => CreateAchievement::route('/create'),
+            'edit' => EditAchievement::route('/{record}/edit'),
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function iconOptions(): array
+    {
+        $options = [];
+
+        foreach (ProfileBadgeIcons::NAMES as $icon) {
+            $key = 'achievements::messages.catalogue.icons.'.$icon;
+            $label = __($key);
+            $options[$icon] = is_string($label) && $label !== $key ? $label : $icon;
+        }
+
+        asort($options, SORT_NATURAL | SORT_FLAG_CASE);
+
+        return $options;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function colourOptions(): array
+    {
+        $options = [];
+
+        foreach (ProfileBadgeColour::cases() as $colour) {
+            $options[$colour->value] = self::text('colours.'.$colour->value);
+        }
+
+        return $options;
+    }
+
+    /**
+     * Whether the current person sees this achievement masked: a secret one, for whoever cannot
+     * manage the catalogue.
+     */
+    public static function masks(AchievementModel $record): bool
+    {
+        return $record->is_secret && ! self::canCreate();
+    }
+
+    public static function shownName(AchievementModel $record): string
+    {
+        return self::masks($record) ? (string) __('achievements::messages.secret.name') : $record->name;
+    }
+
+    /**
+     * @param  Builder<AchievementModel>  $query
+     * @return Builder<AchievementModel>
+     */
+    private static function search(Builder $query, string $search): Builder
+    {
+        return $query->where(static function (Builder $inner) use ($search): void {
+            $pattern = '%'.addcslashes(mb_strtolower($search), '!%_').'%';
+            $inner->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", [$pattern]);
+
+            // A secret name never answers a search of someone who only sees «Logro secreto»
+            if (! self::canCreate()) {
+                $inner->where('is_secret', false);
+            }
+        });
+    }
+
+    /**
+     * @param  array<string, string>  $replace
+     */
+    private static function text(string $key, array $replace = []): string
+    {
+        return (string) __('achievements::messages.catalogue.'.$key, $replace);
+    }
+}

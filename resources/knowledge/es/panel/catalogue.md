@@ -1,0 +1,53 @@
+---
+id: achievements.panel.catalogue
+title: Catálogo de logros y sus reglas
+summary: Crea logros, decide cuándo se conceden solos y entiende por qué uno sale como «Sin fuente».
+category: users-and-roles
+audience: panel
+order: 80
+keywords: [logros, insignias, catálogo, reglas, conceder, partidas, sistemas, torneos, podio, eventos, antigüedad, secreto, sin fuente, puntos, umbral, recalcular]
+conditions:
+  permissions:
+    any: ['achievements:achievements.view_any', 'achievements:achievements.manage']
+---
+Un logro es una insignia que se gana con lo que cada persona hace en la asociación: partidas jugadas o dirigidas, sistemas distintos, torneos, eventos, años en la web… Se concede solo, en cuanto se cumple su regla, y no se retira nunca solo.
+
+## Abrir el catálogo
+
+En el menú lateral, abre **Personas** → **Logros**. La tabla enseña cada logro con su **Estado**, cuántas **Personas** lo tienen y un resumen de su **Regla**. En pantallas estrechas, **Ver detalles**, en el menú **⋯** de cada fila, enseña las columnas que no caben.
+
+Para crear, editar o borrar logros hace falta el permiso de gestionar el catálogo. Con el de ver, los logros secretos salen como «Logro secreto», sin nombre ni regla.
+
+## Crear un logro
+
+1. Pulsa **Nuevo logro**.
+2. En **Insignia**, escribe el **Nombre** y la **Descripción**, y elige el **Icono** y el **Color**. La **Imagen** es opcional: se ve en lugar del icono.
+3. En **Regla**, elige **Qué se mide**:
+   - **Número de actividades**: cuántas partidas, campañas, torneos, eventos, mensajes… Puedes quedarte con un **Papel** (jugar, dirigir, organizar…), con un valor concreto (**Solo con** un sistema de juego, por ejemplo) o con un **Puesto máximo** (3 es subir al podio).
+   - **Valores distintos**: cuántos valores distintos hay, por ejemplo «3 sistemas distintos».
+   - **Años**: años desde el alta en la web, o años como socio.
+   - **Solo a mano**: no se concede nunca solo.
+4. Escribe **Cuántos hacen falta** y guarda.
+
+Al guardar, el logro se concede **sin avisos** a quien ya cumpla la regla. Lo mismo pasa al cambiar la regla o al activar un logro desactivado.
+
+Escribe la descripción con totales («Juega 10 partidas»), nunca con una partida o una campaña concreta: quién jugó una mesa no es público.
+
+## Estados
+
+- **Activo**: se concede solo.
+- **Sin fuente**: ningún módulo activo informa de ese tipo de actividad (por ejemplo, torneos sin el módulo de torneos). No se evalúa hasta que lo haya.
+- **Desactivado**: no se concede ni se enseña. Quien ya lo tenía lo conserva.
+- **Tipo apagado**: su tipo de actividad está apagado en *Sistema → Configuración → Logros*.
+- **Secretos apagados**: es secreto y los logros secretos están apagados en los ajustes.
+- **Solo a mano** y **Regla no válida**: no se conceden solos. Una regla no válida se arregla editando el logro y guardando la regla de nuevo.
+
+Cuando vuelves a encender un tipo de actividad o los logros secretos en los ajustes, los logros vuelven a evaluarse para todo el mundo, sin avisos. Mientras estuvo apagado no se concedió nada de ese tipo.
+
+## Lo que se concede no se retira
+
+Una concesión es para siempre: si una partida deja de contar o subes el umbral, quien ya tenía el logro lo conserva. Borrar un logro sí borra todas sus concesiones; para dejar de concederlo basta con desactivarlo.
+
+## Catálogo inicial
+
+Al instalar el módulo se crea un catálogo con logros de bienvenida, partidas jugadas y dirigidas, sistemas distintos, campañas, torneos, eventos, antigüedad y propuestas. Solo empiezan activos los que tienen fuente. Puedes editarlos y borrarlos como cualquier otro.
