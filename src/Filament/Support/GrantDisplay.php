@@ -103,7 +103,10 @@ final class GrantDisplay
     {
         $viewer = Auth::user();
 
-        return $viewer instanceof UserModel && $viewer->can('viewAny', UserModel::class);
+        // The same as showing a name: listing accounts and seeing one (UserPolicy::view())
+        return $viewer instanceof UserModel
+            && $viewer->can('viewAny', UserModel::class)
+            && $viewer->can('view', new UserModel);
     }
 
     private static function manages(UserModel $viewer): bool
