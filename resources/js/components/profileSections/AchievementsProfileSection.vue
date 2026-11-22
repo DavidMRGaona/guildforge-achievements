@@ -60,6 +60,21 @@ function formatDay(iso: string): string {
     });
 }
 
+/** «noviembre de 2026»: the month as sent (`YYYY-MM`), never moved to another zone */
+function formatMonth(month: string): string {
+    const [year, monthNumber] = month.split('-').map(Number);
+
+    if (!year || !monthNumber) {
+        return month;
+    }
+
+    return new Date(Date.UTC(year, monthNumber - 1, 15)).toLocaleDateString(locale.value, {
+        timeZone: 'UTC',
+        month: 'long',
+        year: 'numeric',
+    });
+}
+
 function share(rarity: number): string {
     return formatShare(rarity, locale.value);
 }
@@ -299,6 +314,9 @@ function progressPercent(item: LockedAchievement): number {
                         >
                             <time v-if="item.grantedAt" :datetime="item.grantedAt">
                                 {{ formatDay(item.grantedAt) }}
+                            </time>
+                            <time v-else-if="item.grantedMonth" :datetime="item.grantedMonth">
+                                {{ formatMonth(item.grantedMonth) }}
                             </time>
                             <span v-if="showsRarity && item.rarity !== null">
                                 {{ t('achievements.rarity.share', { share: share(item.rarity) }) }}

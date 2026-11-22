@@ -75,11 +75,58 @@ final class AchievementsProfileSectionTest extends ModuleTestCase
 
             $this->assertNotNull($props);
             $this->assertSame(['Diez partidas', 'Primera partida'], array_column($props['earned'], 'name'));
-            $this->assertSame('2026-10-01T20:00:00+02:00', $this->isoInMadrid($props['earned'][0]['grantedAt']));
+            $this->assertNull($props['earned'][0]['grantedAt']);
+            $this->assertSame(['2026-10', '2026-09'], array_column($props['earned'], 'grantedMonth'));
             $this->assertSame([50.0, 100.0], array_column($props['earned'], 'rarity'));
             $this->assertSame([], $props['locked']);
             $this->assertNull($props['owner']);
         }
+    }
+
+    public function test_anybody_but_the_owner_gets_the_month_alone(): void
+    {
+        $first = $this->achievement($this->countRule(), ['name' => 'Primera partida']);
+        $ten = $this->achievement($this->countRule(threshold: 10), ['name' => 'Diez partidas']);
+        $this->grantAt($this->ana, (string) $first->id, '2026-11-14 19:31:07');
+        $this->grantAt($this->ana, (string) $ten->id, '2026-11-21 10:12:45');
+
+        foreach ([null, $this->luis] as $viewer) {
+            $props = $this->achievementsSection($this->render($this->ana, $viewer))?->props;
+            $json = (string) json_encode($props);
+
+            // Neither the day nor the time of any grant travels, in any form
+            foreach (['14', '21', '19:31', '20:31', '10:12', '11:12', ':07', ':45', 'T'] as $piece) {
+                $this->assertStringNotContainsString('2026-11-'.$piece, $json);
+            }
+
+            $this->assertStringNotContainsString('31:07', $json);
+            $this->assertStringNotContainsString('12:45', $json);
+            $earned = $props['earned'] ?? [];
+            $this->assertSame([null, null], array_column($earned, 'grantedAt'));
+            $this->assertSame(['2026-11', '2026-11'], array_column($earned, 'grantedMonth'));
+            // Within a month by name, so the order never tells which came first
+            $this->assertSame(['Diez partidas', 'Primera partida'], array_column($earned, 'name'));
+        }
+
+        $own = $this->achievementsSection($this->render($this->ana, $this->ana))?->props['earned'] ?? [];
+        $this->assertSame(['Diez partidas', 'Primera partida'], array_column($own, 'name'));
+        $this->assertSame(['2026-11-21T11:12:45+01:00', '2026-11-14T20:31:07+01:00'], array_map($this->isoInMadrid(...), array_column($own, 'grantedAt')));
+    }
+
+    public function test_within_a_month_others_see_them_by_name_not_by_time(): void
+    {
+        $zeta = $this->achievement($this->countRule(), ['name' => 'Zeta']);
+        $alfa = $this->achievement($this->countRule(), ['name' => 'Alfa']);
+        $october = $this->achievement($this->countRule(), ['name' => 'Beta']);
+        $this->grantAt($this->ana, (string) $alfa->id, '2026-11-02 18:00:00');
+        $this->grantAt($this->ana, (string) $zeta->id, '2026-11-20 18:00:00');
+        $this->grantAt($this->ana, (string) $october->id, '2026-10-30 18:00:00');
+
+        $others = $this->achievementsSection($this->render($this->ana, $this->luis))?->props['earned'] ?? [];
+        $own = $this->achievementsSection($this->render($this->ana, $this->ana))?->props['earned'] ?? [];
+
+        $this->assertSame(['Alfa', 'Zeta', 'Beta'], array_column($others, 'name'));
+        $this->assertSame(['Zeta', 'Alfa', 'Beta'], array_column($own, 'name'));
     }
 
     public function test_the_owner_also_sees_what_is_left_with_their_progress(): void

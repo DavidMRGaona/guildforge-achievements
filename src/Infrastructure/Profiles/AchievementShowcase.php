@@ -98,14 +98,23 @@ final class AchievementShowcase implements AchievementShowcaseInterface
 
             $items[] = new ShowcaseItemDTO(
                 achievement: $this->presenter->present($achievement, $revealed),
-                grantedAt: $grant->grantedAt,
+                // Only the owner gets the instant: grants of one evaluation share their second, so
+                // anybody else comparing two profiles would learn who played or went somewhere
+                // together. Everybody else gets the display month alone.
+                grantedAt: $isOwner ? $grant->grantedAt : null,
                 // Held by the owner, so a share of 0 only says they are not active: not shown
                 rarity: $revealed ? self::knownShare($rarity?->shareOf($achievementId)) : null,
                 featured: $revealed && in_array($achievementId, $featured, true),
+                grantedMonth: $this->time->format($grant->grantedAt, 'Y-m'),
+                grantedOrder: $grant->grantedAt,
             );
         }
 
-        usort($items, static fn (ShowcaseItemDTO $a, ShowcaseItemDTO $b): int => [$b->grantedAt, $a->achievement->id] <=> [$a->grantedAt, $b->achievement->id]);
+        // The owner: newest first. Anybody else: by month, then by the name shown, so the order
+        // never tells which came first within a month
+        usort($items, $isOwner
+            ? static fn (ShowcaseItemDTO $a, ShowcaseItemDTO $b): int => [$b->grantedOrder, $a->achievement->id] <=> [$a->grantedOrder, $b->achievement->id]
+            : static fn (ShowcaseItemDTO $a, ShowcaseItemDTO $b): int => [$b->grantedMonth, mb_strtolower($a->achievement->name), $a->achievement->id] <=> [$a->grantedMonth, mb_strtolower($b->achievement->name), $b->achievement->id]);
 
         return $items;
     }
