@@ -137,28 +137,51 @@ final class AchievementsProfileSectionTest extends ModuleTestCase
         $this->assertSame([null], array_column($props['earned'], 'rarity'));
     }
 
-    public function test_a_secret_shows_masked_to_whoever_does_not_hold_it(): void
+    public function test_secrets_others_may_not_see_are_only_counted(): void
     {
+        $first = $this->achievement($this->countRule(), ['name' => 'Primera partida']);
         $secret = $this->achievement($this->countRule(), ['name' => 'El secreto', 'description' => 'Lo que pasó', 'icon' => 'crown', 'is_secret' => true]);
-        $this->grantAt($this->ana, (string) $secret->id);
+        $other = $this->achievement($this->countRule(), ['name' => 'Otro secreto', 'is_secret' => true]);
+        $this->grantAt($this->ana, (string) $first->id, '2026-09-01 18:00:00');
+        $this->grantAt($this->ana, (string) $secret->id, '2026-10-01 18:00:03');
+        $this->grantAt($this->ana, (string) $other->id, '2026-10-02 18:00:00');
         $this->factAt($this->ana, '2026-10-01 18:00:00');
         $this->refreshRarity();
         $marta = $this->person('Marta');
         $this->grantAt($marta, (string) $secret->id);
 
-        $other = $this->achievementsSection($this->render($this->ana, $this->luis))?->props['earned'][0];
-        $guest = $this->achievementsSection($this->render($this->ana, null))?->props['earned'][0];
-        $holder = $this->achievementsSection($this->render($this->ana, $marta))?->props['earned'][0];
-        $owner = $this->achievementsSection($this->render($this->ana, $this->ana))?->props['earned'][0];
+        foreach ([$this->luis, null] as $viewer) {
+            $props = $this->achievementsSection($this->render($this->ana, $viewer))?->props;
+            $json = (string) json_encode($props);
 
-        foreach ([$other, $guest] as $masked) {
-            $this->assertSame(['Logro secreto', true, 'sparkles', null, null], [$masked['name'], $masked['masked'], $masked['icon'], $masked['rarity'], $masked['id']]);
-            $this->assertStringNotContainsString((string) $secret->id, (string) json_encode($masked));
-            $this->assertStringNotContainsString('pasó', (string) json_encode($masked));
+            $this->assertSame(['Primera partida'], array_column($props['earned'] ?? [], 'name'));
+            $this->assertSame(2, $props['secretCount'] ?? null);
+            // Nothing about either secret travels: not its name, id, date, look or rarity
+            $this->assertStringNotContainsString('Logro secreto', $json);
+            $this->assertStringNotContainsString('pasó', $json);
+            $this->assertStringNotContainsString((string) $secret->id, $json);
+            $this->assertStringNotContainsString('18:00:03', $json);
+            $this->assertStringNotContainsString('2026-10-0', $json);
         }
 
-        $this->assertSame(['El secreto', false], [$holder['name'], $holder['masked']]);
-        $this->assertSame(['El secreto', false], [$owner['name'], $owner['masked']]);
+        // Whoever holds one sees it; the other stays counted
+        $holder = $this->achievementsSection($this->render($this->ana, $marta))?->props;
+        $this->assertSame(['El secreto', 'Primera partida'], array_column($holder['earned'] ?? [], 'name'));
+        $this->assertSame(1, $holder['secretCount'] ?? null);
+
+        $owner = $this->achievementsSection($this->render($this->ana, $this->ana))?->props;
+        $this->assertSame(['Otro secreto', 'El secreto', 'Primera partida'], array_column($owner['earned'] ?? [], 'name'));
+        $this->assertSame(0, $owner['secretCount'] ?? null);
+    }
+
+    public function test_someone_with_only_secrets_shows_how_many(): void
+    {
+        $this->grantAt($this->ana, (string) $this->achievement($this->countRule(), ['is_secret' => true])->id);
+
+        $props = $this->achievementsSection($this->render($this->ana, $this->luis))?->props;
+
+        $this->assertSame([], $props['earned'] ?? null);
+        $this->assertSame(1, $props['secretCount'] ?? null);
     }
 
     public function test_an_owner_who_is_not_active_sees_no_share_of_zero(): void

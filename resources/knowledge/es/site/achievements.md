@@ -22,7 +22,7 @@ En tu perfil público, la sección **Logros** enseña los que tienes, con la fec
 
 Los logros solo dicen totales: «10 partidas», «3 sistemas». Nunca dicen en qué mesa, sesión o evento estuviste.
 
-Quién ve tu perfil lo decides en **Editar perfil**. Tus logros solo los ve quien puede ver tu perfil. Un logro secreto que tienes sale como «Logro secreto» a quien no lo tiene, salvo que lo destaques.
+Quién ve tu perfil lo decides en **Editar perfil**. Tus logros solo los ve quien puede ver tu perfil. Tus logros secretos no salen uno a uno a quien no los tiene: solo ve cuántos tienes («Y 2 logros secretos»), sin fecha ni rareza, salvo que destaques alguno.
 
 ## La rareza
 
@@ -38,7 +38,7 @@ Para elegirlos tú:
 2. En la sección **Logros**, pulsa la **estrella** de un logro que tengas. Se guarda al momento.
 3. Repite hasta tres. Para quitar uno, pulsa otra vez su estrella.
 
-Si destacas un logro secreto, lo enseñas a todo el mundo con su nombre.
+Si destacas un logro secreto, lo enseñas a todo el mundo con su nombre. Si un logro que tenías destacado pasa a ser secreto, deja de estar destacado: vuelve a marcarlo si quieres enseñarlo.
 
 ## Ocultar tus logros
 

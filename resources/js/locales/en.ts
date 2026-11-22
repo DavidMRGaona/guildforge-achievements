@@ -6,6 +6,8 @@ export default {
             share: 'Held by {share} % of active people',
         },
         profile: {
+            secretMore: 'And {count} secret achievement. | And {count} secret achievements.',
+            secretOnly: '{count} secret achievement. | {count} secret achievements.',
             earned: 'Earned ({count})',
             locked: 'Still to get ({count})',
             progress: '{value} of {threshold}',

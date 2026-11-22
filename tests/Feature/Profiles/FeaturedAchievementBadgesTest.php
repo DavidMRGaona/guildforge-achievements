@@ -11,6 +11,8 @@ use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Illuminate\Support\Facades\DB;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Infrastructure\Profiles\FeaturedAchievementBadges;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsShowcase;
@@ -114,6 +116,31 @@ final class FeaturedAchievementBadgesTest extends ModuleTestCase
         $this->choose($this->ana, featured: [$secret]);
 
         $this->assertSame(['El secreto'], $this->labels($this->ana));
+    }
+
+    public function test_an_achievement_made_secret_leaves_everybodys_featured_badges(): void
+    {
+        $turned = $this->held('Se vuelve secreto');
+        $kept = $this->held('Sigue visible');
+        $this->grantAt($this->luis, $turned);
+        $this->choose($this->ana, featured: [$turned, $kept]);
+        $this->choose($this->luis, featured: [$turned]);
+
+        AchievementModel::query()->findOrFail($turned)->update(['is_secret' => true]);
+
+        $this->assertSame(['Sigue visible'], $this->labels($this->ana));
+        $this->assertSame([$kept], app(AchievementPreferencesRepositoryInterface::class)->find((string) $this->ana->id)->featured);
+        $this->assertSame([], app(AchievementPreferencesRepositoryInterface::class)->find((string) $this->luis->id)->featured);
+    }
+
+    public function test_a_secret_chosen_while_secret_stays_featured_through_other_edits(): void
+    {
+        $secret = $this->held('El secreto', secret: true);
+        $this->choose($this->ana, featured: [$secret]);
+
+        AchievementModel::query()->findOrFail($secret)->update(['name' => 'El gran secreto']);
+
+        $this->assertSame(['El gran secreto'], $this->labels($this->ana));
     }
 
     public function test_a_secret_not_held_is_never_featured(): void

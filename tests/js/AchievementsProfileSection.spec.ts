@@ -64,6 +64,19 @@ describe('AchievementsProfileSection', () => {
         expect(wrapper.find('a[href="/logros"]').text()).toBe('Ver todos los logros');
     });
 
+    it('counts the secrets the viewer may not see, without listing them', () => {
+        const withOthers = mount(AchievementsProfileSection, {
+            props: { earned: [earned()], secretCount: 2, catalogueUrl: '/logros' },
+        });
+        const onlySecrets = mount(AchievementsProfileSection, {
+            props: { earned: [], secretCount: 1, catalogueUrl: '/logros' },
+        });
+
+        expect(withOthers.find('[data-test="secret-count"]').text()).toBe('Y 2 logros secretos.');
+        expect(withOthers.findAll('[data-test="earned"] li')).toHaveLength(1);
+        expect(onlySecrets.find('[data-test="secret-count"]').text()).toBe('1 logro secreto.');
+    });
+
     it('hides the rarity when it is off', () => {
         const wrapper = mount(AchievementsProfileSection, {
             props: { earned: [earned()], showsRarity: false, catalogueUrl: '/logros' },
@@ -210,17 +223,5 @@ describe('AchievementsProfileSection', () => {
 
         expect(router.put).toHaveBeenCalledTimes(1);
         expect(toggle.attributes('aria-checked')).toBe('false');
-    });
-
-    it('offers no star on a masked secret', () => {
-        const wrapper = mount(AchievementsProfileSection, {
-            props: {
-                earned: [earned({ id: null, name: 'Logro secreto', masked: true, rarity: null })],
-                catalogueUrl: '/logros',
-                owner,
-            },
-        });
-
-        expect(wrapper.find('[data-test="feature"]').exists()).toBe(false);
     });
 });

@@ -16,6 +16,8 @@ import type { EarnedAchievement, LockedAchievement, ShowcaseOwner } from '../../
  */
 interface Props {
     earned: EarnedAchievement[];
+    /** Secret ones the viewer may not see: only counted, never listed */
+    secretCount?: number;
     locked?: LockedAchievement[];
     showsRarity?: boolean;
     catalogueUrl: string;
@@ -24,6 +26,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
     locked: () => [],
+    secretCount: 0,
     showsRarity: false,
     owner: null,
 });
@@ -311,6 +314,15 @@ function progressPercent(item: LockedAchievement): number {
                 </li>
             </ul>
         </section>
+
+        <!-- Secrets this viewer may not see: a number alone, with no date, rarity or place -->
+        <p v-if="secretCount > 0" class="text-sm text-base-secondary" data-test="secret-count">
+            {{
+                earned.length > 0
+                    ? t('achievements.profile.secretMore', { count: secretCount }, secretCount)
+                    : t('achievements.profile.secretOnly', { count: secretCount }, secretCount)
+            }}
+        </p>
 
         <!-- What is left, for the owner -->
         <section v-if="locked.length > 0" aria-labelledby="achievements-locked-heading">

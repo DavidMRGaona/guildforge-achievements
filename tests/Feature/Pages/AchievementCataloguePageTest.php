@@ -68,6 +68,7 @@ final class AchievementCataloguePageTest extends ModuleTestCase
                 ->where('achievements.0.masked', true)
                 ->where('achievements.0.rarity', null)
                 ->where('achievements.0.id', null)
+                ->missing('achievements.0.grantedAt')
                 ->where('achievements.1.name', 'Primera partida')
                 ->where('achievements.1.rarity', 50.0)
                 ->where('achievements.1.held', false)

@@ -60,6 +60,7 @@ use Modules\Achievements\Infrastructure\Grants\AchievementEvaluator;
 use Modules\Achievements\Infrastructure\Grants\AchievementGranter;
 use Modules\Achievements\Infrastructure\Grants\BulkGranter;
 use Modules\Achievements\Infrastructure\Observers\EvaluateChangedAchievements;
+use Modules\Achievements\Infrastructure\Observers\ForgetFeaturedWhenMadeSecret;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementFactRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementGrantRepository;
@@ -145,6 +146,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         Event::listen(ModuleEnabled::class, EvaluateAchievementsOfEnabledModule::class);
 
         AchievementModel::observe(EvaluateChangedAchievements::class);
+        AchievementModel::observe(ForgetFeaturedWhenMadeSecret::class);
         RateLimiter::for(self::PROFILE_CHOICES_LIMITER, static fn (Request $request): array => [
             Limit::perMinute(self::PROFILE_CHOICES_PER_MINUTE)->by('achievements-choices:'.self::requesterKey($request)),
             Limit::perHour(self::PROFILE_CHOICES_PER_HOUR)->by('achievements-choices-hour:'.self::requesterKey($request)),

@@ -88,7 +88,13 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
         $earned = $this->showcase->earned($owner->id, $viewerId);
         $locked = $isOwner ? $this->showcase->locked($owner->id) : [];
 
-        if ($earned === [] && $locked === []) {
+        // Secrets the viewer may not see are only counted: one by one, a date, a rarity or a
+        // position would tie them to a secret revealed elsewhere (grants of one batch share their
+        // second), and with it to the game or event behind it. The owner sees none masked.
+        $secrets = count(array_filter($earned, static fn (ShowcaseItemDTO $item): bool => $item->achievement->masked));
+        $earned = array_values(array_filter($earned, static fn (ShowcaseItemDTO $item): bool => ! $item->achievement->masked));
+
+        if ($earned === [] && $locked === [] && $secrets === 0) {
             throw NothingToDrawException::make();
         }
 
@@ -97,6 +103,7 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
 
         return [
             'earned' => array_map($this->presenter->earned(...), $earned),
+            'secretCount' => $secrets,
             'locked' => array_map($this->presenter->locked(...), $locked),
             'showsRarity' => $this->settings->rarityEnabled(),
             'catalogueUrl' => route('achievements.index', absolute: false),

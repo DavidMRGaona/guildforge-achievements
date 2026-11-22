@@ -25,6 +25,12 @@ interface AchievementPreferencesRepositoryInterface
     public function save(AchievementPreferences $preferences): void;
 
     /**
+     * Takes an achievement out of everybody's featured choices (it became secret: nobody chose to
+     * reveal it as such). Returns how many accounts had it.
+     */
+    public function forgetFeatured(string $achievementId): int;
+
+    /**
      * Forgets an account's choices (anonymization).
      */
     public function deleteForUser(string $userId): void;

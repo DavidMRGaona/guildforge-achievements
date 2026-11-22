@@ -14,7 +14,7 @@ export interface AchievementSummary {
     masked: boolean;
 }
 
-/** An achievement the profile's owner holds */
+/** An achievement the profile's owner holds (never masked: secret ones the viewer may not see are only counted) */
 export interface EarnedAchievement extends AchievementSummary {
     /** ISO instant in the display zone */
     grantedAt: string | null;

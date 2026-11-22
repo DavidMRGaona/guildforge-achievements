@@ -65,6 +65,40 @@ final readonly class EloquentAchievementPreferencesRepository implements Achieve
         );
     }
 
+    public function forgetFeatured(string $achievementId): int
+    {
+        $achievementId = strtolower($achievementId);
+
+        if (! AchievementIds::isWellFormed($achievementId)) {
+            return 0;
+        }
+
+        $changed = 0;
+
+        // A text match finds the candidates on every database (PostgreSQL has no LIKE for json, hence
+        // the cast; the id is a checked uuid, so it holds no wildcard); each row is then read as JSON
+        $rows = $this->table()
+            ->whereRaw('CAST(featured AS TEXT) LIKE ?', ['%'.$achievementId.'%'])
+            ->get(['user_id', 'featured']);
+
+        foreach ($rows as $row) {
+            $featured = self::featured($row->featured);
+            $kept = array_values(array_filter($featured, static fn (string $id): bool => $id !== $achievementId));
+
+            if ($kept === $featured) {
+                continue;
+            }
+
+            $this->table()->where('user_id', (string) $row->user_id)->update([
+                'featured' => json_encode($kept, JSON_THROW_ON_ERROR),
+                'updated_at' => now(),
+            ]);
+            $changed++;
+        }
+
+        return $changed;
+    }
+
     public function deleteForUser(string $userId): void
     {
         $this->table()->where('user_id', strtolower($userId))->delete();

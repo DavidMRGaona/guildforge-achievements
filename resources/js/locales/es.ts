@@ -6,6 +6,8 @@ export default {
             share: 'Lo tiene el {share} % de la gente activa',
         },
         profile: {
+            secretMore: 'Y {count} logro secreto. | Y {count} logros secretos.',
+            secretOnly: '{count} logro secreto. | {count} logros secretos.',
             earned: 'Conseguido ({count}) | Conseguidos ({count})',
             locked: 'Te falta ({count}) | Te faltan ({count})',
             progress: '{value} de {threshold}',
