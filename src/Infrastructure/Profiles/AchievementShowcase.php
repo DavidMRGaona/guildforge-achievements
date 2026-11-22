@@ -19,6 +19,7 @@ use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\AchievementStatusRule;
 use Modules\Achievements\Application\Services\ActivityMetricsInterface;
+use Modules\Achievements\Application\Services\CommunityMetricsInterface;
 use Modules\Achievements\Domain\Entities\Achievement;
 use Modules\Achievements\Domain\Entities\AchievementGrant;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
@@ -56,6 +57,7 @@ final class AchievementShowcase implements AchievementShowcaseInterface
         private readonly AchievementStatusRule $status,
         private readonly RuleEvaluator $rules,
         private readonly TimezoneServiceInterface $time,
+        private readonly CommunityMetricsInterface $community,
     ) {}
 
     public function preferences(string $userId): AchievementPreferences
@@ -157,10 +159,15 @@ final class AchievementShowcase implements AchievementShowcaseInterface
                 continue;
             }
 
+            // Community rules count other people: the number only, from the cache; unknown shows nothing
+            $value = $rule->isCommunity()
+                ? $this->community->progress($rule, $ownerId)
+                : $this->rules->value($rule, $facts, $now, $zone);
+
             $items[] = new ShowcaseItemDTO(
                 achievement: $view,
-                progress: min($rule->threshold, $this->rules->value($rule, $facts, $now, $zone)),
-                threshold: $rule->threshold,
+                progress: $value === null ? null : min($rule->threshold, $value),
+                threshold: $value === null ? null : $rule->threshold,
             );
         }
 
