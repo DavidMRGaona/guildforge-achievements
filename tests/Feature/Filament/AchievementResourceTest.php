@@ -212,7 +212,8 @@ final class AchievementResourceTest extends ModuleTestCase
         $active = $this->achievement($this->countRule());
         $noSource = $this->achievement($this->countRule('tournament'));
         $manual = $this->achievement(['version' => 1, 'metric' => 'manual']);
-        $broken = $this->achievement('nope');
+        // Valid JSON (PostgreSQL refuses anything else in a json column), yet no rule this release reads
+        $broken = $this->achievement('{"version":1,"metric":"count","kind":"game_session","threshold":0}');
         $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
 
         Livewire::test(ListAchievements::class)
