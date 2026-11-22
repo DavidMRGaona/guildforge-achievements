@@ -18,6 +18,7 @@ function earned(overrides: Partial<EarnedAchievement> = {}): EarnedAchievement {
         imageUrl: null,
         masked: false,
         grantedAt: '2026-10-01T20:00:00+02:00',
+        grantedMonth: '2026-10',
         rarity: 4.5,
         featured: false,
         ...overrides,
@@ -75,6 +76,16 @@ describe('AchievementsProfileSection', () => {
         expect(withOthers.find('[data-test="secret-count"]').text()).toBe('Y 2 logros secretos.');
         expect(withOthers.findAll('[data-test="earned"] li')).toHaveLength(1);
         expect(onlySecrets.find('[data-test="secret-count"]').text()).toBe('1 logro secreto.');
+    });
+
+    it('shows anybody but the owner the month alone', () => {
+        const wrapper = mount(AchievementsProfileSection, {
+            props: { earned: [earned({ grantedAt: null })], catalogueUrl: '/logros' },
+        });
+
+        const time = wrapper.find('time');
+        expect(time.attributes('datetime')).toBe('2026-10');
+        expect(time.text()).toBe('octubre de 2026');
     });
 
     it('hides the rarity when it is off', () => {

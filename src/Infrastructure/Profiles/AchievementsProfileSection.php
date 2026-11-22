@@ -17,9 +17,10 @@ use Modules\Achievements\Domain\ValueObjects\AchievementPreferences;
 use Throwable;
 
 /**
- * «Logros» on the public profile (`achievements.badges`): what the owner got, with its date and
- * rarity; for the owner also what is left with their progress, the stars to feature up to three
- * and the switch that hides them from everybody else.
+ * «Logros» on the public profile (`achievements.badges`): what the owner got, with its rarity and
+ * date (the owner gets the day; anybody else the month alone, since grants of one evaluation share
+ * their second); for the owner also what is left with their progress, the stars to feature up to
+ * three and the switch that hides them from everybody else.
  *
  * The core drew the profile only after its access rule let the viewer see it; this section never
  * decides that again. It decides what the owner's choices and the secrets let the viewer see

@@ -16,8 +16,10 @@ export interface AchievementSummary {
 
 /** An achievement the profile's owner holds (never masked: secret ones the viewer may not see are only counted) */
 export interface EarnedAchievement extends AchievementSummary {
-    /** ISO instant in the display zone */
+    /** ISO instant in the display zone: only the owner gets it */
     grantedAt: string | null;
+    /** Display month (`YYYY-MM`): all anybody else gets, since the instant tells who played together */
+    grantedMonth: string | null;
     /** Share of active people holding it, in percent; null when not shown */
     rarity: number | null;
     featured: boolean;

@@ -9,8 +9,11 @@ use DateTimeImmutable;
 /**
  * One achievement on a profile, as the person viewing may see it.
  *
- * Earned: `grantedAt` is when the owner got it; `rarity` its share among active people (null when
- * rarity is off or it is shown masked); `featured` whether it is one of the owner's featured badges.
+ * Earned: `grantedAt` is when the owner got it, set only when the owner is the one looking;
+ * `grantedMonth` is its display month (`Y-m`), all anybody else gets (grants of one evaluation share
+ * their second, so the instant would tell who played together); `grantedOrder` is the instant for
+ * sorting on the server only, never sent; `rarity` its share among active people (null when rarity
+ * is off or it is shown masked); `featured` whether it is one of the owner's featured badges.
  * Locked (only ever built for the owner): `progress` and `threshold` say how far they are («7 de
  * 10»), both null for an achievement granted by hand or shown masked.
  */
@@ -24,5 +27,7 @@ final readonly class ShowcaseItemDTO
         public ?int $progress = null,
         public ?int $threshold = null,
         public bool $manual = false,
+        public ?string $grantedMonth = null,
+        public ?DateTimeImmutable $grantedOrder = null,
     ) {}
 }
