@@ -26,8 +26,8 @@ use Modules\Achievements\Jobs\EvaluateAchievementsJob;
  *
  * A mechanic that is off is hidden, its routes answer 404 and its rules are not evaluated; what it
  * already granted stays. The values are read through AchievementsSettingsInterface, which is what
- * the rest of the module asks. Switching a kind of activity or the secret achievements back on
- * evaluates everybody again, silently, from the ledger.
+ * the rest of the module asks. Switching a kind of activity, the secret achievements or the
+ * community achievements back on evaluates everybody again, silently, from the ledger.
  *
  * @property Schema $form
  */
@@ -239,7 +239,7 @@ final class AchievementsSettingsPage extends Page implements HasForms
 
     private function switchedBackOn(AchievementsSettings $before, AchievementsSettings $after): bool
     {
-        if ((! $before->secrets && $after->secrets) || (! $before->seasonsAndStreaks && $after->seasonsAndStreaks)) {
+        if ((! $before->secrets && $after->secrets) || (! $before->seasonsAndStreaks && $after->seasonsAndStreaks) || (! $before->community && $after->community)) {
             return true;
         }
 

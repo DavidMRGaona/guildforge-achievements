@@ -19,6 +19,9 @@ use Modules\Achievements\Domain\ValueObjects\Season;
  * - years, account: full years from the day of the earliest account fact to today, both as
  *   calendar dates in the display zone (the anniversary counts from its first minute); membership:
  *   membership year subjects.
+ * - people (community): the people the rule counts, which come from other people's
+ *   facts and so from outside (`$people`: one instant per different person, when they were first
+ *   met); without them, 0.
  * - manual: always 0, never met.
  *
  * Windows (RuleWindow), with days, months and years always as calendar dates in the display zone:
@@ -37,11 +40,12 @@ final class RuleEvaluator
 {
     /**
      * @param  list<AchievementFact>  $facts  the person's facts (other kinds are ignored)
+     * @param  list<DateTimeImmutable>|null  $people  community rules: when each different person was first met
      * @param  Season|null  $season  for a seasonal rule, the season asked about (the current one when null); ignored otherwise
      */
-    public function isMet(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone, ?Season $season = null): bool
+    public function isMet(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone, ?array $people = null, ?Season $season = null): bool
     {
-        return $this->metAt($rule, $facts, $now, $displayZone, $season) instanceof DateTimeImmutable;
+        return $this->metAt($rule, $facts, $now, $displayZone, $people, $season) instanceof DateTimeImmutable;
     }
 
     /**
@@ -49,8 +53,9 @@ final class RuleEvaluator
      * seasonal rule, the run going on for a streak.
      *
      * @param  list<AchievementFact>  $facts
+     * @param  list<DateTimeImmutable>|null  $people  community rules: when each different person was first met
      */
-    public function value(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone): int
+    public function value(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone, ?array $people = null): int
     {
         $season = $rule->isSeasonal() ? Season::containing($now, $displayZone) : null;
 
@@ -58,17 +63,19 @@ final class RuleEvaluator
             return $this->currentRun($rule, $facts, $now, $displayZone, $season);
         }
 
-        return $this->measure($rule, $this->inSeason($facts, $season, $displayZone), $now, $displayZone);
+        return $this->measure($rule, $this->inSeason($facts, $season, $displayZone), $now, $displayZone, $people);
     }
 
     /**
      * The metric over these facts, whatever the window.
      *
      * @param  list<AchievementFact>  $facts
+     * @param  list<DateTimeImmutable>|null  $people
      */
-    private function measure(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone): int
+    private function measure(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone, ?array $people): int
     {
         return match ($rule->metric) {
+            MetricType::People => count($people ?? []),
             MetricType::Count => count($this->subjects($rule, $facts)),
             MetricType::Distinct => $this->distinctValues($rule, $facts),
             MetricType::Years => $rule->basis === YearsBasis::Account
@@ -111,12 +118,13 @@ final class RuleEvaluator
      * The instant the rule became met, or null while it is not (and for manual rules). For count and
      * distinct, the earliest instant by which `threshold` subjects (values) had a matching fact; for
      * a streak, the fact that completed the run's last month; for account years, the first minute of
-     * the anniversary day in the display zone. A seasonal rule answers for `$season` (the current one
-     * when null).
+     * the anniversary day in the display zone; for community rules, when the person who reached the
+     * threshold was first met. A seasonal rule answers for `$season` (the current one when null).
      *
      * @param  list<AchievementFact>  $facts
+     * @param  list<DateTimeImmutable>|null  $people  community rules: when each different person was first met
      */
-    public function metAt(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone, ?Season $season = null): ?DateTimeImmutable
+    public function metAt(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone, ?array $people = null, ?Season $season = null): ?DateTimeImmutable
     {
         if ($rule->isManual()) {
             return null;
@@ -130,8 +138,15 @@ final class RuleEvaluator
 
         $facts = $this->inSeason($facts, $season, $displayZone);
 
-        if ($this->measure($rule, $facts, $now, $displayZone) < $rule->threshold) {
+        if ($this->measure($rule, $facts, $now, $displayZone, $people) < $rule->threshold) {
             return null;
+        }
+
+        if ($rule->isCommunity()) {
+            $met = $people ?? [];
+            sort($met);
+
+            return $met[$rule->threshold - 1] ?? null;
         }
 
         if ($rule->metric === MetricType::Years && $rule->basis === YearsBasis::Account) {

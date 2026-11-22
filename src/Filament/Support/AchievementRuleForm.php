@@ -29,7 +29,7 @@ use Modules\Achievements\Domain\ValueObjects\MetricKinds;
  *
  * The window (when it counts: always, per season, or months in a row) is offered while seasons and
  * streaks are on, and always on a rule that already has one, so it can be seen and taken off; a
- * streak only for «Número de actividades», and years never have one.
+ * streak only for «Número de actividades», and years and people met never have one.
  */
 final class AchievementRuleForm
 {
@@ -38,6 +38,8 @@ final class AchievementRuleForm
     public const string KIND = 'rule_kind';
 
     public const string ROLE = 'rule_role';
+
+    public const string WITH_ROLE = 'rule_with_role';
 
     public const string ATTRIBUTE_KEY = 'rule_attribute_key';
 
@@ -59,7 +61,7 @@ final class AchievementRuleForm
 
     /** @var list<string> */
     public const array FIELDS = [
-        self::METRIC, self::KIND, self::ROLE, self::ATTRIBUTE_KEY, self::ATTRIBUTE_VALUE,
+        self::METRIC, self::KIND, self::ROLE, self::WITH_ROLE, self::ATTRIBUTE_KEY, self::ATTRIBUTE_VALUE,
         self::PLACEMENT_MAX, self::DISTINCT_KEY, self::BASIS, self::THRESHOLD,
         self::WINDOW, self::STREAK_MONTHS, self::STREAK_PER_SEASON,
     ];
@@ -71,6 +73,8 @@ final class AchievementRuleForm
     {
         $activity = static fn (Get $get): bool => in_array($get(self::METRIC), [MetricType::Count->value, MetricType::Distinct->value], true);
         $streak = static fn (Get $get): bool => $get(self::METRIC) === MetricType::Count->value && $get(self::WINDOW) === WindowType::Streak->value;
+        $people = static fn (Get $get): bool => $get(self::METRIC) === MetricType::People->value;
+        $withKind = static fn (Get $get): bool => $activity($get) || $people($get);
 
         return [
             Select::make(self::METRIC)
@@ -85,19 +89,27 @@ final class AchievementRuleForm
             Select::make(self::KIND)
                 ->label(self::text('fields.kind'))
                 ->helperText(self::text('helpers.kind'))
-                ->options(static fn (?Model $record): array => self::kindOptions(self::stored($record)?->kind))
+                ->options(static fn (Get $get, ?Model $record): array => self::kindOptions(self::stored($record)?->kind, communityOnly: $people($get)))
                 ->native(false)
-                ->required($activity)
-                ->visible($activity)
+                ->required($withKind)
+                ->visible($withKind)
                 ->live(),
 
             Select::make(self::ROLE)
                 ->label(self::text('fields.role'))
                 ->helperText(self::text('helpers.role'))
-                ->options(self::roleOptions())
+                ->options(static fn (Get $get): array => $people($get) ? self::peopleRoleOptions() : self::roleOptions())
                 ->placeholder(self::text('placeholders.any_role'))
                 ->native(false)
-                ->visible($activity),
+                ->visible($withKind),
+
+            Select::make(self::WITH_ROLE)
+                ->label(self::text('fields.with_role'))
+                ->helperText(self::text('helpers.with_role'))
+                ->options(self::peopleRoleOptions())
+                ->placeholder(self::text('placeholders.any_role'))
+                ->native(false)
+                ->visible($people),
 
             Select::make(self::DISTINCT_KEY)
                 ->label(self::text('fields.distinct_key'))
@@ -150,7 +162,7 @@ final class AchievementRuleForm
                 ->default(WindowType::AllTime->value)
                 ->selectablePlaceholder(false)
                 ->native(false)
-                ->visible(static fn (Get $get, ?Model $record): bool => $get(self::METRIC) !== MetricType::Years->value && self::offersWindows($record))
+                ->visible(static fn (Get $get, ?Model $record): bool => ! in_array($get(self::METRIC), [MetricType::Years->value, MetricType::People->value], true) && self::offersWindows($record))
                 ->live(),
 
             TextInput::make(self::STREAK_MONTHS)
@@ -198,6 +210,7 @@ final class AchievementRuleForm
             self::METRIC => $rule->metric->value,
             self::KIND => $rule->kind,
             self::ROLE => $rule->role,
+            self::WITH_ROLE => $rule->withRole,
             self::ATTRIBUTE_KEY => $rule->attributeKey,
             self::ATTRIBUTE_VALUE => $rule->attributeValue,
             self::PLACEMENT_MAX => $rule->placementMax,
@@ -261,6 +274,10 @@ final class AchievementRuleForm
 
         if ($kind === null) {
             return null;
+        }
+
+        if ($metric === MetricType::People) {
+            return AchievementRule::people($kind, $threshold, self::string($data[self::ROLE] ?? null), self::string($data[self::WITH_ROLE] ?? null));
         }
 
         $attributeKey = self::string($data[self::ATTRIBUTE_KEY] ?? null);
@@ -350,16 +367,21 @@ final class AchievementRuleForm
     }
 
     /**
-     * The kinds with a source now, plus the one stored (which may have lost its source).
+     * The kinds with a source now, plus the one stored (which may have lost its source); for a
+     * community rule, only the kinds done with other people.
      *
      * @return array<string, string>
      */
-    public static function kindOptions(?string $current = null): array
+    public static function kindOptions(?string $current = null, bool $communityOnly = false): array
     {
         $offered = self::metrics()->kindsWithSource();
         $options = [];
 
         foreach (MetricKinds::ALL as $kind) {
+            if ($communityOnly && ! in_array($kind, AchievementRule::COMMUNITY_KINDS, true)) {
+                continue;
+            }
+
             if (isset($offered[$kind])) {
                 $options[$kind] = self::kindLabel($kind);
             } elseif ($kind === $current) {
@@ -390,6 +412,16 @@ final class AchievementRuleForm
         }
 
         return $options;
+    }
+
+    /**
+     * The only parts a `people` rule may name (AchievementRule::PEOPLE_ROLES).
+     *
+     * @return array<string, string>
+     */
+    public static function peopleRoleOptions(): array
+    {
+        return array_intersect_key(self::roleOptions(), array_flip(AchievementRule::PEOPLE_ROLES));
     }
 
     /**

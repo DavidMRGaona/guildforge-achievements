@@ -29,7 +29,7 @@ Los logros se calculan con lo que cuentan las fuentes de actividad del core (`do
 
 - **Imagen.** Se sube a Cloudinary por el disco `images`, en `achievements/badges/<año>/<mes>/`, o se elige de la biblioteca de medios. La fuente de medios `achievements.badge-image` reclama esa carpeta; el modelo libera la imagen sustituida o borrada a través del core. El uso de un logro secreto se titula «Logro secreto», pero su miniatura sí se ve en la biblioteca (que solo abre el equipo, con `media.view_any`): el core solo puede ocultar carpetas enteras, y nunca borra lo que hay en ellas. Ocultar un uso concreto llegará con DavidMRGaona/GuildForge#830.
 - **Secretos.** A quien no lo tiene, un logro secreto del dueño no se le enseña uno a uno: la sección solo dice cuántos hay (`secretCount`, «Y 2 logros secretos»), sin fecha, rareza ni posición, porque las concesiones de una misma tanda comparten segundo y una fecha ataría el secreto a uno revelado en otro sitio (y a la partida o el evento de detrás). El dueño ve los suyos. Destacar un secreto es enseñarlo a todo el mundo; si un logro destacado pasa a ser secreto, `ForgetFeaturedWhenMadeSecret` lo quita de las destacadas de todo el mundo. En `/logros` y en lo que le falta al dueño, los enmascarados no llevan id ni fecha.
-- **Estado.** La columna *Estado* dice si el evaluador mira el logro y, si no, por qué: *Activo*, *Desactivado*, *Solo a mano*, *Regla no válida*, *Sin fuente* (ningún módulo activo informa de su tipo), *Tipo apagado*, *Secretos apagados* o *Temporadas apagadas*. Es la misma decisión que toma el evaluador (`AchievementStatusRule`).
+- **Estado.** La columna *Estado* dice si el evaluador mira el logro y, si no, por qué: *Activo*, *Desactivado*, *Solo a mano*, *Regla no válida*, *Sin fuente* (ningún módulo activo informa de su tipo), *Tipo apagado*, *Secretos apagados*, *Temporadas apagadas* o *Comunidad apagada*. Es la misma decisión que toma el evaluador (`AchievementStatusRule`).
 - **Borrar** solo se ofrece mientras nadie tiene el logro (`AchievementPolicy::delete()`, y la clave ajena `restrictOnDelete` en la base de datos), y pide una casilla. Un logro que alguien tiene solo se desactiva.
 
 ### La regla
@@ -42,6 +42,7 @@ JSON versionado en la columna `rule`, leído por `AchievementRule::tryFrom()`:
  "threshold": 10, "window": {"type": "all_time"}}
 {"version": 1, "metric": "distinct", "kind": "game_session", "key": "game_system", "threshold": 3}
 {"version": 1, "metric": "years", "basis": "account", "threshold": 5}
+{"version": 1, "metric": "people", "kind": "game_session", "filters": {"role": "director", "with_role": "player"}, "threshold": 20}
 {"version": 1, "metric": "manual"}
 {"version": 1, "metric": "count", "kind": "game_session", "threshold": 10, "window": {"type": "season"}}
 {"version": 1, "metric": "count", "kind": "game_session", "threshold": 1, "window": {"type": "streak", "months": 3, "per_season": true}}
@@ -51,10 +52,11 @@ JSON versionado en la columna `rule`, leído por `AchievementRule::tryFrom()`:
 - `count`: cosas (tipo de fuente + id) del tipo de actividad en las que la persona tiene un hecho que pasa todos los filtros; varios papeles en la misma cosa cuentan una vez. `placement_max` deja fuera los hechos sin puesto.
 - `distinct`: valores distintos del atributo `key` entre esos hechos.
 - `years`: `account`, años completos desde el primer hecho de tipo `account`, contados en la zona de visualización; `membership`, cosas de tipo `membership_year`.
+- `people` (comunidad): personas distintas con las que se coincidió en cosas del tipo de actividad, solo `game_session`, `campaign`, `tournament` y `event`. `filters.role` es el papel propio y `filters.with_role`, el de las demás: solo `player` o `director` (otro papel deja la regla ilegible); sin ellos, cualquiera. Nadie se cuenta a sí mismo.
 - `manual`: nunca se concede solo.
 - La lectura nunca lanza excepciones, y lo que no entiende deja la regla **ilegible**, nunca «cumplida por todo el mundo»: otra versión, una métrica, tipo, papel, base o ventana desconocidos, una clave inesperada, un valor del tipo equivocado o fuera de rango. Un logro con la regla ilegible no se evalúa y se avisa una vez al día.
 - `window` (`RuleWindow`) dice qué hechos cuentan. Sin ella, o con `all_time`, todos, y el logro se concede una vez. Con `season`, solo los de una temporada (un año natural en la zona de visualización), y se concede una vez en cada temporada en que se cumpla. Con `streak`, `months` meses naturales seguidos (de 2 a 36) con al menos `threshold` cosas cada uno; un mes sin ellas corta la racha. Se concede una vez, o una vez por temporada con `per_season` (la racha no pasa de una temporada a la siguiente, y entonces tiene 12 meses como mucho). La racha solo vale para `count`, los años nunca tienen ventana y un logro `manual` puede ser por temporada (se concede a mano una vez cada año).
-- Sitio para lo que viene: los logros de comunidad y los retos serán métricas nuevas. Hasta que una versión las lea, una regla que las use es ilegible para las anteriores (como lo es una ventana de temporada o de racha para las versiones de antes de ellas).
+- Sitio para lo que viene: los retos serán métricas nuevas. Hasta que una versión las lea, una regla que las use es ilegible para las anteriores (como lo es una ventana de temporada o de racha para las versiones de antes de ellas).
 - `filters.attribute.label` es solo el nombre del valor al guardar, para el panel; no interviene en la evaluación.
 
 El formulario construye la regla con los tipos que ofrecen las fuentes activas ahora (más el del logro que se edita, marcado «sin fuente») y con los atributos y valores que ofrecen (`OffersActivityAttributes`). *Cuándo cuenta* (siempre, por temporada o racha de meses seguidos, con sus meses y si va *Dentro de cada temporada*) sale mientras *Temporadas y rachas* está encendido, y siempre en un logro que ya tiene una ventana, para poder verla y quitarla. Una combinación que `AchievementRule` no lee se rechaza al guardar.
@@ -68,6 +70,18 @@ Una temporada es un año natural en la zona de visualización: la clave de la co
 - **A mano y en lote.** Un logro por temporada se concede para la temporada en curso; «ya lo tiene» quiere decir «ya lo tiene esta temporada». Las tablas de concesiones y el historial tienen la columna *Temporada* (desde `xl`; en pantallas más estrechas, en *Ver detalles*).
 - **Retirar** una temporada no toca las demás, y esa temporada no vuelve sola.
 - **Apagado.** Con *Temporadas y rachas* apagado, las reglas con temporada o racha no se evalúan (estado *Temporadas apagadas*), tampoco se conceden a mano, no se ofrecen en `/logros` ni en lo que le falta al dueño, y lo ya concedido se conserva y se enseña con sus temporadas. Al volver a encenderlo, todos los logros se evalúan de nuevo, en silencio.
+
+## Logros de comunidad
+
+Las reglas `people` cuentan a otras personas, así que no salen de los hechos de la persona sino de `CommunityMetricsInterface` (`LedgerCommunityMetrics`):
+
+- **Solo números.** Lo que sale de ahí son números e instantes, nunca quiénes son esas personas: ni el logro, ni el progreso («7 de 10»), ni los avisos las nombran.
+- **Consultas agregadas.** `AchievementFactRepositoryInterface::firstMeetings()` agrupa sobre `achievements_facts` por bloques de 500 cuentas, nunca cuenta a cuenta. No necesita índice propio: los hechos de la persona salen del índice (`user_id`, `kind`, `occurred_at`) y los de las demás, de la clave única (`source_type`, `subject_id`, `user_id`, `role`), que ya lleva el papel. El evaluador hace una consulta por forma de regla y bloque, y la comparten las reglas que cuentan a las mismas personas con otro umbral.
+- **Quién cuenta.** Las cuentas anonimizadas (y las borradas del todo) no cuentan, también en el rato que pasa hasta que el registro olvida sus hechos. Las desactivadas y las que ocultan sus logros siguen contando.
+- **Caché y fallo cerrado.** El progreso del perfil se guarda 5 minutos por cuenta (`achievements:community:v1:<id>`). Se olvida con cada `AchievementFactsChanged` de esa cuenta y, al anonimizar una cuenta, en todas las que compartían algo con ella. Si el registro no se puede leer, el progreso no se enseña y se avisa una vez al día (`community_unavailable`); nunca se enseña un 0. Al conceder no hay caché: si el registro falla, la evaluación lanza la excepción y el listener o el job se repite, sin conceder nada.
+- **Permanentes.** Si el número baja al recalcular, la concesión se queda.
+- **Mentor**, dirigir la primera partida de alguien, se dejó fuera por privacidad hasta que se decida (#24).
+- **Interruptor.** Con **Logros de comunidad** apagado, estos logros salen como «Comunidad apagada» y no se evalúan. Al volver a encenderlo se evalúa a todo el mundo, sin avisos.
 
 ## Concesiones
 
@@ -156,7 +170,7 @@ La parte de la gente activa que tiene cada logro. Gente activa: cuentas con al m
 
 ## Catálogo inicial
 
-Al habilitar el módulo por primera vez, su seeder crea un catálogo que cada sitio puede editar y borrar: bienvenida (primera partida, perfil completo, primer mensaje en el foro), partidas jugadas (1, 10, 50 y 100), dirigidas (1 y 10), primera mesa creada que llega a jugarse, sistemas distintos (3 y 10), campaña completada, primer torneo, podio, 5 eventos, 1, 3 y 5 años de cuenta y primera propuesta aceptada. Solo empiezan activos los que tienen fuente; los demás salen como *Sin fuente*.
+Al habilitar el módulo por primera vez, su seeder crea un catálogo que cada sitio puede editar y borrar: bienvenida (primera partida, perfil completo, primer mensaje en el foro), partidas jugadas (1, 10, 50 y 100), dirigidas (1 y 10), primera mesa creada que llega a jugarse, sistemas distintos (3 y 10), campaña completada, primer torneo, podio, 5 eventos, 1, 3 y 5 años de cuenta, primera propuesta aceptada y comunidad (jugar con 10 personas distintas y dirigir a 20). Solo empiezan activos los que tienen fuente; los demás salen como *Sin fuente*.
 
 ```bash
 php artisan achievements:install-starter-catalogue

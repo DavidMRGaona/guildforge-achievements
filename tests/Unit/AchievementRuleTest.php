@@ -84,6 +84,33 @@ final class AchievementRuleTest extends TestCase
         $this->assertSame('membership_year', $membership->evaluatedKind());
     }
 
+    public function test_a_people_rule_counts_others_by_their_part(): void
+    {
+        $rule = AchievementRule::people('game_session', 20, 'director', 'player');
+
+        $this->assertInstanceOf(AchievementRule::class, $rule);
+        $this->assertSame(MetricType::People, $rule->metric);
+        $this->assertSame('game_session', $rule->evaluatedKind());
+        $this->assertSame('director', $rule->role);
+        $this->assertSame('player', $rule->withRole);
+        $this->assertTrue($rule->isCommunity());
+        $this->assertSame(
+            ['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['role' => 'director', 'with_role' => 'player'], 'threshold' => 20, 'window' => ['type' => 'all_time']],
+            $rule->toArray(),
+        );
+        $this->assertNull(AchievementRule::people('venue_booking', 3));
+    }
+
+    public function test_rules_that_count_the_same_people_share_a_shape(): void
+    {
+        $ten = AchievementRule::people('game_session', 10, 'player', 'player');
+        $fifty = AchievementRule::people('game_session', 50, 'player', 'player');
+        $directed = AchievementRule::people('game_session', 10, 'director', 'player');
+
+        $this->assertSame($ten?->peopleShape(), $fifty?->peopleShape());
+        $this->assertNotSame($ten?->peopleShape(), $directed?->peopleShape());
+    }
+
     public function test_a_manual_rule_has_nothing_to_evaluate(): void
     {
         $rule = AchievementRule::tryFrom(['version' => 1, 'metric' => 'manual']);
@@ -129,6 +156,8 @@ final class AchievementRuleTest extends TestCase
         yield 'streak' => [['version' => 1, 'metric' => 'count', 'kind' => 'game_session', 'threshold' => 1, 'window' => ['type' => 'streak', 'months' => 3]]];
         yield 'streak per season' => [['version' => 1, 'metric' => 'count', 'kind' => 'event', 'threshold' => 2, 'window' => ['type' => 'streak', 'months' => 12, 'per_season' => true]]];
         yield 'manual per season' => [['version' => 1, 'metric' => 'manual', 'window' => ['type' => 'season']]];
+        yield 'people' => [['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['role' => 'director', 'with_role' => 'player'], 'threshold' => 20]];
+        yield 'people without roles' => [['version' => 1, 'metric' => 'people', 'kind' => 'event', 'threshold' => 3]];
     }
 
     public function test_a_rule_without_a_window_counts_every_fact_once(): void
@@ -207,6 +236,18 @@ final class AchievementRuleTest extends TestCase
         yield 'another version' => [['version' => 2] + $count];
         yield 'version as text' => [['version' => '1'] + $count];
         yield 'unknown metric' => [['metric' => 'community'] + $count];
+        yield 'people of a kind done alone' => [['version' => 1, 'metric' => 'people', 'kind' => 'forum_post', 'threshold' => 3]];
+        yield 'people of an unknown kind' => [['version' => 1, 'metric' => 'people', 'kind' => 'dragon_slaying', 'threshold' => 3]];
+        yield 'people without kind' => [['version' => 1, 'metric' => 'people', 'threshold' => 3]];
+        yield 'people as organizers' => [['version' => 1, 'metric' => 'people', 'kind' => 'tournament', 'filters' => ['role' => 'organizer'], 'threshold' => 3]];
+        yield 'people with attendees' => [['version' => 1, 'metric' => 'people', 'kind' => 'event', 'filters' => ['with_role' => 'attendee'], 'threshold' => 3]];
+        yield 'people with creators' => [['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['with_role' => 'creator'], 'threshold' => 3]];
+        yield 'people with an unknown role' => [['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['with_role' => 'wizard'], 'threshold' => 3]];
+        yield 'people with an attribute' => [['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['attribute' => ['key' => 'game_system', 'value' => 'pf2']], 'threshold' => 3]];
+        yield 'people with a placement' => [['version' => 1, 'metric' => 'people', 'kind' => 'tournament', 'filters' => ['placement_max' => 3], 'threshold' => 3]];
+        yield 'with_role on a count' => [['filters' => ['with_role' => 'player']] + $count];
+        // Left out of this release (#24): unreadable, so never evaluated
+        yield 'mentor' => [['version' => 1, 'metric' => 'mentor', 'threshold' => 1]];
         yield 'unknown kind' => [['kind' => 'dragon_slaying'] + $count];
         yield 'no kind' => [array_diff_key($count, ['kind' => true])];
         yield 'unknown role' => [['filters' => ['role' => 'wizard']] + $count];
@@ -235,6 +276,7 @@ final class AchievementRuleTest extends TestCase
         yield 'distinct streak' => [['version' => 1, 'metric' => 'distinct', 'kind' => 'game_session', 'key' => 'game_system', 'threshold' => 3, 'window' => ['type' => 'streak', 'months' => 3]]];
         yield 'years per season' => [['version' => 1, 'metric' => 'years', 'basis' => 'account', 'threshold' => 1, 'window' => ['type' => 'season']]];
         yield 'manual streak' => [['version' => 1, 'metric' => 'manual', 'window' => ['type' => 'streak', 'months' => 3]]];
+        yield 'people per season' => [['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'threshold' => 3, 'window' => ['type' => 'season']]];
         yield 'window as text' => [['window' => 'all_time'] + $count];
         yield 'years without basis' => [['version' => 1, 'metric' => 'years', 'threshold' => 1]];
         yield 'years with a kind' => [['version' => 1, 'metric' => 'years', 'basis' => 'account', 'kind' => 'event', 'threshold' => 1]];

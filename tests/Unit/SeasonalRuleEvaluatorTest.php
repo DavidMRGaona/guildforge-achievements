@@ -61,12 +61,12 @@ final class SeasonalRuleEvaluatorTest extends TestCase
         ];
         $now = $this->utc('2027-01-10 12:00:00');
 
-        $this->assertTrue($this->evaluator->isMet($rule, $facts, $now, $this->madrid, Season::fromKey('2026')));
-        $this->assertFalse($this->evaluator->isMet($rule, $facts, $now, $this->madrid, Season::fromKey('2027')));
+        $this->assertTrue($this->evaluator->isMet($rule, $facts, $now, $this->madrid, season: Season::fromKey('2026')));
+        $this->assertFalse($this->evaluator->isMet($rule, $facts, $now, $this->madrid, season: Season::fromKey('2027')));
         // Progress is the current season's
         $this->assertSame(1, $this->evaluator->value($rule, $facts, $now, $this->madrid));
         $this->assertFalse($this->evaluator->isMet($rule, $facts, $now, $this->madrid));
-        $this->assertEquals($this->utc('2026-12-31 22:30:00'), $this->evaluator->metAt($rule, $facts, $now, $this->madrid, Season::fromKey('2026')));
+        $this->assertEquals($this->utc('2026-12-31 22:30:00'), $this->evaluator->metAt($rule, $facts, $now, $this->madrid, season: Season::fromKey('2026')));
     }
 
     public function test_the_seasons_of_a_rule_are_those_with_a_matching_fact_up_to_now(): void
@@ -96,8 +96,8 @@ final class SeasonalRuleEvaluatorTest extends TestCase
         ];
         $now = $this->utc('2026-08-01 12:00:00');
 
-        $this->assertFalse($this->evaluator->isMet($rule, $facts, $now, $this->madrid, Season::fromKey('2025')));
-        $this->assertTrue($this->evaluator->isMet($rule, $facts, $now, $this->madrid, Season::fromKey('2026')));
+        $this->assertFalse($this->evaluator->isMet($rule, $facts, $now, $this->madrid, season: Season::fromKey('2025')));
+        $this->assertTrue($this->evaluator->isMet($rule, $facts, $now, $this->madrid, season: Season::fromKey('2026')));
         $this->assertSame(2, $this->evaluator->value($rule, $facts, $now, $this->madrid));
     }
 
@@ -181,8 +181,8 @@ final class SeasonalRuleEvaluatorTest extends TestCase
         ];
         $now = $this->utc('2027-01-20 12:00:00');
 
-        $this->assertFalse($this->evaluator->isMet($rule, $facts, $now, $this->madrid, Season::fromKey('2026')));
-        $this->assertFalse($this->evaluator->isMet($rule, $facts, $now, $this->madrid, Season::fromKey('2027')));
+        $this->assertFalse($this->evaluator->isMet($rule, $facts, $now, $this->madrid, season: Season::fromKey('2026')));
+        $this->assertFalse($this->evaluator->isMet($rule, $facts, $now, $this->madrid, season: Season::fromKey('2027')));
         // The run going on starts again with the season
         $this->assertSame(1, $this->evaluator->value($rule, $facts, $now, $this->madrid));
 

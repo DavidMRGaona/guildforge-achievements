@@ -295,6 +295,18 @@ final class AchievementsSettingsPageTest extends ModuleTestCase
         Bus::assertDispatched(EvaluateAchievementsJob::class, static fn (EvaluateAchievementsJob $job): bool => $job->achievementIds === null && $job->silent);
     }
 
+    public function test_switching_the_community_achievements_back_on_evaluates_everybody_again(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        $this->app->make(AchievementsSettingsInterface::class)->save(new AchievementsSettings(community: false));
+        $this->app->forgetScopedInstances();
+        $this->actingAs($this->userWith(AchievementsSettingsPage::PERMISSION));
+
+        Livewire::test(AchievementsSettingsPage::class)->fillForm(['community' => true])->call('save');
+
+        Bus::assertDispatched(EvaluateAchievementsJob::class, static fn (EvaluateAchievementsJob $job): bool => $job->achievementIds === null && $job->silent);
+    }
+
     private function userWith(string $permissionKey): UserModel
     {
         $role = RoleModel::query()->create(['name' => 'tester_'.uniqid(), 'display_name' => 'Permissions tester']);

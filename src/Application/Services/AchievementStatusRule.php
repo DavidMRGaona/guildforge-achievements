@@ -57,6 +57,10 @@ final class AchievementStatusRule
             return AchievementStatus::SeasonsOff;
         }
 
+        if ($rule->isCommunity() && ! $settings->community) {
+            return AchievementStatus::CommunityOff;
+        }
+
         return AchievementStatus::Evaluated;
     }
 }
