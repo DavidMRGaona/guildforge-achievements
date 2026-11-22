@@ -44,7 +44,9 @@ final readonly class ShowcasePresenter
     public function earned(ShowcaseItemDTO $item): array
     {
         return $this->achievement($item->achievement) + [
+            // The instant for the owner only; anybody else gets the month (ShowcaseItemDTO)
             'grantedAt' => $this->time->iso($item->grantedAt),
+            'grantedMonth' => $item->grantedMonth,
             'rarity' => $item->rarity,
             'featured' => $item->featured,
         ];

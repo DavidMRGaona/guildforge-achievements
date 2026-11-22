@@ -14,10 +14,11 @@ import type {
 } from '../../types/achievements';
 
 /**
- * «Logros» (`achievements.badges`) on a public profile: what the owner got, newest first, with its
- * date and rarity. The owner also sees what is left with their progress, stars up to three to
- * feature them under their name, and may hide them from everybody else. The card and its title are
- * the core's; the server already left out what this viewer may not see.
+ * «Logros» (`achievements.badges`) on a public profile: what the owner got, with its rarity. The
+ * owner gets it newest first with the day; anybody else by month and name with the month alone
+ * (the server trims it). The owner also sees what is left with their progress, stars up to three
+ * to feature them under their name, and may hide them from everybody else. The card and its title
+ * are the core's; the server already left out what this viewer may not see.
  */
 interface Props {
     earned: EarnedAchievement[];
@@ -61,11 +62,27 @@ watch(
 const maxFeatured = computed(() => props.owner?.maxFeatured ?? 3);
 const full = computed(() => chosen.value.length >= maxFeatured.value);
 
+// VENUE_TIMEZONE is the display zone: the core reads it from the server's `display-timezone` meta
 function formatDay(iso: string): string {
     return new Date(iso).toLocaleDateString(locale.value, {
         timeZone: VENUE_TIMEZONE,
         day: 'numeric',
         month: 'short',
+        year: 'numeric',
+    });
+}
+
+/** «noviembre de 2026»: the month as sent (`YYYY-MM`), never moved to another zone */
+function formatMonth(month: string): string {
+    const [year, monthNumber] = month.split('-').map(Number);
+
+    if (!year || !monthNumber) {
+        return month;
+    }
+
+    return new Date(Date.UTC(year, monthNumber - 1, 15)).toLocaleDateString(locale.value, {
+        timeZone: 'UTC',
+        month: 'long',
         year: 'numeric',
     });
 }
@@ -453,6 +470,9 @@ function progressPercent(item: LockedAchievement): number {
                         >
                             <time v-if="item.grantedAt" :datetime="item.grantedAt">
                                 {{ formatDay(item.grantedAt) }}
+                            </time>
+                            <time v-else-if="item.grantedMonth" :datetime="item.grantedMonth">
+                                {{ formatMonth(item.grantedMonth) }}
                             </time>
                             <span v-if="showsRarity && item.rarity !== null">
                                 {{ t('achievements.rarity.share', { share: share(item.rarity) }) }}
