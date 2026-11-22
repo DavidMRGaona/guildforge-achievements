@@ -122,27 +122,6 @@ interface AchievementFactRepositoryInterface
     public function firstMeetings(array $userIds, string $kind, ?string $role, ?string $withRole): array;
 
     /**
-     * The newcomers each account welcomed: other accounts whose first fact of `$kind` in
-     * `$newcomerRole` (the earliest; facts at the same instant all count) is in a subject where the
-     * account had `$hostRole`. One instant per newcomer (that first fact), oldest first. Others that
-     * are anonymized or no longer exist never count. Aggregate queries; an account that welcomed
-     * nobody is missing from the answer.
-     *
-     * @param  list<string>  $userIds
-     * @return array<string, list<DateTimeImmutable>>
-     */
-    public function newcomersWelcomed(array $userIds, string $kind, string $hostRole, string $newcomerRole): array;
-
-    /**
-     * The accounts that had `$hostRole` in the first subject of `$kind` each of these accounts had in
-     * `$newcomerRole`: whose newcomers these accounts' facts decide. Sorted.
-     *
-     * @param  list<string>  $userIds
-     * @return list<string>
-     */
-    public function hostsOfFirstFacts(array $userIds, string $kind, string $hostRole, string $newcomerRole): array;
-
-    /**
      * The other accounts that share any subject with this one, sorted: whose community counts it
      * may take part in.
      *

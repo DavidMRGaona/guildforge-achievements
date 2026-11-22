@@ -176,7 +176,7 @@ final class AchievementResourceTest extends ModuleTestCase
         $this->assertSame(['version' => 1, 'metric' => 'manual'], $rules[1]);
     }
 
-    public function test_community_rules_are_built_and_summed_up_without_naming_anybody(): void
+    public function test_a_people_rule_is_built_and_summed_up_without_naming_anybody(): void
     {
         Bus::fake([EvaluateAchievementsJob::class]);
         $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
@@ -191,19 +191,9 @@ final class AchievementResourceTest extends ModuleTestCase
             ->call('create')
             ->assertHasNoFormErrors();
 
-        Livewire::test(CreateAchievement::class)
-            ->fillForm(['name' => 'Mentor', 'icon' => 'hand-heart', 'colour' => 'green', 'points' => 0, 'rule_metric' => 'mentor', 'rule_threshold' => 1])
-            ->assertFormFieldIsHidden('rule_kind')
-            ->assertFormFieldIsHidden('rule_with_role')
-            ->call('create')
-            ->assertHasNoFormErrors();
-
         $people = AchievementModel::query()->where('name', 'Mesa abierta')->firstOrFail();
-        $mentor = AchievementModel::query()->where('name', 'Mentor')->firstOrFail();
         $this->assertSame(['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['role' => 'director', 'with_role' => 'player'], 'threshold' => 20, 'window' => ['type' => 'all_time']], $people->rule);
-        $this->assertSame(['version' => 1, 'metric' => 'mentor', 'threshold' => 1, 'window' => ['type' => 'all_time']], $mentor->rule);
         $this->assertSame('Personas distintas: 20 · Partidas · Dirección · con jugador', AchievementPanelView::ruleSummary($people));
-        $this->assertSame('Primeras partidas dirigidas: 1', AchievementPanelView::ruleSummary($mentor));
 
         Livewire::test(EditAchievement::class, ['record' => $people->getKey()])
             ->assertFormSet(['rule_metric' => 'people', 'rule_kind' => 'game_session', 'rule_role' => 'director', 'rule_with_role' => 'player', 'rule_threshold' => 20]);

@@ -18,7 +18,7 @@ use Modules\Achievements\Domain\Entities\AchievementFact;
  * - years, account: full years from the day of the earliest account fact to today, both as
  *   calendar dates in the display zone (the anniversary counts from its first minute); membership:
  *   membership year subjects.
- * - people and mentor (community): the people the rule counts, which come from other people's
+ * - people (community): the people the rule counts, which come from other people's
  *   facts and so from outside (`$people`: one instant per different person, when they were first
  *   met); without them, 0.
  * - manual: always 0, never met.
@@ -45,7 +45,7 @@ final class RuleEvaluator
     public function value(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone, ?array $people = null): int
     {
         return match ($rule->metric) {
-            MetricType::People, MetricType::Mentor => count($people ?? []),
+            MetricType::People => count($people ?? []),
             MetricType::Count => count($this->subjects($rule, $facts)),
             MetricType::Distinct => $this->distinctValues($rule, $facts),
             MetricType::Years => $rule->basis === YearsBasis::Account

@@ -22,9 +22,6 @@ enum MetricType: string
     /** Different people met in subjects of a kind («jugar con 10 personas distintas») */
     case People = 'people';
 
-    /** Different people whose first game as a player was one the person ran («mentor») */
-    case Mentor = 'mentor';
-
     /** Never granted by the evaluator: only by hand */
     case Manual = 'manual';
 
@@ -34,6 +31,6 @@ enum MetricType: string
      */
     public function isCommunity(): bool
     {
-        return $this === self::People || $this === self::Mentor;
+        return $this === self::People;
     }
 }

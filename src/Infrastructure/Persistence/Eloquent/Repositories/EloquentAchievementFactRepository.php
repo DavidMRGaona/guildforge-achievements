@@ -266,62 +266,6 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
         return $this->sortedInstants($meetings);
     }
 
-    public function newcomersWelcomed(array $userIds, string $kind, string $hostRole, string $newcomerRole): array
-    {
-        $newcomers = [];
-
-        foreach (array_chunk($this->userIds(array_map(strtolower(...), $userIds)), 500) as $chunk) {
-            $rows = $this->db->table(self::TABLE.' as host')
-                ->join(self::TABLE.' as newcomer', static function (JoinClause $join): void {
-                    $join->on('newcomer.source_type', '=', 'host.source_type')
-                        ->on('newcomer.subject_id', '=', 'host.subject_id')
-                        ->on('newcomer.user_id', '<>', 'host.user_id');
-                })
-                ->join('users', 'users.id', '=', 'newcomer.user_id')
-                ->whereNull('users.anonymized_at')
-                ->whereIn('host.user_id', $chunk)
-                ->where('host.kind', $kind)
-                ->where('host.role', $hostRole)
-                ->where('newcomer.role', $newcomerRole)
-                ->where('newcomer.occurred_at', '=', $this->firstFactOf('newcomer', $kind, $newcomerRole))
-                ->groupBy('host.user_id', 'newcomer.user_id')
-                ->select('host.user_id as user_id')
-                ->selectRaw('min(newcomer.occurred_at) as first_at')
-                ->get();
-
-            $this->collectInstants($rows, $newcomers);
-        }
-
-        return $this->sortedInstants($newcomers);
-    }
-
-    public function hostsOfFirstFacts(array $userIds, string $kind, string $hostRole, string $newcomerRole): array
-    {
-        $hosts = [];
-
-        foreach (array_chunk($this->userIds(array_map(strtolower(...), $userIds)), 500) as $chunk) {
-            $rows = $this->db->table(self::TABLE.' as newcomer')
-                ->join(self::TABLE.' as host', static function (JoinClause $join): void {
-                    $join->on('host.source_type', '=', 'newcomer.source_type')
-                        ->on('host.subject_id', '=', 'newcomer.subject_id')
-                        ->on('host.user_id', '<>', 'newcomer.user_id');
-                })
-                ->whereIn('newcomer.user_id', $chunk)
-                ->where('newcomer.kind', $kind)
-                ->where('newcomer.role', $newcomerRole)
-                ->where('host.role', $hostRole)
-                ->where('newcomer.occurred_at', '=', $this->firstFactOf('newcomer', $kind, $newcomerRole))
-                ->distinct()
-                ->pluck('host.user_id');
-
-            foreach ($rows as $hostId) {
-                $hosts[strtolower((string) $hostId)] = true;
-            }
-        }
-
-        return $this->userIds(array_keys($hosts));
-    }
-
     public function userIdsSharingSubjectsWith(string $userId): array
     {
         $userId = strtolower($userId);
@@ -383,21 +327,6 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
             $facts,
             static fn (RecordedFact $fact): bool => ! isset($anonymized[strtolower($fact->userId)]),
         ));
-    }
-
-    /**
-     * The instant of the earliest fact of `$kind` in `$role` of the account in `$alias.user_id`: a
-     * correlated subquery answered from the index on (user_id, kind, occurred_at).
-     */
-    private function firstFactOf(string $alias, string $kind, string $role): Closure
-    {
-        return static function (Builder $query) use ($alias, $kind, $role): void {
-            $query->from(self::TABLE.' as earliest')
-                ->selectRaw('min(earliest.occurred_at)')
-                ->whereColumn('earliest.user_id', $alias.'.user_id')
-                ->where('earliest.kind', $kind)
-                ->where('earliest.role', $role);
-        };
     }
 
     /**

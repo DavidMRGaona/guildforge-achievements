@@ -8,7 +8,7 @@ use DateTimeImmutable;
 use Modules\Achievements\Domain\Rules\AchievementRule;
 
 /**
- * The people community rules count (`people`, `mentor`), from aggregate queries over the ledger,
+ * The people community rules count (`people`), from aggregate queries over the ledger,
  * never one account at a time. Only numbers and instants ever leave it: never who those people are.
  *
  * Anonymized accounts never count (the activity reader drops their facts and the ledger forgets
@@ -18,7 +18,7 @@ interface CommunityMetricsInterface
 {
     /**
      * For each account asked, one instant per different person the rule counts (when they were
-     * first met, or when the newcomer played their first game), oldest first; accounts with nobody
+     * first met), oldest first; accounts with nobody
      * are missing. Read fresh from the ledger, for granting: it throws when the ledger cannot be
      * read, so nothing is granted on a guess. Empty for a rule that is not a community rule.
      *
@@ -33,15 +33,6 @@ interface CommunityMetricsInterface
      * a misleading 0. Never throws.
      */
     public function progress(AchievementRule $rule, string $userId): ?int;
-
-    /**
-     * The accounts whose `mentor` count these accounts' facts decide: those who ran each one's first
-     * game session as a player. Throws when the ledger cannot be read.
-     *
-     * @param  list<string>  $userIds
-     * @return list<string>
-     */
-    public function mentorsOf(array $userIds): array;
 
     /**
      * Forgets the cached progress of these accounts for every community rule of the catalogue. Never

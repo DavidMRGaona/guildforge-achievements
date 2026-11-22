@@ -99,18 +99,6 @@ final class AchievementRuleTest extends TestCase
         $this->assertNull(AchievementRule::people('venue_booking', 3));
     }
 
-    public function test_a_mentor_rule_evaluates_game_sessions(): void
-    {
-        $rule = AchievementRule::mentor(3);
-
-        $this->assertInstanceOf(AchievementRule::class, $rule);
-        $this->assertSame(MetricType::Mentor, $rule->metric);
-        $this->assertSame('game_session', $rule->evaluatedKind());
-        $this->assertSame(3, $rule->threshold);
-        $this->assertTrue($rule->isCommunity());
-        $this->assertFalse(AchievementRule::count('game_session', 1)?->isCommunity() ?? true);
-    }
-
     public function test_rules_that_count_the_same_people_share_a_shape(): void
     {
         $ten = AchievementRule::people('game_session', 10, 'player', 'player');
@@ -119,7 +107,6 @@ final class AchievementRuleTest extends TestCase
 
         $this->assertSame($ten?->peopleShape(), $fifty?->peopleShape());
         $this->assertNotSame($ten?->peopleShape(), $directed?->peopleShape());
-        $this->assertNotSame(AchievementRule::mentor(1)?->peopleShape(), $ten?->peopleShape());
     }
 
     public function test_a_manual_rule_has_nothing_to_evaluate(): void
@@ -164,7 +151,6 @@ final class AchievementRuleTest extends TestCase
         yield 'manual' => [['version' => 1, 'metric' => 'manual']];
         yield 'people' => [['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['role' => 'director', 'with_role' => 'player'], 'threshold' => 20]];
         yield 'people without roles' => [['version' => 1, 'metric' => 'people', 'kind' => 'event', 'threshold' => 3]];
-        yield 'mentor' => [['version' => 1, 'metric' => 'mentor', 'threshold' => 1]];
     }
 
     #[DataProvider('unreadableRules')]
@@ -199,10 +185,8 @@ final class AchievementRuleTest extends TestCase
         yield 'people with an attribute' => [['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['attribute' => ['key' => 'game_system', 'value' => 'pf2']], 'threshold' => 3]];
         yield 'people with a placement' => [['version' => 1, 'metric' => 'people', 'kind' => 'tournament', 'filters' => ['placement_max' => 3], 'threshold' => 3]];
         yield 'with_role on a count' => [['filters' => ['with_role' => 'player']] + $count];
-        yield 'mentor with a kind' => [['version' => 1, 'metric' => 'mentor', 'kind' => 'game_session', 'threshold' => 1]];
-        yield 'mentor with filters' => [['version' => 1, 'metric' => 'mentor', 'filters' => ['role' => 'director'], 'threshold' => 1]];
-        yield 'mentor without threshold' => [['version' => 1, 'metric' => 'mentor']];
-        yield 'mentor in a season' => [['version' => 1, 'metric' => 'mentor', 'threshold' => 1, 'window' => ['type' => 'season']]];
+        // Left out of this release (#24): unreadable, so never evaluated
+        yield 'mentor' => [['version' => 1, 'metric' => 'mentor', 'threshold' => 1]];
         yield 'unknown kind' => [['kind' => 'dragon_slaying'] + $count];
         yield 'no kind' => [array_diff_key($count, ['kind' => true])];
         yield 'unknown role' => [['filters' => ['role' => 'wizard']] + $count];

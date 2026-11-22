@@ -115,7 +115,7 @@ final class CommunityProgressTest extends ModuleTestCase
     public function test_a_ledger_that_cannot_be_read_shows_no_progress_rather_than_zero(): void
     {
         $log = Log::spy();
-        $this->achievement(['version' => 1, 'metric' => 'mentor', 'threshold' => 1], ['name' => 'Mentor']);
+        $this->achievement(['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'threshold' => 3], ['name' => 'Tres personas']);
         $this->achievement($this->countRule(threshold: 5), ['name' => 'Cinco partidas']);
         $this->playedTogether('s1', [(string) $this->ana->id]);
         $this->app->instance(AchievementFactRepositoryInterface::class, new FailingCommunityLedger($this->app->make(AchievementFactRepositoryInterface::class)));
@@ -125,7 +125,7 @@ final class CommunityProgressTest extends ModuleTestCase
 
         $this->assertNotNull($props);
         $locked = array_column($props['locked'], null, 'name');
-        $this->assertNull($locked['Mentor']['progress']);
+        $this->assertNull($locked['Tres personas']['progress']);
         $this->assertSame(['value' => 1, 'threshold' => 5], $locked['Cinco partidas']['progress']);
         // The failure is not kept: once the ledger reads again, the count shows
         $this->assertNull($this->app->make('cache.store')->get(LedgerCommunityMetrics::CACHE_PREFIX.strtolower((string) $this->ana->id)));

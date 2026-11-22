@@ -93,10 +93,6 @@ final class CommunityLedgerQueriesTest extends ModuleTestCase
         $meetings = $this->repository()->firstMeetings([self::ANA], 'game_session', 'director', 'player');
         $this->assertCount(1, $meetings[self::ANA]);
         $this->assertCount(1, DB::table('achievements_facts')->where('user_id', self::MARTA)->get());
-
-        $this->ledgerSession('s2', '2026-02-10 18:00:00', director: [self::LUIS], players: [self::PEPA]);
-        UserModel::withTrashed()->findOrFail(self::PEPA)->forceDelete();
-        $this->assertSame([], $this->repository()->newcomersWelcomed([self::LUIS], 'game_session', 'director', 'player'));
     }
 
     public function test_one_person_met_in_two_subjects_at_the_same_instant_counts_once(): void
@@ -105,21 +101,6 @@ final class CommunityLedgerQueriesTest extends ModuleTestCase
         $this->ledgerSession('s2', '2026-01-10 18:00:00', director: [self::ANA], players: [self::LUIS]);
 
         $this->assertCount(1, $this->repository()->firstMeetings([self::LUIS], 'game_session', null, null)[self::LUIS]);
-    }
-
-    public function test_two_first_games_at_the_same_instant_count_for_both_directors_once_each(): void
-    {
-        // A sign-up mistake, say: Luis is in two tables that start at the same time
-        $this->ledgerSession('s1', '2026-01-10 18:00:00', director: [self::ANA], players: [self::LUIS]);
-        $this->ledgerSession('s2', '2026-01-10 18:00:00', director: [self::MARTA], players: [self::LUIS]);
-        $this->ledgerSession('s3', '2026-02-10 18:00:00', director: [self::PEPA], players: [self::LUIS]);
-
-        $welcomed = $this->repository()->newcomersWelcomed([self::ANA, self::MARTA, self::PEPA], 'game_session', 'director', 'player');
-
-        $this->assertSame([self::ANA, self::MARTA], array_keys($welcomed));
-        $this->assertCount(1, $welcomed[self::ANA]);
-        $this->assertCount(1, $welcomed[self::MARTA]);
-        $this->assertSame([self::ANA, self::MARTA], $this->repository()->hostsOfFirstFacts([self::LUIS], 'game_session', 'director', 'player'));
     }
 
     public function test_instants_come_back_as_the_same_instant_when_stored_in_madrid(): void
@@ -133,11 +114,8 @@ final class CommunityLedgerQueriesTest extends ModuleTestCase
 
         $this->assertSame('2026-07-10 20:00:00', (string) DB::table('achievements_facts')->where('user_id', self::LUIS)->value('occurred_at'));
         $met = $this->repository()->firstMeetings([self::LUIS], 'game_session', null, null)[self::LUIS][0];
-        $welcomed = $this->repository()->newcomersWelcomed([self::ANA], 'game_session', 'director', 'player')[self::ANA][0];
 
-        $expected = new DateTimeImmutable('2026-07-10T18:00:00+00:00')->getTimestamp();
-        $this->assertSame($expected, $met->getTimestamp());
-        $this->assertSame($expected, $welcomed->getTimestamp());
+        $this->assertSame(new DateTimeImmutable('2026-07-10T18:00:00+00:00')->getTimestamp(), $met->getTimestamp());
     }
 
     public function test_it_lists_who_shares_any_subject_with_an_account(): void
@@ -155,40 +133,6 @@ final class CommunityLedgerQueriesTest extends ModuleTestCase
 
         $this->assertSame([], $this->repository()->firstMeetings([self::ANA], 'game_session', null, null));
         $this->assertCount(1, $this->repository()->firstMeetings([self::ANA], 'tournament', null, null)[self::ANA]);
-    }
-
-    public function test_a_newcomer_counts_for_whoever_ran_their_first_game(): void
-    {
-        $this->ledgerSession('s1', '2026-01-10 18:00:00', director: [self::ANA], players: [self::LUIS]);
-        // Luis's second game: Marta is not his mentor; Pepa's first one, so she is Marta's newcomer
-        $this->ledgerSession('s2', '2026-02-10 18:00:00', director: [self::MARTA], players: [self::LUIS, self::PEPA]);
-
-        $welcomed = $this->repository()->newcomersWelcomed([self::ANA, self::MARTA], 'game_session', 'director', 'player');
-
-        $this->assertSame(['2026-01-10 18:00:00'], $this->formatted($welcomed[self::ANA]));
-        $this->assertSame(['2026-02-10 18:00:00'], $this->formatted($welcomed[self::MARTA]));
-        $this->assertSame([self::ANA, self::MARTA], $this->repository()->hostsOfFirstFacts([self::LUIS, self::PEPA], 'game_session', 'director', 'player'));
-    }
-
-    public function test_a_first_game_run_by_two_people_counts_for_both_and_only_player_facts_are_first_games(): void
-    {
-        // Luis directed before he ever played: his first game as a player is still s2
-        $this->ledgerSession('s1', '2026-01-10 18:00:00', director: [self::LUIS], players: [self::PEPA]);
-        $this->ledgerSession('s2', '2026-02-10 18:00:00', director: [self::ANA, self::MARTA], players: [self::LUIS]);
-
-        $welcomed = $this->repository()->newcomersWelcomed([self::ANA, self::MARTA, self::LUIS], 'game_session', 'director', 'player');
-
-        $this->assertCount(1, $welcomed[self::ANA]);
-        $this->assertCount(1, $welcomed[self::MARTA]);
-        $this->assertCount(1, $welcomed[self::LUIS]);
-    }
-
-    public function test_an_anonymized_newcomer_is_nobody_s_newcomer(): void
-    {
-        $this->ledgerSession('s1', '2026-01-10 18:00:00', director: [self::ANA], players: [self::LUIS]);
-        UserModel::query()->whereKey(self::LUIS)->update(['anonymized_at' => now()]);
-
-        $this->assertSame([], $this->repository()->newcomersWelcomed([self::ANA], 'game_session', 'director', 'player'));
     }
 
     /**

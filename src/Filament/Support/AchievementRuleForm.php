@@ -220,10 +220,6 @@ final class AchievementRuleForm
             return $basis instanceof YearsBasis ? AchievementRule::years($basis, $threshold) : null;
         }
 
-        if ($metric === MetricType::Mentor) {
-            return AchievementRule::mentor($threshold);
-        }
-
         $kind = self::string($data[self::KIND] ?? null);
 
         if ($kind === null) {

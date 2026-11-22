@@ -5,7 +5,7 @@ summary: Crea logros, decide cuándo se conceden solos y entiende por qué uno s
 category: users-and-roles
 audience: panel
 order: 80
-keywords: [logros, insignias, catálogo, reglas, conceder, partidas, sistemas, torneos, podio, eventos, antigüedad, secreto, sin fuente, puntos, umbral, recalcular, rareza, gente activa, destacados, perfil, menú, página de logros, comunidad, personas distintas, mentor, primera partida, dirigir]
+keywords: [logros, insignias, catálogo, reglas, conceder, partidas, sistemas, torneos, podio, eventos, antigüedad, secreto, sin fuente, puntos, umbral, recalcular, rareza, gente activa, destacados, perfil, menú, página de logros, comunidad, personas distintas, dirigir]
 conditions:
   permissions:
     any: ['achievements:achievements.view_any', 'achievements:achievements.manage']
@@ -27,7 +27,6 @@ Para crear, editar o borrar logros hace falta el permiso de gestionar el catálo
    - **Valores distintos**: cuántos valores distintos hay, por ejemplo «3 sistemas distintos».
    - **Años**: años desde el alta en la web, o años como socio.
    - **Personas distintas**: con cuántas personas distintas ha coincidido alguien en partidas, campañas, torneos o eventos. **Papel** es el de la persona que consigue el logro y **Papel de las demás personas**, el de quienes se cuentan: dirección y jugador es «dirigir a 20 personas distintas». En estos logros solo valen los papeles de jugador y de dirección.
-   - **Mentor: primeras partidas dirigidas**: a cuántas personas les dirigió su primera partida con el papel de jugador.
    - **Solo a mano**: no se concede nunca solo.
 4. Escribe **Cuántos hacen falta** y guarda.
 
@@ -53,10 +52,10 @@ Cuando vuelves a encender un tipo de actividad, los logros secretos o los de com
 
 ## Logros de comunidad
 
-Premian a quien trae y cuida gente, no solo a quien juega mucho: jugar con muchas personas distintas, dirigir a muchas personas y dirigir la primera partida de alguien. Se encienden y se apagan con **Logros de comunidad** en *Sistema → Configuración → Logros*.
+Premian a quien trae y cuida gente, no solo a quien juega mucho: jugar con muchas personas distintas o dirigir a muchas personas. Se encienden y se apagan con **Logros de comunidad** en *Sistema → Configuración → Logros*.
 
 - Solo cuentan personas, nunca dicen quiénes: ni el logro ni el progreso («7 de 10») nombran a nadie.
-- La primera partida de alguien es la primera que jugó con el papel de jugador, de las que constan en la web. Si dos personas la dirigieron, cuenta para las dos.
+- Cada persona cuenta una vez, aunque hayáis coincidido en muchas partidas. Nadie se cuenta a sí mismo.
 - Las cuentas anonimizadas dejan de contar. Las de quien oculta sus logros siguen contando, porque solo se da el número.
 - Un logro de comunidad conseguido no se pierde aunque luego el número baje: por ejemplo, si una partida deja de contar.
 - El progreso se guarda unos minutos, así que una partida nueva puede tardar ese rato en reflejarse. Si no se puede contar, no se enseña: nunca sale un 0 que no es.
@@ -79,4 +78,4 @@ La página **Logros** de la web enseña los logros que se pueden conseguir ahora
 
 ## Catálogo inicial
 
-Al instalar el módulo se crea un catálogo con logros de bienvenida, partidas jugadas y dirigidas, sistemas distintos, campañas, torneos, eventos, antigüedad, propuestas y comunidad (jugar con 10 personas distintas, dirigir a 20 y mentor). Solo empiezan activos los que tienen fuente. Puedes editarlos y borrarlos como cualquier otro. Si vuelves a crear el catálogo inicial, un logro que borraste vuelve desactivado.
+Al instalar el módulo se crea un catálogo con logros de bienvenida, partidas jugadas y dirigidas, sistemas distintos, campañas, torneos, eventos, antigüedad, propuestas y comunidad (jugar con 10 personas distintas y dirigir a 20). Solo empiezan activos los que tienen fuente. Puedes editarlos y borrarlos como cualquier otro. Si vuelves a crear el catálogo inicial, un logro que borraste vuelve desactivado.

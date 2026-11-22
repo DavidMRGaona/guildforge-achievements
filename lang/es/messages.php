@@ -93,7 +93,7 @@ return [
                 'threshold' => 'Cuántos hacen falta',
             ],
             'helpers' => [
-                'metric' => '«Solo a mano» no se concede nunca solo. «Personas distintas» y «Mentor» son logros de comunidad: solo se conceden con los logros de comunidad encendidos.',
+                'metric' => '«Solo a mano» no se concede nunca solo. «Personas distintas» es un logro de comunidad: solo se concede con los logros de comunidad encendidos.',
                 'kind' => 'Solo salen los tipos con alguna fuente activa.',
                 'role' => 'Por ejemplo, jugar o dirigir. Sin papel, cuenta cualquiera.',
                 'with_role' => 'Qué papel tenían las personas que se cuentan: jugador, para «dirigir a 20 personas». Sin papel, cuenta cualquiera. En estos logros solo valen jugador y dirección.',
@@ -112,7 +112,6 @@ return [
                 'distinct' => 'Valores distintos',
                 'years' => 'Años',
                 'people' => 'Personas distintas',
-                'mentor' => 'Mentor: primeras partidas dirigidas',
                 'manual' => 'Solo a mano',
             ],
             'basis' => [
@@ -146,7 +145,6 @@ return [
                 'placement' => 'puesto ≤ :placement',
                 'people' => 'Personas distintas: :threshold',
                 'with_role' => 'con :role',
-                'mentor' => 'Primeras partidas dirigidas: :threshold',
             ],
         ],
 

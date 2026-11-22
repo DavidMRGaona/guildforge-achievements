@@ -18,7 +18,6 @@ use JsonException;
  *     {"version": 1, "metric": "distinct", "kind": "game_session", "key": "game_system", "filters": {…}, "threshold": 3}
  *     {"version": 1, "metric": "years", "basis": "account" | "membership", "threshold": 5}
  *     {"version": 1, "metric": "people", "kind": "game_session", "filters": {"role": "director", "with_role": "player"}, "threshold": 20}
- *     {"version": 1, "metric": "mentor", "threshold": 1}
  *     {"version": 1, "metric": "manual"}
  *
  * Reading never throws, and anything it does not understand makes the whole rule unreadable
@@ -29,11 +28,9 @@ use JsonException;
  * new metrics; each needs a release that reads them, and until then a rule using them is unreadable
  * for an older one.
  *
- * Community metrics (`people`, `mentor`) count other people, never name them: `people` counts the
- * different accounts that took part in the same subjects (`role` is the person's own part,
- * `with_role` the others', each `player`, `director` or none), only for the kinds done together
- * (COMMUNITY_KINDS); `mentor` counts the
- * accounts whose first game session as a player was one the person ran.
+ * The community metric `people` counts other people, never names them: the different accounts
+ * that took part in the same subjects (`role` is the person's own part, `with_role` the others',
+ * each `player`, `director` or none), only for the kinds done together (COMMUNITY_KINDS).
  *
  * `filters.attribute.label` is only the value's name when the rule was saved, for the panel; it
  * never takes part in the evaluation.
@@ -57,19 +54,11 @@ final readonly class AchievementRule
     /** The parts a `people` rule may name, its own and the others': playing and running */
     public const array PEOPLE_ROLES = ['player', 'director'];
 
-    /** A mentor ran the first game session somebody played */
-    public const string MENTOR_KIND = 'game_session';
-
-    public const string MENTOR_ROLE = 'director';
-
-    public const string NEWCOMER_ROLE = 'player';
-
     private const array KEYS = [
         'count' => ['version', 'metric', 'kind', 'filters', 'threshold', 'window'],
         'distinct' => ['version', 'metric', 'kind', 'key', 'filters', 'threshold', 'window'],
         'years' => ['version', 'metric', 'basis', 'threshold', 'window'],
         'people' => ['version', 'metric', 'kind', 'filters', 'threshold', 'window'],
-        'mentor' => ['version', 'metric', 'threshold', 'window'],
         'manual' => ['version', 'metric'],
     ];
 
@@ -132,11 +121,6 @@ final readonly class AchievementRule
         ]));
     }
 
-    public static function mentor(int $threshold): ?self
-    {
-        return self::tryFrom(['version' => self::VERSION, 'metric' => MetricType::Mentor->value, 'threshold' => $threshold]);
-    }
-
     public static function manual(): self
     {
         return new self(MetricType::Manual);
@@ -181,10 +165,6 @@ final readonly class AchievementRule
             return $basis instanceof YearsBasis ? new self($metric, $threshold, basis: $basis) : null;
         }
 
-        if ($metric === MetricType::Mentor) {
-            return new self($metric, $threshold);
-        }
-
         if ($metric === MetricType::People) {
             return self::readPeopleRule($threshold, $raw);
         }
@@ -223,7 +203,6 @@ final readonly class AchievementRule
         return match ($this->metric) {
             MetricType::Count, MetricType::Distinct, MetricType::People => $this->kind,
             MetricType::Years => $this->basis?->kind(),
-            MetricType::Mentor => self::MENTOR_KIND,
             MetricType::Manual => null,
         };
     }
@@ -242,12 +221,6 @@ final readonly class AchievementRule
                 'metric' => $this->metric->value,
                 'basis' => $this->basis?->value,
                 'threshold' => $this->threshold,
-            ],
-            MetricType::Mentor => [
-                'version' => self::VERSION,
-                'metric' => $this->metric->value,
-                'threshold' => $this->threshold,
-                'window' => ['type' => self::WINDOW_ALL_TIME],
             ],
             MetricType::People => self::withoutNulls([
                 'version' => self::VERSION,

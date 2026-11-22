@@ -46,7 +46,6 @@ final class AchievementPanelView
             MetricType::Years => self::text($rule->basis === YearsBasis::Membership ? 'summary.membership_years' : 'summary.account_years', ['threshold' => (string) $rule->threshold]),
             MetricType::Count, MetricType::Distinct => self::activitySummary($rule),
             MetricType::People => self::peopleSummary($rule),
-            MetricType::Mentor => self::text('summary.mentor', ['threshold' => (string) $rule->threshold]),
         };
     }
 

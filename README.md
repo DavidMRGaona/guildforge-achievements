@@ -43,7 +43,6 @@ JSON versionado en la columna `rule`, leído por `AchievementRule::tryFrom()`:
 {"version": 1, "metric": "distinct", "kind": "game_session", "key": "game_system", "threshold": 3}
 {"version": 1, "metric": "years", "basis": "account", "threshold": 5}
 {"version": 1, "metric": "people", "kind": "game_session", "filters": {"role": "director", "with_role": "player"}, "threshold": 20}
-{"version": 1, "metric": "mentor", "threshold": 1}
 {"version": 1, "metric": "manual"}
 ```
 
@@ -51,7 +50,6 @@ JSON versionado en la columna `rule`, leído por `AchievementRule::tryFrom()`:
 - `distinct`: valores distintos del atributo `key` entre esos hechos.
 - `years`: `account`, años completos desde el primer hecho de tipo `account`, contados en la zona de visualización; `membership`, cosas de tipo `membership_year`.
 - `people` (comunidad): personas distintas con las que se coincidió en cosas del tipo de actividad, solo `game_session`, `campaign`, `tournament` y `event`. `filters.role` es el papel propio y `filters.with_role`, el de las demás: solo `player` o `director` (otro papel deja la regla ilegible); sin ellos, cualquiera. Nadie se cuenta a sí mismo.
-- `mentor` (comunidad): personas cuya primera partida (`game_session`) como `player` fue una que la persona dirigió (`director`). La primera es la más antigua del registro; si hay varias a la misma hora, cuentan todas, y si la dirigieron dos personas, cuenta para las dos.
 - `manual`: nunca se concede solo.
 - La lectura nunca lanza excepciones, y lo que no entiende deja la regla **ilegible**, nunca «cumplida por todo el mundo»: otra versión, una métrica, tipo, papel, base o ventana desconocidos, una clave inesperada, un valor del tipo equivocado o fuera de rango. Un logro con la regla ilegible no se evalúa y se avisa una vez al día.
 - Sitio para lo que viene: temporadas y rachas serán tipos nuevos de `window`; los retos, métricas nuevas. Hasta que una versión las lea, una regla que las use es ilegible para las anteriores.
@@ -61,14 +59,14 @@ El formulario construye la regla con los tipos que ofrecen las fuentes activas a
 
 ## Logros de comunidad
 
-Las reglas `people` y `mentor` cuentan a otras personas, así que no salen de los hechos de la persona sino de `CommunityMetricsInterface` (`LedgerCommunityMetrics`):
+Las reglas `people` cuentan a otras personas, así que no salen de los hechos de la persona sino de `CommunityMetricsInterface` (`LedgerCommunityMetrics`):
 
 - **Solo números.** Lo que sale de ahí son números e instantes, nunca quiénes son esas personas: ni el logro, ni el progreso («7 de 10»), ni los avisos las nombran.
-- **Consultas agregadas.** `AchievementFactRepositoryInterface::firstMeetings()`, `newcomersWelcomed()` y `hostsOfFirstFacts()` agrupan sobre `achievements_facts` por bloques de 500 cuentas, nunca cuenta a cuenta. La primera partida de alguien sale de una subconsulta correlacionada que se responde solo con el índice (`user_id`, `kind`, `role`, `occurred_at`). El evaluador hace una consulta por forma de regla y bloque, y la comparten las reglas que cuentan a las mismas personas con otro umbral.
+- **Consultas agregadas.** `AchievementFactRepositoryInterface::firstMeetings()` agrupa sobre `achievements_facts` por bloques de 500 cuentas, nunca cuenta a cuenta. No necesita índice propio: los hechos de la persona salen del índice (`user_id`, `kind`, `occurred_at`) y los de las demás, de la clave única (`source_type`, `subject_id`, `user_id`, `role`), que ya lleva el papel. El evaluador hace una consulta por forma de regla y bloque, y la comparten las reglas que cuentan a las mismas personas con otro umbral.
 - **Quién cuenta.** Las cuentas anonimizadas (y las borradas del todo) no cuentan, también en el rato que pasa hasta que el registro olvida sus hechos. Las desactivadas y las que ocultan sus logros siguen contando.
-- **Mentor.** Un cambio en las partidas de una persona puede cambiar cuál fue su primera partida. Por eso el evaluador evalúa también, solo para las reglas `mentor`, a quien dirigió la primera partida de las personas que cambian.
-- **Caché y fallo cerrado.** El progreso del perfil se guarda 5 minutos por cuenta (`achievements:community:v1:<id>`). Se olvida con cada `AchievementFactsChanged` de esa cuenta y, al anonimizar una cuenta, en todas las que compartían algo con ella. El de `mentor` puede tardar esos 5 minutos: depende de las partidas de otras personas, que no siempre salen en el evento. Si el registro no se puede leer, el progreso no se enseña y se avisa una vez al día (`community_unavailable`); nunca se enseña un 0. Al conceder no hay caché: si el registro falla, la evaluación lanza la excepción y el listener o el job se repite, sin conceder nada.
+- **Caché y fallo cerrado.** El progreso del perfil se guarda 5 minutos por cuenta (`achievements:community:v1:<id>`). Se olvida con cada `AchievementFactsChanged` de esa cuenta y, al anonimizar una cuenta, en todas las que compartían algo con ella. Si el registro no se puede leer, el progreso no se enseña y se avisa una vez al día (`community_unavailable`); nunca se enseña un 0. Al conceder no hay caché: si el registro falla, la evaluación lanza la excepción y el listener o el job se repite, sin conceder nada.
 - **Permanentes.** Si el número baja al recalcular, la concesión se queda.
+- **Mentor**, dirigir la primera partida de alguien, se dejó fuera por privacidad hasta que se decida (#24).
 - **Interruptor.** Con **Logros de comunidad** apagado, estos logros salen como «Comunidad apagada» y no se evalúan. Al volver a encenderlo se evalúa a todo el mundo, sin avisos.
 
 ## Concesiones
@@ -157,7 +155,7 @@ La parte de la gente activa que tiene cada logro. Gente activa: cuentas con al m
 
 ## Catálogo inicial
 
-Al habilitar el módulo por primera vez, su seeder crea un catálogo que cada sitio puede editar y borrar: bienvenida (primera partida, perfil completo, primer mensaje en el foro), partidas jugadas (1, 10, 50 y 100), dirigidas (1 y 10), primera mesa creada que llega a jugarse, sistemas distintos (3 y 10), campaña completada, primer torneo, podio, 5 eventos, 1, 3 y 5 años de cuenta, primera propuesta aceptada y comunidad (jugar con 10 personas distintas, dirigir a 20 y mentor). Solo empiezan activos los que tienen fuente; los demás salen como *Sin fuente*.
+Al habilitar el módulo por primera vez, su seeder crea un catálogo que cada sitio puede editar y borrar: bienvenida (primera partida, perfil completo, primer mensaje en el foro), partidas jugadas (1, 10, 50 y 100), dirigidas (1 y 10), primera mesa creada que llega a jugarse, sistemas distintos (3 y 10), campaña completada, primer torneo, podio, 5 eventos, 1, 3 y 5 años de cuenta, primera propuesta aceptada y comunidad (jugar con 10 personas distintas y dirigir a 20). Solo empiezan activos los que tienen fuente; los demás salen como *Sin fuente*.
 
 ```bash
 php artisan achievements:install-starter-catalogue

@@ -198,15 +198,6 @@ final class RuleEvaluatorTest extends TestCase
         $this->assertEquals(new DateTimeImmutable('2026-03-01 18:00:00'), $this->evaluator->metAt($rule, $facts, $this->now, new DateTimeZone('UTC'), $people));
     }
 
-    public function test_a_mentor_rule_is_met_by_the_newcomer_that_reaches_the_threshold(): void
-    {
-        $rule = $this->rule(['metric' => 'mentor', 'threshold' => 1]);
-        $people = [new DateTimeImmutable('2026-04-02 18:00:00')];
-
-        $this->assertNull($this->evaluator->metAt($rule, [], $this->now, new DateTimeZone('UTC'), []));
-        $this->assertEquals($people[0], $this->evaluator->metAt($rule, [], $this->now, new DateTimeZone('UTC'), $people));
-    }
-
     public function test_a_manual_rule_is_never_met(): void
     {
         $this->assertSame(0, $this->value(['metric' => 'manual'], [$this->fact('s1')]));

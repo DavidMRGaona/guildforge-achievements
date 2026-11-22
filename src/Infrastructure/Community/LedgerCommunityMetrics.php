@@ -38,7 +38,6 @@ final readonly class LedgerCommunityMetrics implements CommunityMetricsInterface
 
         return match ($rule->metric) {
             MetricType::People => $this->facts->firstMeetings($userIds, (string) $rule->kind, $rule->role, $rule->withRole),
-            MetricType::Mentor => $this->facts->newcomersWelcomed($userIds, AchievementRule::MENTOR_KIND, AchievementRule::MENTOR_ROLE, AchievementRule::NEWCOMER_ROLE),
             default => [],
         };
     }
@@ -73,15 +72,6 @@ final readonly class LedgerCommunityMetrics implements CommunityMetricsInterface
         }
 
         return $count;
-    }
-
-    public function mentorsOf(array $userIds): array
-    {
-        if ($userIds === []) {
-            return [];
-        }
-
-        return $this->facts->hostsOfFirstFacts($userIds, AchievementRule::MENTOR_KIND, AchievementRule::MENTOR_ROLE, AchievementRule::NEWCOMER_ROLE);
     }
 
     public function forgetProgress(array $userIds): void

@@ -59,23 +59,9 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
         }
 
         [$evaluable, $pending] = $selection;
-        $userIds = $this->userIds($userIds);
-        $result = $this->evaluateUsers($userIds, $evaluable, $silent, $dryRun);
-        $granted = $result->granted;
-        $users = $result->users;
+        $result = $this->evaluateUsers($this->userIds($userIds), $evaluable, $silent, $dryRun);
 
-        // A change to someone's games may change whose first game they played, and so who ran it:
-        // those people are evaluated too, for the mentor rules only
-        $mentorRules = array_values(array_filter($evaluable, static fn (array $entry): bool => $entry[1]->metric === MetricType::Mentor));
-        $mentors = $mentorRules === [] || $userIds === [] ? [] : array_values(array_diff($this->community->mentorsOf($userIds), $userIds));
-
-        if ($mentors !== []) {
-            $mentorResult = $this->evaluateUsers($mentors, $mentorRules, $silent, $dryRun);
-            array_push($granted, ...$mentorResult->granted);
-            $users += $mentorResult->users;
-        }
-
-        return new EvaluationResultDTO(EvaluationOutcome::Evaluated, $granted, $users, $result->achievements, $pending);
+        return new EvaluationResultDTO(EvaluationOutcome::Evaluated, $result->granted, $result->users, $result->achievements, $pending);
     }
 
     public function evaluateEverybody(?array $achievementIds, bool $silent, bool $dryRun = false, bool $onlyAccountYears = false, ?array $onlyKinds = null): EvaluationResultDTO
