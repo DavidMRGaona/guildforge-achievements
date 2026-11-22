@@ -6,6 +6,7 @@ namespace Modules\Achievements\Listeners;
 
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
+use Modules\Achievements\Application\Exceptions\AchievementSettingsUnreadableException;
 use Modules\Achievements\Application\Services\AchievementEvaluatorInterface;
 use Modules\Achievements\Domain\Events\AchievementFactsChanged;
 
@@ -14,7 +15,7 @@ use Modules\Achievements\Domain\Events\AchievementFactsChanged;
  * the change commits. Silent when the change came from a recalculation.
  *
  * Settings that cannot be read grant nothing; the job is tried again later, since this change would
- * otherwise wait for the next one of these accounts.
+ * otherwise wait for the next one of these accounts, and after the last try it fails (failed_jobs).
  */
 final class EvaluateAchievementsForChangedFacts implements ShouldQueue
 {
@@ -37,8 +38,16 @@ final class EvaluateAchievementsForChangedFacts implements ShouldQueue
     {
         $result = $this->evaluator->evaluate($event->userIds, $event->silent);
 
-        if (! $result->isEvaluated() && $this->job !== null && $this->attempts() < $this->tries) {
-            $this->release($this->backoff[$this->attempts() - 1] ?? self::LAST_BACKOFF);
+        if ($result->isEvaluated() || $this->job === null) {
+            return;
         }
+
+        if ($this->attempts() < $this->tries) {
+            $this->release($this->backoff[$this->attempts() - 1] ?? self::LAST_BACKOFF);
+
+            return;
+        }
+
+        $this->fail(AchievementSettingsUnreadableException::afterRetries());
     }
 }

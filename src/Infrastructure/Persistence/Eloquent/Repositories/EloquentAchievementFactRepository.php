@@ -204,6 +204,14 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
         ));
     }
 
+    public function sourceTypesOfKind(string $kind): array
+    {
+        return array_values(array_map(
+            strval(...),
+            $this->table()->where('kind', $kind)->distinct()->orderBy('source_type')->pluck('source_type')->all(),
+        ));
+    }
+
     public function countForUser(string $userId, string $kind, ?string $role = null): int
     {
         return $this->table()

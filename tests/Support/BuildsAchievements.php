@@ -7,6 +7,7 @@ namespace Modules\Achievements\Tests\Support;
 use App\Infrastructure\Persistence\Eloquent\Models\PermissionModel;
 use App\Infrastructure\Persistence\Eloquent\Models\RoleModel;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use Illuminate\Support\Facades\DB;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\RecordedFact;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
@@ -23,6 +24,8 @@ trait BuildsAchievements
     protected function withoutStarterCatalogue(): void
     {
         AchievementModel::query()->delete();
+        // As on a fresh install: what the seeder created must not count as created before
+        DB::table('achievements_starter_keys')->delete();
         // The seeder read the sources (scoped) before the test registers its own
         $this->app->forgetScopedInstances();
     }

@@ -22,6 +22,7 @@ return [
     'media' => [
         'source' => 'Logros',
         'role' => 'Imagen de la insignia',
+        'secret_source' => 'Logros secretos',
     ],
 
     'catalogue' => [
@@ -54,7 +55,7 @@ return [
 
         'helpers' => [
             'description' => 'Qué hay que hacer para conseguirlo. Habla de totales («10 partidas»), nunca de una partida concreta.',
-            'image' => 'Opcional: se ve en lugar del icono. Cuadrada, de 1 MB como mucho.',
+            'image' => 'Opcional: se ve en lugar del icono. Cuadrada, de 1 MB como mucho. La de un logro secreto no sale en la biblioteca de medios.',
             'points' => 'Cuentan para el nivel y la clasificación cuando estén encendidos.',
             'is_secret' => 'Quien no lo tiene ve «Logro secreto», sin nombre ni regla. Solo se concede mientras los logros secretos estén encendidos en los ajustes.',
             'is_active' => 'Un logro desactivado no se concede ni se enseña; quien ya lo tiene lo conserva.',
@@ -70,9 +71,13 @@ return [
             'secrets_off' => 'Secretos apagados',
         ],
 
+        'validation' => [
+            'secret_image' => 'Un logro secreto guarda su imagen aparte, para que no se vea en la biblioteca de medios. Quita esta imagen y vuelve a subirla con el logro marcado como secreto.',
+        ],
+
         'delete' => [
-            'description' => 'Lo tienen :holders personas y lo perderán: borrar un logro borra también todas sus concesiones. No se puede deshacer. Si solo quieres que deje de concederse, desactívalo.',
-            'confirmation' => 'Entiendo que el logro y sus concesiones se borran para siempre',
+            'description' => 'Nadie tiene este logro todavía. Se borra para siempre y no se puede deshacer. Si solo quieres que deje de concederse, desactívalo.',
+            'confirmation' => 'Entiendo que el logro se borra para siempre',
         ],
 
         'rule' => [

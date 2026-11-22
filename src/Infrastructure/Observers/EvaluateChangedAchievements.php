@@ -16,9 +16,32 @@ final class EvaluateChangedAchievements
 {
     private const array EVALUATED_ATTRIBUTES = ['rule', 'is_active', 'is_secret'];
 
+    private static bool $muted = false;
+
+    /**
+     * Runs `$work` without queuing an evaluation per achievement: whoever creates many at once
+     * (the starter catalogue) queues one for all of them.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $work
+     * @return T
+     */
+    public static function muted(callable $work): mixed
+    {
+        $previous = self::$muted;
+        self::$muted = true;
+
+        try {
+            return $work();
+        } finally {
+            self::$muted = $previous;
+        }
+    }
+
     public function created(AchievementModel $achievement): void
     {
-        if ($achievement->is_active) {
+        if ($achievement->is_active && ! self::$muted) {
             EvaluateAchievementsJob::dispatch([$achievement->id]);
         }
     }
@@ -28,7 +51,7 @@ final class EvaluateChangedAchievements
      */
     public function updated(AchievementModel $achievement): void
     {
-        if ($achievement->is_active && $achievement->wasChanged(self::EVALUATED_ATTRIBUTES)) {
+        if ($achievement->is_active && ! self::$muted && $achievement->wasChanged(self::EVALUATED_ATTRIBUTES)) {
             EvaluateAchievementsJob::dispatch([$achievement->id]);
         }
     }

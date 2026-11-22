@@ -11,6 +11,8 @@ use App\Infrastructure\Persistence\Eloquent\Models\RoleModel;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
+use Illuminate\Bus\UniqueLock;
+use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
@@ -274,6 +276,8 @@ final class AchievementsSettingsPageTest extends ModuleTestCase
         Livewire::test(AchievementsSettingsPage::class)->fillForm(['metric_kinds.event' => true])->call('save');
         Bus::assertDispatched(EvaluateAchievementsJob::class, static fn (EvaluateAchievementsJob $job): bool => $job->achievementIds === null && $job->silent && ! $job->onlyAccountYears);
 
+        // As if the first job had run: its unique lock is gone
+        new UniqueLock($this->app->make(Repository::class))->release(new EvaluateAchievementsJob);
         $this->app->forgetScopedInstances();
         Livewire::test(AchievementsSettingsPage::class)->fillForm(['secrets' => true])->call('save');
         Bus::assertDispatchedTimes(EvaluateAchievementsJob::class, 2);

@@ -31,12 +31,16 @@ Para crear, editar o borrar logros hace falta el permiso de gestionar el catálo
 
 Al guardar, el logro se concede **sin avisos** a quien ya cumpla la regla. Lo mismo pasa al cambiar la regla o al activar un logro desactivado.
 
+Solo se avisa de un logro recién conseguido: el que se cumple con una actividad de las dos últimas semanas, o el aniversario de los dos últimos días. Lo que ya se cumplía antes se concede sin avisos.
+
+La imagen de un logro secreto se guarda aparte y no sale en la biblioteca de medios. Si marcas como secreto un logro que ya tiene imagen, quítala y vuelve a subirla.
+
 Escribe la descripción con totales («Juega 10 partidas»), nunca con una partida o una campaña concreta: quién jugó una mesa no es público.
 
 ## Estados
 
 - **Activo**: se concede solo.
-- **Sin fuente**: ningún módulo activo informa de ese tipo de actividad (por ejemplo, torneos sin el módulo de torneos). No se evalúa hasta que lo haya.
+- **Sin fuente**: ningún módulo activo informa de ese tipo de actividad (por ejemplo, torneos sin el módulo de torneos). En cuanto se habilita un módulo que lo trae, o vuelve a funcionar una fuente que había fallado, el logro se evalúa solo para todo el mundo, sin avisos.
 - **Desactivado**: no se concede ni se enseña. Quien ya lo tenía lo conserva.
 - **Tipo apagado**: su tipo de actividad está apagado en *Sistema → Configuración → Logros*.
 - **Secretos apagados**: es secreto y los logros secretos están apagados en los ajustes.
@@ -46,8 +50,8 @@ Cuando vuelves a encender un tipo de actividad o los logros secretos en los ajus
 
 ## Lo que se concede no se retira
 
-Una concesión es para siempre: si una partida deja de contar o subes el umbral, quien ya tenía el logro lo conserva. Borrar un logro sí borra todas sus concesiones; para dejar de concederlo basta con desactivarlo.
+Una concesión es para siempre: si una partida deja de contar o subes el umbral, quien ya tenía el logro lo conserva. Por eso un logro que tiene alguien no se puede borrar, solo desactivar: deja de concederse y de enseñarse, y quien lo tenía lo conserva. **Borrar** solo aparece, en el menú **⋯**, mientras nadie lo tiene, y pide marcar una casilla.
 
 ## Catálogo inicial
 
-Al instalar el módulo se crea un catálogo con logros de bienvenida, partidas jugadas y dirigidas, sistemas distintos, campañas, torneos, eventos, antigüedad y propuestas. Solo empiezan activos los que tienen fuente. Puedes editarlos y borrarlos como cualquier otro.
+Al instalar el módulo se crea un catálogo con logros de bienvenida, partidas jugadas y dirigidas, sistemas distintos, campañas, torneos, eventos, antigüedad y propuestas. Solo empiezan activos los que tienen fuente. Puedes editarlos y borrarlos como cualquier otro. Si vuelves a crear el catálogo inicial, un logro que borraste vuelve desactivado.

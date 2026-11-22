@@ -99,19 +99,66 @@ final class RuleEvaluatorTest extends TestCase
         $this->assertSame(2, $this->value(['filters' => ['role' => 'player']] + $rule, $facts));
     }
 
-    public function test_account_years_are_full_years_since_the_first_account_fact_in_the_display_zone(): void
+    public function test_account_years_are_full_years_between_calendar_dates_in_the_display_zone(): void
     {
         $madrid = new DateTimeZone('Europe/Madrid');
         // 2023-11-22 00:30 in Madrid
         $facts = [$this->fact('acc', 'owner', kind: 'account', when: '2023-11-21 23:30:00')];
         $rule = ['metric' => 'years', 'basis' => 'account', 'threshold' => 3];
 
-        $justBefore = new DateTimeImmutable('2026-11-21 23:29:00', new DateTimeZone('UTC'));
-        $justAfter = new DateTimeImmutable('2026-11-21 23:31:00', new DateTimeZone('UTC'));
+        // 2026-11-21 23:59 and 2026-11-22 00:01 in Madrid
+        $dayBefore = new DateTimeImmutable('2026-11-21 22:59:00', new DateTimeZone('UTC'));
+        $anniversary = new DateTimeImmutable('2026-11-21 23:01:00', new DateTimeZone('UTC'));
 
-        $this->assertSame(2, $this->value($rule, $facts, $justBefore, $madrid));
-        $this->assertSame(3, $this->value($rule, $facts, $justAfter, $madrid));
-        $this->assertTrue($this->met($rule, $facts, $justAfter, $madrid));
+        $this->assertSame(2, $this->value($rule, $facts, $dayBefore, $madrid));
+        $this->assertSame(3, $this->value($rule, $facts, $anniversary, $madrid));
+        $this->assertTrue($this->met($rule, $facts, $anniversary, $madrid));
+    }
+
+    public function test_the_nightly_run_on_the_anniversary_counts_it_before_the_hour_of_the_sign_up(): void
+    {
+        $madrid = new DateTimeZone('Europe/Madrid');
+        // Signed up on 2025-11-23 at 18:00 in Madrid; the nightly job runs at 00:00 UTC (01:00 in Madrid)
+        $facts = [$this->fact('acc', 'owner', kind: 'account', when: '2025-11-23 17:00:00')];
+        $rule = ['metric' => 'years', 'basis' => 'account', 'threshold' => 1];
+
+        $this->assertSame(1, $this->value($rule, $facts, new DateTimeImmutable('2026-11-23 00:00:00', new DateTimeZone('UTC')), $madrid));
+    }
+
+    public function test_met_at_is_when_the_threshold_was_reached(): void
+    {
+        $facts = [
+            $this->fact('s3', when: '2026-03-03 10:00:00'),
+            $this->fact('s1', when: '2026-03-01 10:00:00'),
+            $this->fact('s1', 'director', when: '2026-03-01 10:00:00'),
+            $this->fact('s2', when: '2026-03-02 10:00:00'),
+        ];
+
+        $this->assertSame('2026-03-02 10:00', $this->metAt(['metric' => 'count', 'kind' => 'game_session', 'threshold' => 2], $facts)?->format('Y-m-d H:i'));
+        $this->assertNull($this->metAt(['metric' => 'count', 'kind' => 'game_session', 'threshold' => 4], $facts));
+        $this->assertNull($this->metAt(['metric' => 'manual'], $facts));
+    }
+
+    public function test_met_at_of_distinct_values_is_when_the_last_needed_value_appeared(): void
+    {
+        $facts = [
+            $this->fact('s1', system: 'pf2', when: '2026-01-01 10:00:00'),
+            $this->fact('s2', system: 'pf2', when: '2026-02-01 10:00:00'),
+            $this->fact('s3', system: 'coc', when: '2026-03-01 10:00:00'),
+        ];
+
+        $this->assertSame('2026-03-01', $this->metAt(['metric' => 'distinct', 'kind' => 'game_session', 'key' => 'game_system', 'threshold' => 2], $facts)?->format('Y-m-d'));
+    }
+
+    public function test_met_at_of_account_years_is_the_first_minute_of_the_anniversary(): void
+    {
+        $madrid = new DateTimeZone('Europe/Madrid');
+        $facts = [$this->fact('acc', 'owner', kind: 'account', when: '2025-11-23 17:00:00')];
+        $now = new DateTimeImmutable('2026-11-23 00:00:00', new DateTimeZone('UTC'));
+
+        $metAt = $this->evaluator->metAt($this->rule(['metric' => 'years', 'basis' => 'account', 'threshold' => 1]), $facts, $now, $madrid);
+
+        $this->assertSame('2026-11-23 00:00 +01:00', $metAt?->format('Y-m-d H:i P'));
     }
 
     public function test_account_years_without_an_account_fact_are_none(): void
@@ -159,6 +206,15 @@ final class RuleEvaluatorTest extends TestCase
     private function met(array $rule, array $facts, ?DateTimeImmutable $now = null, ?DateTimeZone $zone = null): bool
     {
         return $this->evaluator->isMet($this->rule($rule), $facts, $now ?? $this->now, $zone ?? new DateTimeZone('UTC'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $rule
+     * @param  list<AchievementFact>  $facts
+     */
+    private function metAt(array $rule, array $facts): ?DateTimeImmutable
+    {
+        return $this->evaluator->metAt($this->rule($rule), $facts, $this->now, new DateTimeZone('UTC'));
     }
 
     /**

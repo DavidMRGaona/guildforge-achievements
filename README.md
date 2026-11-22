@@ -27,10 +27,10 @@ Los logros se calculan con lo que cuentan las fuentes de actividad del core (`do
 
 *Personas → Logros* (orden 50), con la política `AchievementPolicy`: `achievements.view_any` (o `manage`) para ver la tabla, `achievements.manage` para crear, editar y borrar. Cada logro tiene nombre (60 caracteres), descripción (200), icono y color de las listas cerradas del core (`ProfileBadgeIcons::NAMES`, `ProfileBadgeColour`), imagen opcional, puntos, secreto, activo y una regla. Tabla `achievements_catalogue` (el prefijo del módulo es obligatorio).
 
-- **Imagen.** Se sube a Cloudinary por el disco `images`, en `achievements/badges/<año>/<mes>/`, o se elige de la biblioteca de medios. La fuente de medios `achievements.badge-image` reclama esa carpeta; el modelo libera la imagen sustituida o borrada a través del core.
+- **Imagen.** Se sube a Cloudinary por el disco `images`, en `achievements/badges/<año>/<mes>/`, o se elige de la biblioteca de medios. La fuente de medios `achievements.badge-image` reclama esa carpeta; el modelo libera la imagen sustituida o borrada a través del core. Las de los logros secretos van a `achievements/badges/secret/`, que reclama la fuente oculta `achievements.secret-badge-image`: la biblioteca no las lista (solo puede ocultar carpetas enteras), y por eso el core tampoco las borra nunca. Guardar un logro secreto con una imagen de otra carpeta se rechaza.
 - **Secretos.** Quien no tiene un logro secreto ve «Logro secreto», sin nombre, regla, icono ni imagen: en el panel (quien no puede gestionar el catálogo; tampoco lo encuentra al buscar), en la biblioteca de medios y en `AchievementCatalogueInterface`, la lectura que usarán las páginas. Con los logros secretos apagados en los ajustes, los secretos no se evalúan.
 - **Estado.** La columna *Estado* dice si el evaluador mira el logro y, si no, por qué: *Activo*, *Desactivado*, *Solo a mano*, *Regla no válida*, *Sin fuente* (ningún módulo activo informa de su tipo), *Tipo apagado* o *Secretos apagados*. Es la misma decisión que toma el evaluador (`AchievementStatusRule`).
-- **Borrar** un logro pide una casilla de confirmación y borra sus concesiones; para dejar de concederlo basta con desactivarlo.
+- **Borrar** solo se ofrece mientras nadie tiene el logro (`AchievementPolicy::delete()`, y la clave ajena `restrictOnDelete` en la base de datos), y pide una casilla. Un logro que alguien tiene solo se desactiva.
 
 ### La regla
 
@@ -61,7 +61,7 @@ Tabla `achievements_grants`: cuenta, logro, temporada (nula por ahora), `granted
 
 - Se concede solo a través de `AchievementGranterInterface::grant(NewGrant)`. Lo ya concedido no se vuelve a conceder (`INSERT … ON CONFLICT DO NOTHING`, así que dos trabajos a la vez escriben una fila), ni a una cuenta que no existe o está anonimizada (se lee con bloqueo compartido), ni a un logro borrado.
 - Cada concesión nueva lanza `AchievementGranted` (ids, origen, `silent`) cuando su transacción se confirma; nunca dentro de la red de seguridad de la impersonación.
-- **Nunca se retira sola**: el evaluador solo añade. Al anonimizar una cuenta (`UserAnonymized`) se borran sus concesiones, en cola.
+- **Nunca se retira sola**: el evaluador solo añade y un logro con titulares no se puede borrar. Al anonimizar una cuenta (`UserAnonymized`) se borran sus concesiones, en cola.
 
 ## Evaluador
 
@@ -69,9 +69,12 @@ Tabla `achievements_grants`: cuenta, logro, temporada (nula por ahora), `granted
 
 - Escucha `AchievementFactsChanged` en cola, después del commit, y evalúa solo las cuentas que trae; en silencio si viene de un recálculo.
 - Mira solo los logros activos con una regla legible y no manual, cuyo tipo tiene una fuente activa y está encendido en los ajustes (y los secretos, solo con los logros secretos encendidos).
-- **Falla cerrado.** Lee los ajustes con `readStrictly()`, que distingue «nunca guardados» (valores por defecto) de «no se pudieron leer» (tabla inaccesible o un valor que no es un objeto JSON). Si no puede leerlos no evalúa nada, avisa una vez al día y el trabajo se reintenta más tarde.
+- **Falla cerrado.** Lee los ajustes con `readStrictly()`, que distingue «nunca guardados» (valores por defecto) de «no se pudieron leer» (tabla inaccesible o un valor que no es un objeto JSON). Si no puede leerlos no evalúa nada, avisa una vez al día y el trabajo se reintenta; tras el último intento falla y queda en `failed_jobs`. Los ajustes se leen clave a clave: un `metric_kinds` mal formado apaga todos los tipos, un interruptor de tipo que no es booleano apaga ese tipo y un `secrets` mal formado queda apagado; se avisa una vez al día.
+- **Avisos.** Una concesión se anuncia solo si la evaluación no es silenciosa y la regla se acaba de cumplir (`AnnouncementWindow`, sobre `RuleEvaluator::metAt()`): el hecho que alcanzó el umbral es de los últimos 14 días, o el aniversario cayó en los últimos 2 días de la zona de visualización. Lo que se cumplía antes se concede en silencio, venga de donde venga la evaluación (un recálculo que no llegó a correr, un tipo encendido de nuevo).
 - Crear un logro, cambiar su regla, activarlo o cambiar si es secreto lo evalúa para todo el mundo con el registro, en cola y en silencio. Encender de nuevo un tipo de actividad o los logros secretos en los ajustes evalúa todos los logros.
-- Los años de cuenta cambian solo con la fecha: cada noche se evalúan esos logros para todo el mundo, con avisos (son aniversarios de verdad).
+- Habilitar un módulo (`ModuleEnabled`) evalúa en silencio los logros de los tipos que ofrecen sus fuentes. Si el tipo de un logro tiene una fuente registrada pero no disponible ahora, el trabajo se reintenta con espera (4 intentos) y después termina sin fallar.
+- `EvaluateAchievementsJob` es único mientras espera (mismos logros, módulo, silencio y alcance) y tiene un tiempo máximo de 15 minutos.
+- Los años de cuenta cambian solo con la fecha y se cuentan por fechas de calendario en la zona de visualización: cada noche se evalúan para todo el mundo y solo se anuncian los aniversarios de los últimos días.
 
 ### Recalcular el historial
 
@@ -99,7 +102,7 @@ Al habilitar el módulo por primera vez, su seeder crea un catálogo que cada si
 php artisan achievements:install-starter-catalogue
 ```
 
-Es idempotente: crea solo los que faltan (por su `starter_key`) y deja como están los que ya hay, editados o no. Sirve para recuperar uno que se borró.
+Es idempotente: crea solo los que faltan (por su `starter_key`) y deja como están los que ya hay, editados o no. Un logro inicial que se borró vuelve desactivado (`achievements_starter_keys` recuerda los que se crearon). Encola una sola evaluación para todos los que crea activos.
 
 ## Permisos
 

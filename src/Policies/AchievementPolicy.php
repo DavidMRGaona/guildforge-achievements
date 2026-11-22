@@ -10,7 +10,9 @@ use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementM
 
 /**
  * The catalogue: listed with `achievements.view_any` (or `manage`), written with `achievements.manage`.
- * Whoever only views sees secret achievements as «Logro secreto», without their rule.
+ * Whoever only views sees secret achievements as «Logro secreto», without their rule. Grants are
+ * permanent, so an achievement somebody holds is never deleted, only switched off (the database
+ * refuses it too).
  */
 final class AchievementPolicy
 {
@@ -42,7 +44,7 @@ final class AchievementPolicy
 
     public function delete(UserModel $user, AchievementModel $achievement): bool
     {
-        return $this->authorize($user, self::MANAGE);
+        return $this->authorize($user, self::MANAGE) && ! $achievement->grants()->exists();
     }
 
     public function deleteAny(UserModel $user): bool
@@ -57,6 +59,6 @@ final class AchievementPolicy
 
     public function forceDelete(UserModel $user, AchievementModel $achievement): bool
     {
-        return $this->authorize($user, self::MANAGE);
+        return $this->delete($user, $achievement);
     }
 }

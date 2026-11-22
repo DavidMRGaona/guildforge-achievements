@@ -108,6 +108,26 @@ final class StarterCatalogueTest extends ModuleTestCase
         $this->assertFalse($this->byKey('games_played_10')->is_active);
     }
 
+    public function test_a_deleted_starter_achievement_comes_back_switched_off(): void
+    {
+        $this->catalogue()->install();
+        $this->assertTrue($this->byKey('games_played_10')->is_active);
+        $this->byKey('games_played_10')->delete();
+
+        $this->catalogue()->install();
+
+        $this->assertFalse($this->byKey('games_played_10')->is_active);
+    }
+
+    public function test_installing_queues_one_evaluation_for_every_active_achievement_it_created(): void
+    {
+        $this->catalogue()->install();
+
+        Bus::assertDispatchedTimes(EvaluateAchievementsJob::class, 1);
+        $active = AchievementModel::query()->where('is_active', true)->pluck('id')->all();
+        Bus::assertDispatched(EvaluateAchievementsJob::class, static fn (EvaluateAchievementsJob $job): bool => $job->silent && $job->achievementIds !== null && array_diff($active, $job->achievementIds) === [] && count($job->achievementIds) === count($active));
+    }
+
     public function test_the_command_reports_what_it_created(): void
     {
         $this->install()

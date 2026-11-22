@@ -14,16 +14,18 @@ use Filament\Actions\DeleteAction;
 use Filament\Tables\Columns\Column;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Modules\Achievements\AchievementsServiceProvider;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Domain\Enums\GrantSource;
 use Modules\Achievements\Domain\ValueObjects\NewGrant;
+use Modules\Achievements\Filament\Media\AchievementBadgeImageMediaSource;
+use Modules\Achievements\Filament\Media\SecretBadgeImageMediaSource;
 use Modules\Achievements\Filament\Resources\AchievementResource;
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\CreateAchievement;
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\EditAchievement;
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\ListAchievements;
-use Modules\Achievements\Infrastructure\Media\AchievementBadgeImageMediaSource;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Policies\AchievementPolicy;
@@ -70,7 +72,7 @@ final class AchievementResourceTest extends ModuleTestCase
         $provider = new AchievementsServiceProvider($this->app);
 
         $this->assertSame([AchievementModel::class => AchievementPolicy::class], $provider->registerPolicies());
-        $this->assertSame([AchievementBadgeImageMediaSource::class], $provider->registerMediaSources());
+        $this->assertSame([AchievementBadgeImageMediaSource::class, SecretBadgeImageMediaSource::class], $provider->registerMediaSources());
     }
 
     public function test_viewing_needs_view_any_or_manage_and_writing_needs_manage(): void
@@ -263,12 +265,27 @@ final class AchievementResourceTest extends ModuleTestCase
         Livewire::test(ListAchievements::class)->assertCanSeeTableRecords([$middle, $last, $secret], inOrder: true);
     }
 
-    public function test_deleting_asks_for_the_box_and_deletes_the_grants(): void
+    public function test_an_achievement_somebody_holds_cannot_be_deleted_only_switched_off(): void
     {
         Bus::fake([EvaluateAchievementsJob::class]);
         $ana = $this->account(self::ANA);
         $achievement = $this->achievement($this->countRule());
         $this->app->make(AchievementGranterInterface::class)->grant(new NewGrant($ana, $achievement->id, GrantSource::Rule, silent: true));
+        $manager = $this->userWith(AchievementPolicy::MANAGE);
+        $this->actingAs($manager);
+
+        $this->assertFalse($manager->can('delete', $achievement));
+        Livewire::test(EditAchievement::class, ['record' => $achievement->getKey()])->assertActionHidden(DeleteAction::class);
+        Livewire::test(ListAchievements::class)->assertTableActionHidden(DeleteAction::class, $achievement);
+
+        $this->assertNotNull($achievement->fresh());
+        $this->assertSame(1, DB::table('achievements_grants')->count());
+    }
+
+    public function test_an_achievement_nobody_holds_is_deleted_after_ticking_the_box(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        $achievement = $this->achievement($this->countRule());
         $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
 
         Livewire::test(EditAchievement::class, ['record' => $achievement->getKey()])
@@ -280,7 +297,40 @@ final class AchievementResourceTest extends ModuleTestCase
             ->callAction(DeleteAction::class, ['confirmation' => true]);
 
         $this->assertNull($achievement->fresh());
-        $this->assertSame(0, DB::table('achievements_grants')->count());
+    }
+
+    public function test_a_secret_achievement_keeps_its_image_in_the_hidden_folder(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        Storage::fake('images');
+        Storage::disk('images')->put('achievements/badges/2026/11/a.png', 'png');
+        $achievement = $this->achievement($this->countRule(), ['image_public_id' => 'achievements/badges/2026/11/a.png']);
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+
+        Livewire::test(EditAchievement::class, ['record' => $achievement->getKey()])
+            ->fillForm(['is_secret' => true])
+            ->call('save')
+            ->assertHasFormErrors(['image_public_id']);
+        $this->assertFalse((bool) $achievement->fresh()?->is_secret);
+
+        $this->assertSame(['achievements/badges/secret/'], $this->app->make(SecretBadgeImageMediaSource::class)->folders());
+        $this->assertSame(['secret/'], $this->app->make(AchievementBadgeImageMediaSource::class)->excludedSubfolders());
+    }
+
+    public function test_saving_again_keeps_the_label_of_a_value_the_sources_no_longer_offer(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        $achievement = $this->achievement($this->countRule(extra: ['filters' => ['attribute' => ['key' => 'game_system', 'value' => 'gone', 'label' => 'Sistema retirado']]]));
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+
+        Livewire::test(EditAchievement::class, ['record' => $achievement->getKey()])
+            ->fillForm(['name' => 'Otro nombre'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $rule = $achievement->fresh()?->rule;
+        $this->assertIsArray($rule);
+        $this->assertSame(['key' => 'game_system', 'value' => 'gone', 'label' => 'Sistema retirado'], $rule['filters']['attribute']);
     }
 
     public function test_the_table_fits_narrow_screens(): void
@@ -304,16 +354,20 @@ final class AchievementResourceTest extends ModuleTestCase
         );
     }
 
-    public function test_the_media_source_claims_the_badge_folder_and_hides_secret_names(): void
+    public function test_secret_badges_are_listed_only_by_the_hidden_source(): void
     {
         Bus::fake([EvaluateAchievementsJob::class]);
-        $this->achievement($this->countRule(), ['name' => 'Dragón dormido', 'is_secret' => true, 'image_public_id' => 'achievements/badges/2026/11/a.png']);
-        $source = $this->app->make(AchievementBadgeImageMediaSource::class);
+        $this->achievement($this->countRule(), ['name' => 'Dragón dormido', 'is_secret' => true, 'image_public_id' => 'achievements/badges/secret/2026/11/a.png']);
+        $this->achievement($this->countRule(), ['name' => 'Visible', 'image_public_id' => 'achievements/badges/2026/11/b.png']);
+        $public = $this->app->make(AchievementBadgeImageMediaSource::class);
+        $secret = $this->app->make(SecretBadgeImageMediaSource::class);
 
-        $this->assertSame('achievements.badge-image', $source->type());
-        $this->assertSame(['achievements/badges/'], $source->folders());
-        $usages = iterator_to_array($source->usages(), false);
-        $this->assertCount(1, $usages);
-        $this->assertSame('Logro secreto', $usages[0]->title);
+        $this->assertSame('achievements.badge-image', $public->type());
+        $this->assertSame(['achievements/badges/'], $public->folders());
+        $this->assertFalse($public->hidden());
+        $this->assertSame(['Visible'], array_map(static fn ($usage): string => $usage->title, iterator_to_array($public->usages(), false)));
+
+        $this->assertTrue($secret->hidden());
+        $this->assertSame(['Logro secreto'], array_map(static fn ($usage): string => $usage->title, iterator_to_array($secret->usages(), false)));
     }
 }

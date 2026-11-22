@@ -20,6 +20,7 @@ use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface
 use Modules\Achievements\Domain\ValueObjects\NewGrant;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Tests\Support\AccountActivitySource;
+use Modules\Achievements\Tests\Support\BrokenTournamentSource;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsActivityFacts;
 use Modules\Achievements\Tests\Support\ScriptedActivitySource;
@@ -60,6 +61,8 @@ final class AchievementEvaluatorTest extends ModuleTestCase
 
     public function test_a_rule_met_is_granted_with_its_source_and_silence(): void
     {
+        // The facts are of 2026-03-14: met two days ago, so it is announced
+        $this->travelTo(new \DateTimeImmutable('2026-03-16 12:00:00'));
         $ana = $this->account(self::ANA);
         $tenGames = $this->achievement($this->countRule(threshold: 2));
         $this->played($ana, 's1', 's2');
@@ -67,7 +70,7 @@ final class AchievementEvaluatorTest extends ModuleTestCase
         $result = $this->evaluator()->evaluate([$ana], silent: false);
 
         $this->assertSame(EvaluationOutcome::Evaluated, $result->outcome);
-        $this->assertEquals([new GrantedAchievementDTO($ana, $tenGames->id)], $result->granted);
+        $this->assertEquals([new GrantedAchievementDTO($ana, $tenGames->id, silent: false)], $result->granted);
         $grant = $this->grants()->forUser($ana)[0];
         $this->assertSame($tenGames->id, $grant->achievementId);
         $this->assertSame(GrantSource::Rule, $grant->source);
@@ -90,6 +93,33 @@ final class AchievementEvaluatorTest extends ModuleTestCase
 
         $this->assertTrue($this->grants()->forUser($ana)[0]->silent);
         Event::assertDispatched(AchievementGranted::class, static fn (AchievementGranted $event): bool => $event->silent);
+    }
+
+    public function test_a_rule_met_long_ago_is_granted_silently_even_from_a_live_change(): void
+    {
+        // Met on 2026-03-14 and evaluated for the first time months later (a recalculation that never ran)
+        $this->travelTo(new \DateTimeImmutable('2026-11-22 12:00:00'));
+        $ana = $this->account(self::ANA);
+        $this->achievement($this->countRule());
+        $this->played($ana, 's1');
+
+        $result = $this->evaluator()->evaluate([$ana], silent: false);
+
+        $this->assertTrue($result->granted[0]->silent);
+        $this->assertTrue($this->grants()->forUser($ana)[0]->silent);
+        Event::assertDispatched(AchievementGranted::class, static fn (AchievementGranted $event): bool => $event->silent);
+    }
+
+    public function test_only_the_fact_that_crosses_the_threshold_decides_the_notice(): void
+    {
+        $this->travelTo(new \DateTimeImmutable('2026-11-22 12:00:00'));
+        $ana = $this->account(self::ANA);
+        $this->achievement($this->countRule(threshold: 2));
+        // One old game, then the one that crosses the threshold today
+        $this->ledgerSubject(self::SESSIONS, 's1', 'game_session', [$this->recordedFact($ana, when: '2025-01-10 18:00:00')]);
+        $this->ledgerSubject(self::SESSIONS, 's2', 'game_session', [$this->recordedFact($ana, when: '2026-11-21 18:00:00')]);
+
+        $this->assertFalse($this->evaluator()->evaluate([$ana], silent: false)->granted[0]->silent);
     }
 
     public function test_a_rule_not_met_grants_nothing(): void
@@ -183,7 +213,7 @@ final class AchievementEvaluatorTest extends ModuleTestCase
 
         $result = $this->evaluator()->evaluate([$ana], silent: true, dryRun: true);
 
-        $this->assertEquals([new GrantedAchievementDTO($ana, $achievement->id)], $result->granted);
+        $this->assertEquals([new GrantedAchievementDTO($ana, $achievement->id, silent: true)], $result->granted);
         $this->assertSame([], $this->grants()->forUser($ana));
         Event::assertNotDispatched(AchievementGranted::class);
     }
@@ -323,7 +353,60 @@ final class AchievementEvaluatorTest extends ModuleTestCase
         $this->assertSame([], $this->evaluator()->evaluateEverybody(null, silent: false, onlyAccountYears: true)->granted);
 
         $this->travelTo(new \DateTimeImmutable('2026-11-24 12:00:00'));
-        $this->assertCount(1, $this->evaluator()->evaluateEverybody(null, silent: false, onlyAccountYears: true)->granted);
+        $granted = $this->evaluator()->evaluateEverybody(null, silent: false, onlyAccountYears: true)->granted;
+        $this->assertCount(1, $granted);
+        $this->assertFalse($granted[0]->silent);
+    }
+
+    public function test_an_anniversary_older_than_two_days_is_granted_silently(): void
+    {
+        $ana = $this->account(self::ANA);
+        $this->registerSource(AccountActivitySource::class);
+        $this->achievement(['version' => 1, 'metric' => 'years', 'basis' => 'account', 'threshold' => 1]);
+        $this->ledgerSubject(AccountActivitySource::TYPE, $ana, 'account', [$this->recordedFact($ana, 'owner', when: '2024-05-01 12:00:00')]);
+
+        $granted = $this->evaluator()->evaluateEverybody(null, silent: false, onlyAccountYears: true)->granted;
+
+        $this->assertCount(1, $granted);
+        $this->assertTrue($granted[0]->silent);
+    }
+
+    public function test_a_kind_whose_source_is_registered_but_unavailable_is_reported_as_pending(): void
+    {
+        $ana = $this->account(self::ANA);
+        $this->achievement($this->countRule('tournament'));
+        $this->played($ana, 's1');
+        // A tournament source wrote facts before and now cannot be built
+        $this->ledgerSubject(BrokenTournamentSource::TYPE, 't1', 'tournament', [$this->recordedFact($ana)]);
+        $this->registerSource(BrokenTournamentSource::class);
+
+        $result = $this->evaluator()->evaluateEverybody(null, silent: true);
+
+        $this->assertSame(['tournament'], $result->pendingKinds);
+        $this->assertSame([], $result->granted);
+    }
+
+    public function test_a_kind_nobody_registers_is_not_pending(): void
+    {
+        $ana = $this->account(self::ANA);
+        $this->achievement($this->countRule('event'));
+        $this->played($ana, 's1');
+
+        $this->assertSame([], $this->evaluator()->evaluateEverybody(null, silent: true)->pendingKinds);
+    }
+
+    public function test_only_kinds_keeps_the_achievements_of_those_kinds(): void
+    {
+        $ana = $this->account(self::ANA);
+        $this->registerSource(AccountActivitySource::class);
+        $sessions = $this->achievement($this->countRule());
+        $this->achievement(['version' => 1, 'metric' => 'years', 'basis' => 'account', 'threshold' => 1]);
+        $this->played($ana, 's1');
+        $this->ledgerSubject(AccountActivitySource::TYPE, $ana, 'account', [$this->recordedFact($ana, 'owner', when: '2020-01-01 12:00:00')]);
+
+        $granted = $this->evaluator()->evaluateEverybody(null, silent: true, onlyKinds: ['game_session'])->granted;
+
+        $this->assertSame([$sessions->id], array_map(static fn (GrantedAchievementDTO $grant): string => $grant->achievementId, $granted));
     }
 
     public function test_everybody_with_facts_of_the_kinds_is_evaluated_in_chunks(): void

@@ -21,6 +21,8 @@ final class CreateAchievement extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        AchievementResource::checkImageFolder($data);
+
         return AchievementRuleForm::intoRule($data);
     }
 }

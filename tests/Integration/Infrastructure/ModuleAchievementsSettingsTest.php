@@ -6,6 +6,7 @@ namespace Modules\Achievements\Tests\Integration\Infrastructure;
 
 use App\Application\Services\SettingsServiceInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Mockery\MockInterface;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
@@ -95,7 +96,7 @@ final class ModuleAchievementsSettingsTest extends ModuleTestCase
         $this->assertSame(14, $stored['recognitions_window_days']);
     }
 
-    public function test_an_unreadable_row_gives_the_defaults(): void
+    public function test_malformed_values_take_their_safe_default(): void
     {
         DB::table('settings')->insert([
             'id' => (string) Str::uuid(),
@@ -109,7 +110,37 @@ final class ModuleAchievementsSettingsTest extends ModuleTestCase
 
         $this->assertTrue($service->progressEnabled());
         $this->assertSame(10.0, $service->announcementsRarityThreshold());
-        $this->assertTrue($service->metricKindEnabled(MetricKinds::EVENT));
+        // A broken map never switches on what may have been off
+        $this->assertFalse($service->metricKindEnabled(MetricKinds::EVENT));
+    }
+
+    public function test_the_strict_read_warns_once_about_malformed_values(): void
+    {
+        DB::table('settings')->insert(['id' => (string) Str::uuid(), 'key' => 'module_settings:achievements', 'value' => '{"metric_kinds":"none"}', 'created_at' => now(), 'updated_at' => now()]);
+        $log = Log::spy();
+
+        $settings = $this->service()->readStrictly();
+        $this->app->forgetScopedInstances();
+        $this->app->make(AchievementsSettingsInterface::class)->readStrictly();
+
+        $this->assertInstanceOf(AchievementsSettings::class, $settings);
+        $this->assertFalse($settings->metricKindEnabled(MetricKinds::GAME_SESSION));
+        $log->shouldHaveReceived('warning')->once()->withArgs(
+            static fn (string $message, array $context): bool => $context === ['keys' => ['metric_kinds'], 'reason' => 'settings_malformed'],
+        );
+    }
+
+    public function test_a_failed_strict_read_is_remembered_until_saving(): void
+    {
+        // once(): the second read must not reach the table
+        $this->mock(SettingsServiceInterface::class, static function (MockInterface $mock): void {
+            $mock->shouldReceive('getStored')->once()->andThrow(new RuntimeException('The database is away.'));
+        });
+        $this->app->forgetScopedInstances();
+        $service = $this->app->make(AchievementsSettingsInterface::class);
+
+        $this->assertNull($service->readStrictly());
+        $this->assertNull($service->readStrictly());
     }
 
     public function test_the_strict_read_gives_the_defaults_when_nothing_was_ever_saved(): void

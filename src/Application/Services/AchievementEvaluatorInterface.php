@@ -16,8 +16,10 @@ use Modules\Achievements\Application\DTOs\EvaluationResultDTO;
  * it evaluates and grants nothing, warns once a day and answers SettingsUnreadable. An achievement
  * whose rule cannot be read is skipped and warned once a day too.
  *
- * Silent grants (recalculations, re-evaluations after a change of the catalogue) never send a
- * notice; the others may (#6). Granting twice grants nothing, also from two jobs at once.
+ * A grant is announced (not silent) only when the evaluation is not silent and the rule was met
+ * just now (AnnouncementWindow, on RuleEvaluator::metAt()): what was met long ago is granted
+ * silently whatever triggered the evaluation. Silent grants never send a notice (#6). Granting twice
+ * grants nothing, also from two jobs at once.
  */
 interface AchievementEvaluatorInterface
 {
@@ -38,11 +40,13 @@ interface AchievementEvaluatorInterface
     /**
      * Evaluates every account with facts of the kinds the achievements read, from the ledger (the
      * sources are not read again), in chunks. `$onlyAccountYears` keeps only the achievements of
-     * account years, which change with the date alone (the daily run).
+     * account years, which change with the date alone (the daily run); `$onlyKinds` only the
+     * achievements of those kinds (a module just enabled).
      *
      * @param  list<string>|null  $achievementIds  null for every achievement
+     * @param  list<string>|null  $onlyKinds  null for every kind
      *
      * @phpstan-impure
      */
-    public function evaluateEverybody(?array $achievementIds, bool $silent, bool $dryRun = false, bool $onlyAccountYears = false): EvaluationResultDTO;
+    public function evaluateEverybody(?array $achievementIds, bool $silent, bool $dryRun = false, bool $onlyAccountYears = false, ?array $onlyKinds = null): EvaluationResultDTO;
 }

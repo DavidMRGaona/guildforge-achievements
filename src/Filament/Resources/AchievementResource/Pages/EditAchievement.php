@@ -30,9 +30,8 @@ final class EditAchievement extends EditRecord
     {
         return array_filter([
             DeleteAction::make()
-                ->modalDescription(fn (): string => (string) __('achievements::messages.catalogue.delete.description', [
-                    'holders' => (string) $this->achievement()->grants()->count(),
-                ]))
+                // Only offered while nobody holds it (AchievementPolicy::delete())
+                ->modalDescription(__('achievements::messages.catalogue.delete.description'))
                 ->schema([
                     Checkbox::make('confirmation')
                         ->label(__('achievements::messages.catalogue.delete.confirmation'))
@@ -58,7 +57,9 @@ final class EditAchievement extends EditRecord
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        return AchievementRuleForm::intoRule($data);
+        AchievementResource::checkImageFolder($data);
+
+        return AchievementRuleForm::intoRule($data, $this->achievement());
     }
 
     private function achievement(): AchievementModel

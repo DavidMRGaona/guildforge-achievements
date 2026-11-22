@@ -114,12 +114,36 @@ final class AchievementsSettingsTest extends TestCase
         $this->assertTrue($settings->metricKindEnabled('a_kind_of_a_newer_core'));
     }
 
-    public function test_unreadable_kind_switches_are_dropped(): void
+    public function test_a_kind_switch_that_is_not_a_boolean_turns_that_kind_off(): void
     {
-        $settings = AchievementsSettings::fromArray(['metric_kinds' => ['event' => 'no', 0 => true, '' => false, 'campaign' => false]]);
+        $settings = AchievementsSettings::fromArray(['metric_kinds' => ['event' => 'no', 0 => true, '' => false, 'campaign' => true]]);
 
-        $this->assertSame(['campaign' => false], $settings->metricKinds);
-        $this->assertSame([], AchievementsSettings::fromArray(['metric_kinds' => 'all'])->metricKinds);
+        $this->assertSame(['event' => false, 'campaign' => true], $settings->metricKinds);
+        $this->assertFalse($settings->metricKindEnabled('event'));
+        $this->assertSame(['metric_kinds'], $settings->invalidKeys);
+    }
+
+    public function test_kind_switches_that_are_not_a_map_turn_every_kind_off(): void
+    {
+        foreach (['all', true, ['game_session', 'event']] as $value) {
+            $settings = AchievementsSettings::fromArray(['metric_kinds' => $value]);
+
+            $this->assertNotContains(true, $settings->allMetricKinds());
+            $this->assertSame(['metric_kinds'], $settings->invalidKeys);
+        }
+
+        $this->assertSame([], AchievementsSettings::fromArray(['metric_kinds' => []])->invalidKeys);
+        $this->assertSame([], AchievementsSettings::fromArray([])->invalidKeys);
+    }
+
+    public function test_a_malformed_secrets_switch_is_off_and_other_switches_keep_their_default(): void
+    {
+        $settings = AchievementsSettings::fromArray(['secrets' => 'yes', 'progress' => 1, 'points' => 'on']);
+
+        $this->assertFalse($settings->secrets);
+        $this->assertTrue($settings->progress);
+        $this->assertFalse($settings->points);
+        $this->assertSame(['progress', 'secrets', 'points'], $settings->invalidKeys);
     }
 
     public function test_every_known_kind_is_listed_followed_by_the_stored_unknown_ones(): void

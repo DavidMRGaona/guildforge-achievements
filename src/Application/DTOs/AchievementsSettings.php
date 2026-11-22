@@ -10,8 +10,11 @@ use Modules\Achievements\Domain\ValueObjects\MetricKinds;
  * Every switch of the settings page with its default.
  *
  * A mechanic that is off is hidden, its routes answer 404 and its rules are not evaluated; what
- * it already granted stays. Reading is tolerant: a value that is missing or of the wrong type
- * takes its default, so a release that adds a switch never needs a data change.
+ * it already granted stays. Reading goes key by key: a missing value takes its default, so a release
+ * that adds a switch never needs a data change. A value of the wrong type is listed in
+ * `invalidKeys` and takes its default, except where the default would grant more than asked: a
+ * malformed `secrets` is off, a malformed `metric_kinds` turns every kind off, and a kind whose
+ * switch is not a boolean is off.
  */
 final readonly class AchievementsSettings
 {
@@ -29,6 +32,7 @@ final readonly class AchievementsSettings
 
     /**
      * @param  array<string, bool>  $metricKinds  switch per kind (keys are MetricKinds values); a kind that is not listed counts as on
+     * @param  list<string>  $invalidKeys  stored keys whose value had the wrong type
      */
     public function __construct(
         public bool $progress = true,
@@ -46,6 +50,7 @@ final readonly class AchievementsSettings
         public int $recognitionsWindowDays = self::DEFAULT_RECOGNITION_WINDOW_DAYS,
         public bool $challenges = false,
         public array $metricKinds = [],
+        public array $invalidKeys = [],
     ) {}
 
     /**
@@ -54,11 +59,25 @@ final readonly class AchievementsSettings
     public static function fromArray(array $raw): self
     {
         $defaults = new self;
+        $invalid = [];
+
+        foreach (['progress', 'rarity', 'secrets', 'seasons_and_streaks', 'community', 'bulk_grants', 'announcements', 'points', 'levels', 'leaderboard', 'recognitions', 'challenges'] as $key) {
+            if (array_key_exists($key, $raw) && ! is_bool($raw[$key])) {
+                $invalid[] = $key;
+            }
+        }
+
+        [$kinds, $kindsValid] = self::kinds($raw['metric_kinds'] ?? null, array_key_exists('metric_kinds', $raw));
+
+        if (! $kindsValid) {
+            $invalid[] = 'metric_kinds';
+        }
 
         return new self(
             progress: self::bool($raw, 'progress', $defaults->progress),
             rarity: self::bool($raw, 'rarity', $defaults->rarity),
-            secrets: self::bool($raw, 'secrets', $defaults->secrets),
+            // Malformed means off: on would evaluate secret achievements nobody switched on
+            secrets: self::bool($raw, 'secrets', in_array('secrets', $invalid, true) ? false : $defaults->secrets),
             seasonsAndStreaks: self::bool($raw, 'seasons_and_streaks', $defaults->seasonsAndStreaks),
             community: self::bool($raw, 'community', $defaults->community),
             bulkGrants: self::bool($raw, 'bulk_grants', $defaults->bulkGrants),
@@ -70,7 +89,8 @@ final readonly class AchievementsSettings
             recognitions: self::bool($raw, 'recognitions', $defaults->recognitions),
             recognitionsWindowDays: self::windowDays($raw['recognitions_window_days'] ?? null),
             challenges: self::bool($raw, 'challenges', $defaults->challenges),
-            metricKinds: self::kinds($raw['metric_kinds'] ?? null),
+            metricKinds: $kinds,
+            invalidKeys: $invalid,
         );
     }
 
@@ -161,22 +181,42 @@ final readonly class AchievementsSettings
     }
 
     /**
-     * @return array<string, bool>
+     * The switches stored and whether they were well formed. Missing is fine (every kind on); not a
+     * map turns every kind off, and a switch that is not a boolean turns that kind off: a broken value
+     * must never switch on what someone had switched off.
+     *
+     * @return array{array<string, bool>, bool}
      */
-    private static function kinds(mixed $value): array
+    private static function kinds(mixed $value, bool $present): array
     {
-        if (! is_array($value)) {
-            return [];
+        if (! $present || $value === []) {
+            return [[], true];
+        }
+
+        if (! is_array($value) || array_is_list($value)) {
+            return [array_fill_keys(MetricKinds::ALL, false), false];
         }
 
         $kinds = [];
+        $valid = true;
 
         foreach ($value as $kind => $enabled) {
-            if (is_string($kind) && $kind !== '' && is_bool($enabled)) {
-                $kinds[$kind] = $enabled;
+            if (! is_string($kind) || $kind === '') {
+                $valid = false;
+
+                continue;
             }
+
+            if (! is_bool($enabled)) {
+                $valid = false;
+                $kinds[$kind] = false;
+
+                continue;
+            }
+
+            $kinds[$kind] = $enabled;
         }
 
-        return $kinds;
+        return [$kinds, $valid];
     }
 }

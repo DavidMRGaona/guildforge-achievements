@@ -173,9 +173,9 @@ final class AchievementRuleForm
      *
      * @throws ValidationException when the fields make no rule AchievementRule can read
      */
-    public static function intoRule(array $data): array
+    public static function intoRule(array $data, ?Model $record = null): array
     {
-        $rule = self::rule($data);
+        $rule = self::rule($data, self::stored($record));
 
         if (! $rule instanceof AchievementRule) {
             throw ValidationException::withMessages(['data.'.self::METRIC => self::text('validation.invalid_rule')]);
@@ -186,8 +186,9 @@ final class AchievementRuleForm
 
     /**
      * @param  array<string, mixed>  $data
+     * @param  AchievementRule|null  $stored  the rule being edited: a value the sources no longer offer keeps its saved label
      */
-    public static function rule(array $data): ?AchievementRule
+    public static function rule(array $data, ?AchievementRule $stored = null): ?AchievementRule
     {
         $metric = MetricType::tryFrom((string) self::string($data[self::METRIC] ?? null));
         $threshold = self::integer($data[self::THRESHOLD] ?? null);
@@ -217,6 +218,10 @@ final class AchievementRuleForm
         $attributeLabel = $attributeKey === null || $attributeValue === null
             ? null
             : (self::metrics()->attributeValues($kind, $attributeKey)[$attributeValue] ?? null);
+
+        if ($attributeLabel === null && $stored instanceof AchievementRule && $stored->attributeKey === $attributeKey && $stored->attributeValue === $attributeValue) {
+            $attributeLabel = $stored->attributeLabel;
+        }
         $role = self::string($data[self::ROLE] ?? null);
         $placement = self::integer($data[self::PLACEMENT_MAX] ?? null);
 
@@ -319,7 +324,7 @@ final class AchievementRuleForm
      * The rule stored on the record being edited: only its values are offered beyond what the
      * sources offer now, never one typed into the form.
      */
-    private static function stored(?Model $record): ?AchievementRule
+    public static function stored(?Model $record): ?AchievementRule
     {
         return $record instanceof Model ? AchievementRule::tryFrom($record->getRawOriginal('rule')) : null;
     }

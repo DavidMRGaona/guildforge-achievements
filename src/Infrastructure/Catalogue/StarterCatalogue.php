@@ -7,52 +7,96 @@ namespace Modules\Achievements\Infrastructure\Catalogue;
 use App\Domain\Activity\ActivityKind;
 use App\Domain\Activity\ActivityRole;
 use App\Domain\Profiles\ProfileBadgeColour;
+use DateTimeImmutable;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 use LogicException;
 use Modules\Achievements\Application\Services\ActivityMetricsInterface;
 use Modules\Achievements\Application\Services\StarterCatalogueInterface;
 use Modules\Achievements\Domain\Rules\AchievementRule;
 use Modules\Achievements\Domain\Rules\YearsBasis;
+use Modules\Achievements\Infrastructure\Observers\EvaluateChangedAchievements;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
+use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 
+/**
+ * Every key created is written to `achievements_starter_keys`: one deleted later and created again
+ * starts switched off, so running the command never brings back a badge somebody chose to remove
+ * as a working one. One evaluation is queued for everything it created.
+ */
 final readonly class StarterCatalogue implements StarterCatalogueInterface
 {
+    private const string KEYS_TABLE = 'achievements_starter_keys';
+
     public function __construct(
         private ActivityMetricsInterface $metrics,
+        private ConnectionInterface $db,
     ) {}
 
     public function install(): array
     {
         $created = [];
+        $active = [];
+        $createdBefore = array_fill_keys(array_map(strval(...), $this->db->table(self::KEYS_TABLE)->pluck('starter_key')->all()), true);
 
-        foreach ($this->definitions() as $key => [$icon, $colour, $points, $rule]) {
-            if (AchievementModel::query()->where('starter_key', $key)->exists()) {
-                continue;
+        EvaluateChangedAchievements::muted(function () use (&$created, &$active, $createdBefore): void {
+            foreach ($this->definitions() as $key => $definition) {
+                $model = $this->create($key, $definition, isset($createdBefore[$key]));
+
+                if ($model instanceof AchievementModel) {
+                    $created[] = $key;
+
+                    if ($model->is_active) {
+                        $active[] = $model->id;
+                    }
+                }
             }
+        });
 
-            $kind = $rule->evaluatedKind();
+        if ($active !== []) {
+            EvaluateAchievementsJob::dispatch($active);
+        }
 
-            try {
-                AchievementModel::query()->create([
+        return $created;
+    }
+
+    /**
+     * @param  array{string, ProfileBadgeColour, int, AchievementRule}  $definition
+     */
+    private function create(string $key, array $definition, bool $createdBefore): ?AchievementModel
+    {
+        [$icon, $colour, $points, $rule] = $definition;
+
+        if (AchievementModel::query()->where('starter_key', $key)->exists()) {
+            return null;
+        }
+
+        $kind = $rule->evaluatedKind();
+
+        try {
+            return $this->db->transaction(function () use ($key, $icon, $colour, $points, $rule, $kind, $createdBefore): AchievementModel {
+                $this->db->table(self::KEYS_TABLE)->insertOrIgnore([
+                    'starter_key' => $key,
+                    'created_at' => new DateTimeImmutable()->format('Y-m-d H:i:s'),
+                ]);
+
+                return AchievementModel::query()->create([
                     'name' => (string) __('achievements::starter.'.$key.'.name'),
                     'description' => (string) __('achievements::starter.'.$key.'.description'),
                     'icon' => $icon,
                     'colour' => $colour->value,
                     'points' => $points,
                     'is_secret' => false,
-                    'is_active' => $kind !== null && $this->metrics->hasSource($kind),
+                    // Created again after a deletion: switched off, the site chose to drop it
+                    'is_active' => ! $createdBefore && $kind !== null && $this->metrics->hasSource($kind),
                     'rule' => $rule->toArray(),
                     'starter_key' => $key,
                 ]);
-            } catch (UniqueConstraintViolationException) {
-                // Another run created it meanwhile
-                continue;
-            }
-
-            $created[] = $key;
+            });
+        } catch (UniqueConstraintViolationException) {
+            // Another run created it meanwhile
+            return null;
         }
-
-        return $created;
     }
 
     public function keys(): array

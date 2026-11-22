@@ -12,6 +12,7 @@ use App\Infrastructure\Modules\Services\SettingsTableModuleSettingsStore;
 use JsonException;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Throwable;
 
 /**
@@ -30,10 +31,14 @@ final class ModuleAchievementsSettings implements AchievementsSettingsInterface
 
     private ?AchievementsSettings $strict = null;
 
+    /** The strict read failed in this request or job: not tried again until save() */
+    private bool $unreadable = false;
+
     public function __construct(
         private readonly ModuleSettingsStoreInterface $store,
         private readonly ModuleManagerServiceInterface $modules,
         private readonly SettingsServiceInterface $settings,
+        private readonly AchievementWarnings $warnings,
     ) {}
 
     public function settings(): AchievementsSettings
@@ -43,8 +48,13 @@ final class ModuleAchievementsSettings implements AchievementsSettingsInterface
 
     /**
      * The core's store answers [] both for «never saved» and «could not read», so the row is read
-     * here through getStored(), which throws when the table cannot be reached. A failure is not
-     * remembered: the next call tries again.
+     * here through getStored(), which throws when the table cannot be reached. The key is the core
+     * store's own (`SettingsTableModuleSettingsStore::KEY_PREFIX`), an infrastructure detail of the
+     * core read here on purpose until the core offers a read that tells the two apart.
+     *
+     * A failure is remembered for the rest of the request or job (bound "scoped"), so a page asking
+     * per row does not hit a broken table again and again; a queued retry builds a new instance.
+     * Keys stored with the wrong type are warned once a day and read as AchievementsSettings says.
      */
     public function readStrictly(): ?AchievementsSettings
     {
@@ -52,6 +62,25 @@ final class ModuleAchievementsSettings implements AchievementsSettingsInterface
             return $this->strict;
         }
 
+        if ($this->unreadable) {
+            return null;
+        }
+
+        $read = $this->readStored();
+        $this->unreadable = ! $read instanceof AchievementsSettings;
+
+        if ($read instanceof AchievementsSettings && $read->invalidKeys !== []) {
+            $this->warnings->warn('settings_malformed:'.implode(',', $read->invalidKeys), '[Achievements] Some module settings are stored with the wrong type; they are read with their safe default.', [
+                'keys' => $read->invalidKeys,
+                'reason' => 'settings_malformed',
+            ]);
+        }
+
+        return $this->strict = $read;
+    }
+
+    private function readStored(): ?AchievementsSettings
+    {
         try {
             $value = $this->settings->getStored(SettingsTableModuleSettingsStore::KEY_PREFIX.self::MODULE);
         } catch (Throwable) {
@@ -59,7 +88,7 @@ final class ModuleAchievementsSettings implements AchievementsSettingsInterface
         }
 
         if ($value === null || $value === '') {
-            return $this->strict = new AchievementsSettings;
+            return new AchievementsSettings;
         }
 
         if (! is_string($value)) {
@@ -77,13 +106,14 @@ final class ModuleAchievementsSettings implements AchievementsSettingsInterface
         }
 
         /** @var array<string, mixed> $decoded */
-        return $this->strict = AchievementsSettings::fromArray($decoded);
+        return AchievementsSettings::fromArray($decoded);
     }
 
     public function save(AchievementsSettings $settings): void
     {
         $this->read = null;
         $this->strict = null;
+        $this->unreadable = false;
 
         // Through the module manager, so the configuration of this request sees the new values too
         $this->modules->updateSettings(new ModuleName(self::MODULE), $settings->toArray());

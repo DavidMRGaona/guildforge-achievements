@@ -17,7 +17,8 @@ return new class extends Migration
             $table->uuid('id')->primary();
             // No foreign key to the account, like the ledger: UserAnonymized deletes its grants
             $table->uuid('user_id');
-            $table->foreignUuid('achievement_id')->constrained('achievements_catalogue')->cascadeOnDelete();
+            // Grants are permanent: an achievement somebody holds cannot be deleted, only switched off
+            $table->foreignUuid('achievement_id')->constrained('achievements_catalogue')->restrictOnDelete();
             // The season of a repeatable achievement; null for the rest (every grant of this release)
             $table->string('season', 32)->nullable();
             // The season again, '' without one: the unique key needs a value, since NULLs never clash

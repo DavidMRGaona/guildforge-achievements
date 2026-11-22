@@ -25,6 +25,7 @@ use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
 use Modules\Achievements\Domain\Rules\AchievementRule;
+use Modules\Achievements\Domain\Rules\AnnouncementWindow;
 use Modules\Achievements\Domain\Rules\MetricType;
 use Modules\Achievements\Domain\Rules\RuleEvaluator;
 use Modules\Achievements\Domain\Rules\YearsBasis;
@@ -42,28 +43,34 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
         private AchievementGranterInterface $granter,
         private AchievementStatusRule $statusRule,
         private RuleEvaluator $rules,
+        private AnnouncementWindow $window,
         private TimezoneServiceInterface $time,
         private AchievementWarnings $warnings,
     ) {}
 
     public function evaluate(array $userIds, bool $silent, ?array $achievementIds = null, bool $dryRun = false): EvaluationResultDTO
     {
-        $evaluable = $this->evaluable($achievementIds, onlyAccountYears: false);
+        $selection = $this->evaluable($achievementIds, onlyAccountYears: false, onlyKinds: null);
 
-        if ($evaluable === null) {
+        if ($selection === null) {
             return EvaluationResultDTO::settingsUnreadable();
         }
 
-        return $this->evaluateUsers($this->userIds($userIds), $evaluable, $silent, $dryRun);
+        [$evaluable, $pending] = $selection;
+        $result = $this->evaluateUsers($this->userIds($userIds), $evaluable, $silent, $dryRun);
+
+        return new EvaluationResultDTO(EvaluationOutcome::Evaluated, $result->granted, $result->users, $result->achievements, $pending);
     }
 
-    public function evaluateEverybody(?array $achievementIds, bool $silent, bool $dryRun = false, bool $onlyAccountYears = false): EvaluationResultDTO
+    public function evaluateEverybody(?array $achievementIds, bool $silent, bool $dryRun = false, bool $onlyAccountYears = false, ?array $onlyKinds = null): EvaluationResultDTO
     {
-        $evaluable = $this->evaluable($achievementIds, $onlyAccountYears);
+        $selection = $this->evaluable($achievementIds, $onlyAccountYears, $onlyKinds);
 
-        if ($evaluable === null) {
+        if ($selection === null) {
             return EvaluationResultDTO::settingsUnreadable();
         }
+
+        [$evaluable, $pending] = $selection;
 
         $kinds = $this->kinds($evaluable);
         $granted = [];
@@ -83,7 +90,7 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
             $after = array_last($chunk);
         }
 
-        return new EvaluationResultDTO(EvaluationOutcome::Evaluated, $granted, $users, count($evaluable));
+        return new EvaluationResultDTO(EvaluationOutcome::Evaluated, $granted, $users, count($evaluable), $pending);
     }
 
     /**
@@ -116,20 +123,29 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
                 $holds = array_fill_keys($held[$userId] ?? [], true);
 
                 foreach ($evaluable as [$achievement, $rule]) {
-                    if (isset($holds[$achievement->id]) || ! $this->rules->isMet($rule, $personFacts, $now, $zone)) {
+                    if (isset($holds[$achievement->id])) {
                         continue;
                     }
+
+                    $metAt = $this->rules->metAt($rule, $personFacts, $now, $zone);
+
+                    if (! $metAt instanceof DateTimeImmutable) {
+                        continue;
+                    }
+
+                    // Met long ago: granted without a notice, whatever asked for this evaluation
+                    $quiet = $silent || ! $this->window->isRecent($rule, $metAt, $now, $zone);
 
                     if ($dryRun) {
-                        $granted[] = new GrantedAchievementDTO($userId, $achievement->id);
+                        $granted[] = new GrantedAchievementDTO($userId, $achievement->id, $quiet);
 
                         continue;
                     }
 
-                    $grant = $this->granter->grant(new NewGrant($userId, $achievement->id, GrantSource::Rule, $silent));
+                    $grant = $this->granter->grant(new NewGrant($userId, $achievement->id, GrantSource::Rule, $quiet));
 
                     if ($grant instanceof AchievementGrant) {
-                        $granted[] = new GrantedAchievementDTO($userId, $achievement->id);
+                        $granted[] = new GrantedAchievementDTO($userId, $achievement->id, $quiet);
                     }
                 }
             }
@@ -139,12 +155,14 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
     }
 
     /**
-     * The achievements to evaluate with their rules, or null when the settings cannot be read.
+     * The achievements to evaluate with their rules, and the kinds left out while their source is
+     * unavailable; null when the settings cannot be read.
      *
      * @param  list<string>|null  $achievementIds
-     * @return list<array{Achievement, AchievementRule}>|null
+     * @param  list<string>|null  $onlyKinds
+     * @return array{list<array{Achievement, AchievementRule}>, list<string>}|null
      */
-    private function evaluable(?array $achievementIds, bool $onlyAccountYears): ?array
+    private function evaluable(?array $achievementIds, bool $onlyAccountYears, ?array $onlyKinds): ?array
     {
         $settings = $this->settings->readStrictly();
 
@@ -158,7 +176,9 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
 
         $wanted = $achievementIds === null ? null : array_fill_keys(array_map(strtolower(...), $achievementIds), true);
         $kinds = $this->metrics->kindsWithSource();
+        $kindFilter = $onlyKinds === null ? null : array_fill_keys($onlyKinds, true);
         $evaluable = [];
+        $pending = [];
 
         foreach ($this->achievements->active() as $achievement) {
             if ($wanted !== null && ! isset($wanted[strtolower($achievement->id)])) {
@@ -175,6 +195,15 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
             }
 
             $rule = $achievement->rule;
+            $kind = $rule?->evaluatedKind();
+
+            if ($kindFilter !== null && ($kind === null || ! isset($kindFilter[$kind]))) {
+                continue;
+            }
+
+            if ($status === AchievementStatus::NoSource && $kind !== null && $this->metrics->isPending($kind)) {
+                $pending[$kind] = $kind;
+            }
 
             if (! $status->isEvaluated() || ! $rule instanceof AchievementRule) {
                 continue;
@@ -187,7 +216,7 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
             $evaluable[] = [$achievement, $rule];
         }
 
-        return $evaluable;
+        return [$evaluable, array_values($pending)];
     }
 
     /**

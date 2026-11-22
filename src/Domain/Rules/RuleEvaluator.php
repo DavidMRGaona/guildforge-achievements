@@ -15,9 +15,14 @@ use Modules\Achievements\Domain\Entities\AchievementFact;
  * - count: subjects (source type + subject id) of the rule's kind with a fact that passes every
  *   filter; a person with several roles in one subject counts it once.
  * - distinct: different value ids of the attribute among those facts (facts without it left out).
- * - years, account: full years from the earliest account fact to now, as calendar dates in the
- *   display zone; membership: membership year subjects.
+ * - years, account: full years from the day of the earliest account fact to today, both as
+ *   calendar dates in the display zone (the anniversary counts from its first minute); membership:
+ *   membership year subjects.
  * - manual: always 0, never met.
+ *
+ * metAt() says when the rule became met, from the facts themselves: the fact that reached the
+ * threshold, or the first minute of the anniversary. Whether a grant is announced is decided on it,
+ * never on the order in which evaluations happen to run.
  */
 final class RuleEvaluator
 {
@@ -42,6 +47,48 @@ final class RuleEvaluator
                 : count($this->subjects($rule, $facts)),
             MetricType::Manual => 0,
         };
+    }
+
+    /**
+     * The instant the rule became met, or null while it is not (and for manual rules). For count and
+     * distinct, the earliest instant by which `threshold` subjects (values) had a matching fact; for
+     * account years, the first minute of the anniversary day in the display zone.
+     *
+     * @param  list<AchievementFact>  $facts
+     */
+    public function metAt(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone): ?DateTimeImmutable
+    {
+        if (! $this->isMet($rule, $facts, $now, $displayZone)) {
+            return null;
+        }
+
+        if ($rule->metric === MetricType::Years && $rule->basis === YearsBasis::Account) {
+            $first = $this->firstAccountFact($facts);
+
+            return $first?->setTimezone($displayZone)->setTime(0, 0)->modify('+'.$rule->threshold.' years');
+        }
+
+        $matching = iterator_to_array($this->matching($rule, $facts), false);
+        usort($matching, static fn (AchievementFact $a, AchievementFact $b): int => $a->occurredAt <=> $b->occurredAt);
+        $seen = [];
+
+        foreach ($matching as $fact) {
+            $key = $rule->metric === MetricType::Distinct
+                ? ($rule->distinctKey === null ? null : ($fact->attributes[$rule->distinctKey] ?? null)?->id)
+                : $fact->sourceType."\0".$fact->subjectId;
+
+            if ($key === null || isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+
+            if (count($seen) >= $rule->threshold) {
+                return $fact->occurredAt;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -83,6 +130,28 @@ final class RuleEvaluator
      */
     private function accountYears(array $facts, DateTimeImmutable $now, DateTimeZone $displayZone): int
     {
+        $first = $this->firstAccountFact($facts);
+
+        if (! $first instanceof DateTimeImmutable) {
+            return 0;
+        }
+
+        // Calendar dates, not instants: a nightly run on the anniversary counts it, whatever the hour
+        $start = $first->setTimezone($displayZone)->setTime(0, 0);
+        $end = $now->setTimezone($displayZone)->setTime(0, 0);
+
+        if ($end < $start) {
+            return 0;
+        }
+
+        return $start->diff($end)->y;
+    }
+
+    /**
+     * @param  list<AchievementFact>  $facts
+     */
+    private function firstAccountFact(array $facts): ?DateTimeImmutable
+    {
         $first = null;
 
         foreach ($facts as $fact) {
@@ -91,18 +160,7 @@ final class RuleEvaluator
             }
         }
 
-        if ($first === null) {
-            return 0;
-        }
-
-        $start = $first->setTimezone($displayZone);
-        $end = $now->setTimezone($displayZone);
-
-        if ($end < $start) {
-            return 0;
-        }
-
-        return $start->diff($end)->y;
+        return $first;
     }
 
     /**

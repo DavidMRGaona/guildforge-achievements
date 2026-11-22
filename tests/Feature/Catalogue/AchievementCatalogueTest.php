@@ -48,6 +48,7 @@ final class AchievementCatalogueTest extends ModuleTestCase
             $this->assertSame('slate', $view->colour);
             $this->assertNull($view->imagePublicId);
             $this->assertNull($view->rule);
+            $this->assertSame(0, $view->points);
             $this->assertStringNotContainsString('dragón', strtolower($view->description));
         }
 

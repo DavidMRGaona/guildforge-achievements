@@ -7,8 +7,8 @@ namespace Modules\Achievements\Application\Services;
 /**
  * The starter catalogue: a set of achievements each site can edit or delete. Installing it is
  * idempotent: an achievement of the set already in the catalogue (by its starter key) is left as it
- * is, edited or not; only the missing ones are created, so running it again brings back one that was
- * deleted. Only those whose kind has a source offered now start active.
+ * is, edited or not; only the missing ones are created. The first time, only those whose kind has a
+ * source offered now start active; one that was deleted and is created again starts switched off.
  */
 interface StarterCatalogueInterface
 {

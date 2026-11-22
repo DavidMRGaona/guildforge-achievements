@@ -9,6 +9,7 @@ use App\Application\Modules\DTOs\PagePrefixDTO;
 use App\Application\Modules\DTOs\PermissionDTO;
 use App\Domain\Activity\Events\ActivityRecorded;
 use App\Domain\Events\UserAnonymized;
+use App\Domain\Modules\Events\ModuleEnabled;
 use App\Infrastructure\Media\Observers\RefreshMediaUsagesObserver;
 use App\Modules\ModuleServiceProvider;
 use Filament\Pages\Page;
@@ -28,13 +29,14 @@ use Modules\Achievements\Domain\Events\AchievementFactsChanged;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
+use Modules\Achievements\Filament\Media\AchievementBadgeImageMediaSource;
+use Modules\Achievements\Filament\Media\SecretBadgeImageMediaSource;
 use Modules\Achievements\Filament\Pages\AchievementsSettingsPage;
 use Modules\Achievements\Infrastructure\Activity\ReaderActivityMetrics;
 use Modules\Achievements\Infrastructure\Catalogue\AchievementCatalogue;
 use Modules\Achievements\Infrastructure\Catalogue\StarterCatalogue;
 use Modules\Achievements\Infrastructure\Grants\AchievementEvaluator;
 use Modules\Achievements\Infrastructure\Grants\AchievementGranter;
-use Modules\Achievements\Infrastructure\Media\AchievementBadgeImageMediaSource;
 use Modules\Achievements\Infrastructure\Observers\EvaluateChangedAchievements;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementFactRepository;
@@ -45,6 +47,7 @@ use Modules\Achievements\Infrastructure\Settings\ModuleAchievementsSettings;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Listeners\EvaluateAchievementsForChangedFacts;
+use Modules\Achievements\Listeners\EvaluateAchievementsOfEnabledModule;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountFacts;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountGrants;
 use Modules\Achievements\Listeners\RecordActivityFacts;
@@ -92,6 +95,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountFacts::class);
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountGrants::class);
         Event::listen(AchievementFactsChanged::class, EvaluateAchievementsForChangedFacts::class);
+        Event::listen(ModuleEnabled::class, EvaluateAchievementsOfEnabledModule::class);
 
         AchievementModel::observe(EvaluateChangedAchievements::class);
         $this->keepMediaUsagesUpToDate();
@@ -115,7 +119,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
      */
     public function registerMediaSources(): array
     {
-        return [AchievementBadgeImageMediaSource::class];
+        return [AchievementBadgeImageMediaSource::class, SecretBadgeImageMediaSource::class];
     }
 
     /**
@@ -124,18 +128,17 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
      */
     private function keepMediaUsagesUpToDate(): void
     {
-        $always = new RefreshMediaUsagesObserver(
-            AchievementBadgeImageMediaSource::TYPE,
-            static fn (Model $model): array => [(string) $model->getKey()],
-        );
-        $whenShownChanges = new RefreshMediaUsagesObserver(
-            AchievementBadgeImageMediaSource::TYPE,
-            static fn (Model $model): array => $model->wasChanged(['image_public_id', 'name', 'is_secret']) ? [(string) $model->getKey()] : [],
-        );
+        foreach ([AchievementBadgeImageMediaSource::TYPE, SecretBadgeImageMediaSource::TYPE] as $type) {
+            $always = new RefreshMediaUsagesObserver($type, static fn (Model $model): array => [(string) $model->getKey()]);
+            $whenShownChanges = new RefreshMediaUsagesObserver(
+                $type,
+                static fn (Model $model): array => $model->wasChanged(['image_public_id', 'name', 'is_secret']) ? [(string) $model->getKey()] : [],
+            );
 
-        AchievementModel::created($always->saved(...));
-        AchievementModel::updated($whenShownChanges->saved(...));
-        AchievementModel::deleted($always->deleted(...));
+            AchievementModel::created($always->saved(...));
+            AchievementModel::updated($whenShownChanges->saved(...));
+            AchievementModel::deleted($always->deleted(...));
+        }
     }
 
     /**

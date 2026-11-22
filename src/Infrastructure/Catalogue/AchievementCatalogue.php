@@ -53,7 +53,7 @@ final readonly class AchievementCatalogue implements AchievementCatalogueInterfa
                 icon: self::MASKED_ICON,
                 colour: ProfileBadgeColour::Slate->value,
                 imagePublicId: null,
-                points: $achievement->points,
+                points: 0,
                 secret: true,
                 held: false,
                 masked: true,

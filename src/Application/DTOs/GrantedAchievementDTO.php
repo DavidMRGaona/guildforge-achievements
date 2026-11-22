@@ -9,5 +9,6 @@ final readonly class GrantedAchievementDTO
     public function __construct(
         public string $userId,
         public string $achievementId,
+        public bool $silent = true,
     ) {}
 }

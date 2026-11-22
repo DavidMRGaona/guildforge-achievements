@@ -89,6 +89,13 @@ interface AchievementFactRepositoryInterface
     public function userIdsWithKinds(array $kinds, ?string $afterUserId, int $limit): array;
 
     /**
+     * The source types with facts of a kind, sorted.
+     *
+     * @return list<string>
+     */
+    public function sourceTypesOfKind(string $kind): array;
+
+    /**
      * How many facts of a kind an account has, optionally in one role (an ActivityRole value).
      */
     public function countForUser(string $userId, string $kind, ?string $role = null): int;

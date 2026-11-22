@@ -8,8 +8,8 @@ use Modules\Achievements\Domain\Rules\AchievementRule;
 
 /**
  * An achievement as one person may see it. A secret achievement that person does not hold comes
- * `masked`: generic name, description, icon and colour, no image and no rule, so nothing tells it
- * apart from another secret one but its id.
+ * `masked`: generic name, description, icon and colour, no image, no rule and 0 points, so nothing
+ * tells it apart from another secret one but its id.
  */
 final readonly class AchievementViewDTO
 {
