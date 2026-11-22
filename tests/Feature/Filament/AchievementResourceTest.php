@@ -12,6 +12,7 @@ use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Tables\Columns\Column;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
@@ -31,6 +32,7 @@ use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Policies\AchievementPolicy;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsActivityFacts;
+use RuntimeException;
 use Tests\Support\Activity\InMemoryActivitySource;
 use Tests\Support\Modules\ModuleTestCase;
 
@@ -321,6 +323,21 @@ final class AchievementResourceTest extends ModuleTestCase
             ->assertNotified('Alguien lo acaba de conseguir; desactívalo en su lugar.');
         // The grant made here rolls back with the deletion; another process's would stay
         $this->assertNotNull($achievement->fresh());
+    }
+
+    public function test_any_other_database_error_while_deleting_is_not_taken_for_a_grant(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        $achievement = $this->achievement($this->countRule());
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+        AchievementModel::deleting(static function (): void {
+            throw new QueryException('pgsql', 'delete from achievements_catalogue', [], new RuntimeException('The database is away.'));
+        });
+
+        $this->expectException(QueryException::class);
+
+        Livewire::test(EditAchievement::class, ['record' => $achievement->getKey()])
+            ->callAction(DeleteAction::class, ['confirmation' => true]);
     }
 
     public function test_saving_again_keeps_the_label_of_a_value_the_sources_no_longer_offer(): void

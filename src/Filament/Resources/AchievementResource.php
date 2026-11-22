@@ -256,6 +256,8 @@ final class AchievementResource extends BaseResource
     /**
      * Somebody may get the achievement between opening the dialog and confirming: the database then
      * refuses the deletion (restricting foreign key) and a notice says to switch it off instead.
+     * Only that refusal (SQLSTATE 23503 in PostgreSQL, 23000 naming the foreign key in SQLite): any
+     * other database error is thrown as it came.
      */
     public static function guardDeletion(DeleteAction $action): DeleteAction
     {
@@ -263,11 +265,23 @@ final class AchievementResource extends BaseResource
             ->using(static function (AchievementModel $record): bool {
                 try {
                     return (bool) DB::transaction(static fn (): ?bool => $record->delete());
-                } catch (QueryException) {
-                    return false;
+                } catch (QueryException $e) {
+                    if (self::isForeignKeyRefusal($e)) {
+                        return false;
+                    }
+
+                    throw $e;
                 }
             })
             ->failureNotificationTitle(self::text('delete.held_meanwhile'));
+    }
+
+    private static function isForeignKeyRefusal(QueryException $e): bool
+    {
+        $state = $e->errorInfo[0] ?? (string) $e->getCode();
+
+        return $state === '23503'
+            || ($state === '23000' && str_contains(strtoupper($e->getMessage()), 'FOREIGN KEY'));
     }
 
     /**
