@@ -111,8 +111,8 @@ final class AchievementShowcase implements AchievementShowcaseInterface
                 // Held by the owner, so a share of 0 only says they are not active: not shown
                 rarity: $revealed ? self::knownShare($rarity?->shareOf($achievementId)) : null,
                 featured: $revealed && in_array($achievementId, $featured, true),
-                // Which seasons, never what was played in them
-                seasons: $this->seasonsBy($ownerId)[$achievementId] ?? [],
+                // Which seasons, never what was played in them; none on a masked one
+                seasons: $revealed ? ($this->seasonsBy($ownerId)[$achievementId] ?? []) : [],
             );
         }
 
@@ -144,11 +144,14 @@ final class AchievementShowcase implements AchievementShowcaseInterface
             }
 
             $status = $this->status->status($achievement, $settings, $kindsWithSource);
+            // A secret one the owner got in an earlier season is theirs: shown with its name, never
+            // masked next to that named copy
+            $revealed = isset($this->heldBy($ownerId)[strtolower($achievement->id)]);
 
-            $candidates[] = [$achievement, $status];
+            $candidates[] = [$achievement, $status, $revealed];
             $kind = $achievement->rule?->evaluatedKind();
 
-            if ($status === AchievementStatus::Evaluated && ! $achievement->secret && $kind !== null) {
+            if ($status === AchievementStatus::Evaluated && (! $achievement->secret || $revealed) && $kind !== null) {
                 $kinds[$kind] = true;
             }
         }
@@ -158,12 +161,17 @@ final class AchievementShowcase implements AchievementShowcaseInterface
         $zone = $this->time->displayTimezone();
         $items = [];
 
-        foreach ($candidates as [$achievement, $status]) {
-            $view = $this->presenter->present($achievement, false);
+        foreach ($candidates as [$achievement, $status, $revealed]) {
+            $view = $this->presenter->present($achievement, $revealed);
             $rule = $achievement->rule;
 
             if ($view->masked || $status === AchievementStatus::Manual || ! $rule instanceof AchievementRule) {
-                $items[] = new ShowcaseItemDTO(achievement: $view, manual: ! $view->masked && $status === AchievementStatus::Manual);
+                $items[] = new ShowcaseItemDTO(
+                    achievement: $view,
+                    manual: ! $view->masked && $status === AchievementStatus::Manual,
+                    // A manual one per season is still this season's to get
+                    season: ! $view->masked && $rule instanceof AchievementRule && $rule->isSeasonal() ? $this->clock->current()->key() : null,
+                );
 
                 continue;
             }
@@ -366,8 +374,8 @@ final class AchievementShowcase implements AchievementShowcaseInterface
     }
 
     /**
-     * Each achievement an account holds with its latest grant (the newest season of one that
-     * repeats), in the order of those grants.
+     * Each achievement an account holds with the grant of its newest season (one that repeats may
+     * get a past season after a newer one: a recalculation), in the order of those grants.
      *
      * @return array<string, AchievementGrant>
      */
@@ -421,7 +429,14 @@ final class AchievementShowcase implements AchievementShowcaseInterface
 
         foreach ($grants as $grant) {
             $id = strtolower($grant->achievementId);
-            // Moved to the end, so the order follows each one's latest grant
+
+            // The newest season wins (season keys are years of four digits, so they sort as text);
+            // among grants without a season, the latest
+            if (isset($held[$id]) && strcmp((string) $grant->season, (string) $held[$id]->season) < 0) {
+                continue;
+            }
+
+            // Moved to the end, so the order follows each one's newest grant
             unset($held[$id]);
             $held[$id] = $grant;
         }

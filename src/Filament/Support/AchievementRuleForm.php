@@ -9,6 +9,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
@@ -19,6 +20,8 @@ use Modules\Achievements\Domain\Rules\RuleWindow;
 use Modules\Achievements\Domain\Rules\WindowType;
 use Modules\Achievements\Domain\Rules\YearsBasis;
 use Modules\Achievements\Domain\ValueObjects\MetricKinds;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementGrantModel;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 
 /**
  * The rule builder of the achievement form: flat fields (`rule_*`) that the pages turn into the
@@ -84,7 +87,15 @@ final class AchievementRuleForm
                 ->default(MetricType::Count->value)
                 ->native(false)
                 ->required()
-                ->live(),
+                ->live()
+                // A streak only counts activities: another metric falls back to «always», unless the
+                // window is locked, which the save then refuses with its own message
+                ->afterStateUpdated(static function (?string $state, Get $get, Set $set, ?Model $record): void {
+                    if ($get(self::WINDOW) === WindowType::Streak->value && $state !== MetricType::Count->value && ! self::windowLocked($record)) {
+                        $set(self::WINDOW, WindowType::AllTime->value);
+                        $set(self::STREAK_PER_SEASON, false);
+                    }
+                }),
 
             Select::make(self::KIND)
                 ->label(self::text('fields.kind'))
@@ -157,11 +168,18 @@ final class AchievementRuleForm
 
             Select::make(self::WINDOW)
                 ->label(self::text('fields.window'))
-                ->helperText(static fn (Get $get): string => self::text($get(self::WINDOW) === WindowType::Streak->value ? 'helpers.window_streak' : 'helpers.window'))
+                ->helperText(static fn (Get $get, ?Model $record): string => self::text(match (true) {
+                    self::windowLocked($record) => 'helpers.window_locked',
+                    $get(self::WINDOW) === WindowType::Streak->value => 'helpers.window_streak',
+                    default => 'helpers.window',
+                }))
                 ->options(static fn (Get $get): array => self::windowOptions(self::string($get(self::METRIC))))
                 ->default(WindowType::AllTime->value)
                 ->selectablePlaceholder(false)
                 ->native(false)
+                // Locked once somebody holds it, and still sent, so the save keeps the stored one
+                ->disabled(static fn (?Model $record): bool => self::windowLocked($record))
+                ->dehydrated()
                 ->visible(static fn (Get $get, ?Model $record): bool => ! in_array($get(self::METRIC), [MetricType::Years->value, MetricType::People->value], true) && self::offersWindows($record))
                 ->live(),
 
@@ -178,6 +196,8 @@ final class AchievementRuleForm
             Toggle::make(self::STREAK_PER_SEASON)
                 ->label(self::text('fields.streak_per_season'))
                 ->helperText(self::text('helpers.streak_per_season'))
+                ->disabled(static fn (?Model $record): bool => self::windowLocked($record))
+                ->dehydrated()
                 ->visible($streak)
                 ->live(),
 
@@ -233,10 +253,16 @@ final class AchievementRuleForm
      */
     public static function intoRule(array $data, ?Model $record = null): array
     {
-        $rule = self::rule($data, self::stored($record));
+        $stored = self::stored($record);
+        $rule = self::rule($data, $stored);
 
         if (! $rule instanceof AchievementRule) {
             throw ValidationException::withMessages(['data.'.self::METRIC => self::text('validation.invalid_rule')]);
+        }
+
+        // Checked here too: a disabled field can still be sent changed
+        if ($stored instanceof AchievementRule && self::windowLocked($record) && ! self::sameKindOfWindow($stored, $rule)) {
+            throw ValidationException::withMessages(['data.'.self::WINDOW => self::text('validation.window_locked')]);
         }
 
         return array_diff_key($data, array_flip(self::FIELDS)) + ['rule' => $rule->toArray()];
@@ -338,6 +364,25 @@ final class AchievementRuleForm
         }
 
         return $options;
+    }
+
+    /**
+     * Whether the kind of window can no longer change: somebody holds the achievement. Grants of one
+     * that repeats keep their seasons and those of one that does not have none, so switching between
+     * them would leave grants that mean something else; another achievement is made instead.
+     */
+    public static function windowLocked(?Model $record): bool
+    {
+        return $record instanceof AchievementModel && AchievementGrantModel::query()->where('achievement_id', $record->getKey())->exists();
+    }
+
+    /**
+     * Same type (always, season or streak) and, for a streak, the same «within each season»; the
+     * number of months may change, as a threshold may.
+     */
+    private static function sameKindOfWindow(AchievementRule $stored, AchievementRule $rule): bool
+    {
+        return $stored->window->type === $rule->window->type && $stored->window->perSeason === $rule->window->perSeason;
     }
 
     /**

@@ -44,7 +44,6 @@ export default {
             rarityExplained:
                 'La rareza es la parte de la gente activa (quien ha participado en algo en los últimos doce meses) que tiene cada logro.',
             youHoldIt: 'Lo tienes',
-            seasonNow: 'Temporada {season}',
             seasonExplained:
                 'Algunos logros se pueden volver a conseguir cada temporada, que dura un año natural. Ahora es la temporada {season}.',
             repeats: 'Cada temporada',
@@ -53,6 +52,5 @@ export default {
             progress: 'Esta temporada: {value} de {threshold}',
             progressMonths: 'Esta temporada: {value} de {threshold} meses seguidos',
         },
-        season: 'Temporada {season}',
     },
 };

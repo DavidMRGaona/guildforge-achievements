@@ -51,7 +51,9 @@ Los días, los meses y los años se cuentan con la hora de la asociación: una p
 
 Al guardar un logro por temporada, se concede, sin avisos, cada temporada pasada en que alguien ya lo cumplía. Si una partida deja de contar después, la temporada conseguida se conserva.
 
-Al conceder a mano o en lote un logro por temporada, va a la temporada en curso, y solo salen las cuentas que no lo tienen este año. Las tablas de **Personas que lo tienen** y del historial tienen la columna **Temporada**; en pantallas estrechas, en **Ver detalles**. Retirar una temporada no toca las demás.
+Al conceder a mano o en lote un logro por temporada, eliges la **Temporada**: la actual, que sale por defecto, o la anterior, para lo que se hizo justo antes de cambiar de año. En lote, la confirmación dice para qué temporada es. Solo reciben el logro las cuentas que no lo tienen esa temporada.
+
+Cuando alguien ya tiene el logro, **Cuándo cuenta** y **Dentro de cada temporada** quedan bloqueados: no se puede pasar de «una sola vez» a «por temporada», ni al revés, porque las concesiones que ya hay dejarían de tener sentido. Los meses de una racha sí se pueden cambiar. Si necesitas otra opción, crea un logro nuevo. Las tablas de **Personas que lo tienen** y del historial tienen la columna **Temporada**; en pantallas estrechas, en **Ver detalles**. Retirar una temporada no toca las demás.
 
 En la descripción, habla de totales y de meses («Juega al menos una partida cada mes durante tres meses»), nunca de una partida concreta.
 
@@ -86,7 +88,7 @@ Solo una persona con permiso para conceder logros puede retirar uno, a mano y co
 
 ## Lo que ve la gente
 
-Cada persona ve sus logros en la sección **Logros** de su perfil público, con su fecha y su **rareza**, y quien puede ver ese perfil los ve también. Solo el dueño ve los que le faltan y cuánto lleva («7 de 10»), mientras **Progreso visible** esté encendido en los ajustes. En uno por temporada, ve el progreso de este año; en una racha, los meses seguidos que lleva. Los demás solo ven en qué temporadas lo consiguió, nunca con qué partidas. Hasta tres logros destacados salen junto a su nombre, en su perfil, en su tarjeta y en el foro: los que marque con la estrella o, si no elige, sus tres más raros. Cada persona puede ocultar sus logros a los demás desde su sección.
+Cada persona ve sus logros en la sección **Logros** de su perfil público, con su fecha y su **rareza**, y quien puede ver ese perfil los ve también, con el mes y el año, sin el día. Solo el dueño ve los que le faltan y cuánto lleva («7 de 10»), mientras **Progreso visible** esté encendido en los ajustes. En uno por temporada, ve el progreso de este año; en una racha, los meses seguidos que lleva. Los demás solo ven en qué temporadas lo consiguió, nunca con qué partidas. Hasta tres logros destacados salen junto a su nombre, en su perfil, en su tarjeta y en el foro: los que marque con la estrella o, si no elige, sus tres más raros. Cada persona puede ocultar sus logros a los demás desde su sección.
 
 La **rareza** es la parte de la gente activa que tiene un logro: cuentas que han participado en algo en los últimos doce meses, sin las desactivadas ni las anonimizadas. Se calcula cada noche y cada vez que se concede un logro. Con **Rareza** apagada en los ajustes no se enseña en ningún sitio.
 

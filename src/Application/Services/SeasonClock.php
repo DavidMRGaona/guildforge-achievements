@@ -26,6 +26,50 @@ final readonly class SeasonClock
     }
 
     /**
+     * The seasons a grant by hand or in bulk may go to: the current one (the default) and the one
+     * before, for what was done just before the year changed. Keyed by season key, newest first.
+     *
+     * @return array<string, Season>
+     */
+    public function choices(): array
+    {
+        $current = $this->current();
+        $choices = [$current->key() => $current];
+        $previous = $current->previous();
+
+        if ($previous instanceof Season) {
+            $choices[$previous->key()] = $previous;
+        }
+
+        return $choices;
+    }
+
+    /**
+     * The key a grant by hand or in bulk of this achievement goes to: '' for one that does not
+     * repeat, the chosen season when it is one of choices() (the current one when none was chosen),
+     * and null for any other choice.
+     */
+    public function keyForChoice(Achievement|AchievementRule|null $achievement, mixed $chosen): ?string
+    {
+        if (! $this->forGrantOf($achievement) instanceof Season) {
+            return '';
+        }
+
+        // A year as an array key, or a form option built from one, comes back as a number
+        if (is_int($chosen)) {
+            $chosen = (string) $chosen;
+        }
+
+        if ($chosen === null || $chosen === '') {
+            return $this->current()->key();
+        }
+
+        $choices = $this->choices();
+
+        return is_string($chosen) && isset($choices[$chosen]) ? $choices[$chosen]->key() : null;
+    }
+
+    /**
      * The season a new grant of this achievement goes to: the current one when it repeats per
      * season, none otherwise (also for an unreadable rule).
      */

@@ -153,6 +153,18 @@ final class SeasonalRuleEvaluatorTest extends TestCase
         $this->assertFalse($this->evaluator->isMet($rule, $facts, $now, new DateTimeZone('UTC')));
     }
 
+    public function test_streak_months_follow_the_display_zone_when_summer_time_ends(): void
+    {
+        $rule = $this->rule(['metric' => 'count', 'kind' => 'game_session', 'threshold' => 1, 'window' => ['type' => 'streak', 'months' => 2]]);
+        // 31 October at 23:30 UTC is 1 November at 00:30 in Madrid (winter time began on the 25th)
+        $facts = [$this->fact('s1', '2026-10-31 23:30:00'), $this->fact('s2', '2026-12-05 10:00:00')];
+        $now = $this->utc('2026-12-10 12:00:00');
+
+        $this->assertTrue($this->evaluator->isMet($rule, $facts, $now, $this->madrid));
+        // 31 October at 22:30 UTC is still 23:30 on the 31st in Madrid: October, then December
+        $this->assertFalse($this->evaluator->isMet($rule, [$this->fact('s1', '2026-10-31 22:30:00'), $facts[1]], $now, $this->madrid));
+    }
+
     public function test_the_current_run_waits_for_this_month_and_ends_once_a_month_is_missed(): void
     {
         $rule = $this->rule(['metric' => 'count', 'kind' => 'game_session', 'threshold' => 1, 'window' => ['type' => 'streak', 'months' => 6]]);

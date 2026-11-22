@@ -110,6 +110,7 @@ return [
                 'threshold_per_month' => 'Actividades distintas que hacen falta en cada uno de esos meses. Con 1 basta una al mes.',
                 'window' => 'Una temporada es un año natural. Por temporada, se vuelve a conseguir cada año y la concesión guarda el año («Temporada 2027»).',
                 'window_streak' => 'Meses naturales seguidos con actividad. Un mes sin ella corta la racha.',
+                'window_locked' => 'Alguien ya tiene este logro, así que no se puede cambiar cuándo cuenta: las concesiones de un logro por temporada guardan su año y las de los demás, no. Si necesitas otro, crea un logro nuevo.',
                 'streak_months' => 'De 2 a 36 meses; dentro de una temporada, 12 como mucho.',
                 'streak_per_season' => 'La racha empieza de cero cada año y se puede conseguir una vez por temporada. Sin marcar, se consigue una sola vez.',
             ],
@@ -150,6 +151,7 @@ return [
             'value_not_offered' => ':value (ya no se ofrece)',
             'validation' => [
                 'invalid_rule' => 'Con estos datos no se puede formar una regla. Revisa los campos de la regla.',
+                'window_locked' => 'Alguien ya tiene este logro: no se puede cambiar cuándo cuenta. Crea un logro nuevo con la otra opción.',
             ],
             'summary' => [
                 'invalid' => 'Regla no válida',
@@ -272,6 +274,9 @@ return [
             'reason_helper' => 'Opcional. Queda en el historial; la persona no lo ve.',
             'notify' => 'Avisar a la persona',
             'notify_helper' => 'Le llega un aviso de que lo ha conseguido.',
+            'season' => 'Temporada',
+            'season_helper' => 'Este logro se consigue una vez por temporada. La anterior sirve para lo que se hizo antes de cambiar de año.',
+            'season_refused' => 'Esa temporada no se puede elegir.',
             'done' => 'Logro concedido.',
             'not_granted' => 'No se ha concedido: la cuenta ya lo tenía o ya no está disponible.',
             'refused' => 'No puedes conceder este logro.',
@@ -299,6 +304,9 @@ return [
             'subject' => 'Qué',
             'subject_helper' => 'Escribe para buscar. Solo salen las que tú puedes ver.',
             'role' => 'Con qué papel',
+            'season' => 'Temporada',
+            'season_helper' => 'Este logro se consigue una vez por temporada. Quien ya lo tiene en la temporada elegida no lo recibe otra vez.',
+            'preview_season' => 'Para la temporada :season.',
             'notice' => 'Aviso',
             'notices' => [
                 'silent' => 'En silencio: sin aviso a nadie',
@@ -322,6 +330,7 @@ return [
                 'achievement_unavailable' => 'Este logro está apagado o ya no existe.',
                 'subject_not_visible' => 'No se encuentra o no tienes acceso a lo que has elegido.',
                 'source_unavailable' => 'No se ha podido leer quién participó: no se ha concedido nada. Inténtalo de nuevo en un momento.',
+                'season_unavailable' => 'Esa temporada no se puede elegir, o las temporadas y rachas están apagadas: no se ha concedido nada.',
                 'too_many' => 'Participaron :count personas y en lote se concede a :max como mucho: no se ha concedido nada.',
             ],
         ],

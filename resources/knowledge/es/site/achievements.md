@@ -26,7 +26,7 @@ En **Logros**, con la sesión iniciada, cada logro por temporada te dice si ya l
 
 ## Tus logros en tu perfil
 
-En tu perfil público, la sección **Logros** enseña los que tienes, con la fecha en que los conseguiste y su rareza. Tú ves además los que te faltan y cuánto llevas («7 de 10»; en una racha, «2 de 6 meses seguidos»); los demás no ven lo que te falta. Un logro por temporada sale una vez, con los años en que lo conseguiste, y mientras no tengas el de este año también sale entre los que te faltan, con lo que llevas esta temporada.
+En tu perfil público, la sección **Logros** enseña los que tienes, con el mes y el año en que los conseguiste y su rareza (tú ves también el día). Tú ves además los que te faltan y cuánto llevas («7 de 10»; en una racha, «2 de 6 meses seguidos»); los demás no ven lo que te falta. Un logro por temporada sale una vez, con los años en que lo conseguiste, y mientras no tengas el de este año también sale entre los que te faltan, con lo que llevas esta temporada.
 
 Los logros solo dicen totales: «10 partidas», «3 sistemas», «5 meses seguidos», «Temporada 2026». Nunca dicen en qué mesa, sesión o evento estuviste.
 

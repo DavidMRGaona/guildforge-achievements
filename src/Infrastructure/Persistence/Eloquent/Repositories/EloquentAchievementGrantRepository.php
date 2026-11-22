@@ -193,38 +193,6 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
         return array_keys(array_filter($latest, static fn (string $action): bool => $action === GrantLogAction::Revoked->value));
     }
 
-    public function revokedAchievementIds(array $userIds): array
-    {
-        $userIds = array_values(array_unique(array_map(strtolower(...), $userIds)));
-        $latest = [];
-
-        foreach (array_chunk($userIds, 500) as $chunk) {
-            $rows = $this->db->table(self::LOG_TABLE)
-                ->whereIn('user_id', $chunk)
-                ->whereNotNull('achievement_id')
-                ->where('season_key', '')
-                ->orderBy('created_at')
-                ->orderBy('id')
-                ->get(['user_id', 'achievement_id', 'action']);
-
-            foreach ($rows as $row) {
-                $latest[strtolower((string) $row->user_id)][strtolower((string) $row->achievement_id)] = (string) $row->action;
-            }
-        }
-
-        $revoked = [];
-
-        foreach ($latest as $userId => $actions) {
-            $ids = array_keys(array_filter($actions, static fn (string $action): bool => $action === GrantLogAction::Revoked->value));
-
-            if ($ids !== []) {
-                $revoked[(string) $userId] = array_map(strval(...), $ids);
-            }
-        }
-
-        return $revoked;
-    }
-
     public function heldSeasonKeys(array $userIds): array
     {
         $userIds = array_values(array_unique(array_map(strtolower(...), $userIds)));
@@ -288,17 +256,12 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
                 ->get(['user_id', 'achievement_id']);
 
             foreach ($rows as $row) {
-                $userId = strtolower((string) $row->user_id);
-                $achievementId = strtolower((string) $row->achievement_id);
-
-                // One per achievement, whatever seasons it was held in
-                if (! in_array($achievementId, $held[$userId] ?? [], true)) {
-                    $held[$userId][] = $achievementId;
-                }
+                // Keyed, so an achievement held in several seasons counts once
+                $held[strtolower((string) $row->user_id)][strtolower((string) $row->achievement_id)] = true;
             }
         }
 
-        return $held;
+        return array_map(static fn (array $ids): array => array_map(strval(...), array_keys($ids)), $held);
     }
 
     public function forUser(string $userId): array
