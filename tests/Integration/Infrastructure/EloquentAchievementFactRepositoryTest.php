@@ -164,7 +164,7 @@ final class EloquentAchievementFactRepositoryTest extends ModuleTestCase
         $this->assertSame(1, $this->repository()->countForUser(self::ANA, 'tournament', 'organizer'));
     }
 
-    public function test_facts_of_an_account_anonymized_after_they_were_read_are_not_stored(): void
+    public function test_facts_of_an_account_already_anonymized_when_written_are_dropped(): void
     {
         $anonymized = (string) UserModel::factory()->create(['anonymized_at' => now()])->id;
 

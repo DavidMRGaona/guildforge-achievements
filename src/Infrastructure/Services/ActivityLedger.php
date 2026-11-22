@@ -12,6 +12,7 @@ use App\Application\Activity\Services\ActivityReaderInterface;
 use App\Domain\Activity\ActivityIdentifierRule;
 use Illuminate\Contracts\Events\Dispatcher;
 use Modules\Achievements\Application\DTOs\SourceRecalculationDTO;
+use Modules\Achievements\Application\DTOs\SubjectRefreshDTO;
 use Modules\Achievements\Application\Enums\RecalculationOutcome;
 use Modules\Achievements\Application\Services\ActivityLedgerInterface;
 use Modules\Achievements\Domain\Events\AchievementFactsChanged;
@@ -33,36 +34,25 @@ final class ActivityLedger implements ActivityLedgerInterface
         private readonly ActivityReaderInterface $reader,
         private readonly AchievementFactRepositoryInterface $facts,
         private readonly Dispatcher $events,
+        private readonly int $maxPages = self::MAX_PAGES,
     ) {}
 
-    public function refreshSubject(string $sourceType, string $subjectId): ?FactsReplacement
+    public function refreshSubject(string $sourceType, string $subjectId): SubjectRefreshDTO
     {
         $subjectId = ActivityIdentifierRule::stableId($subjectId);
 
+        // The reader would read it with no facts too, and no stored subject has such an id
         if ($subjectId === null) {
-            return null;
+            return new SubjectRefreshDTO(ActivityReadOutcome::Read);
         }
 
-        $result = $this->reader->facts($sourceType, $subjectId);
+        $refresh = $this->refresh($sourceType, $subjectId, dryRun: false);
 
-        // Missing or failed: unknown, so what is stored stays
-        if (! $result->isRead()) {
-            return null;
+        if ($refresh->replacement instanceof FactsReplacement) {
+            $this->announce($refresh->replacement->affectedUserIds(), silent: false);
         }
 
-        $kind = $this->kindOf($sourceType);
-
-        if ($kind === null) {
-            return null;
-        }
-
-        $replacement = $this->facts->replaceSubject($sourceType, $subjectId, $kind, $this->recorded($result->facts));
-
-        // Announced even when nothing changed: the evaluator may have skipped these people before
-        // (settings it could not read), and granting twice grants nothing
-        $this->announce($replacement->affectedUserIds(), silent: false);
-
-        return $replacement;
+        return $refresh;
     }
 
     public function recalculate(?string $sourceType = null, bool $dryRun = false): array
@@ -79,6 +69,38 @@ final class ActivityLedger implements ActivityLedgerInterface
         return $this->facts->deleteForUser($userId);
     }
 
+    /**
+     * Reads the subject's facts and stores them, both under its lock (a dry run only previews,
+     * without the lock, which would write its row). Missing and failed reads change nothing.
+     */
+    private function refresh(string $type, string $subjectId, bool $dryRun): SubjectRefreshDTO
+    {
+        $work = function () use ($type, $subjectId, $dryRun): SubjectRefreshDTO {
+            $result = $this->reader->facts($type, $subjectId);
+
+            // Missing or failed: unknown, so what is stored stays (the reader has already warned)
+            if (! $result->isRead()) {
+                return new SubjectRefreshDTO($result->outcome);
+            }
+
+            $kind = $this->kindOf($type);
+
+            // Read, yet not among the sources offered now (its label failed): not a full answer
+            if ($kind === null) {
+                return new SubjectRefreshDTO(ActivityReadOutcome::Failed);
+            }
+
+            $facts = $this->recorded($result->facts);
+            $replacement = $dryRun
+                ? $this->facts->previewReplacement($type, $subjectId, $kind, $facts)
+                : $this->facts->replaceSubject($type, $subjectId, $kind, $facts);
+
+            return new SubjectRefreshDTO(ActivityReadOutcome::Read, $replacement);
+        };
+
+        return $dryRun ? $work() : $this->facts->withSubjectLock($type, $subjectId, $work);
+    }
+
     private function recalculateSource(string $type, bool $dryRun): SourceRecalculationDTO
     {
         $kind = $this->kindOf($type);
@@ -88,24 +110,45 @@ final class ActivityLedger implements ActivityLedgerInterface
         $seenSubjects = [];
         $changed = 0;
         $cursor = null;
+        $pages = 0;
 
         while (true) {
+            if (++$pages > $this->maxPages) {
+                return new SourceRecalculationDTO($type, RecalculationOutcome::Failed, count($seenSubjects), $changed);
+            }
+
             $result = $this->reader->history($type, $cursor, self::HISTORY_PAGE_SIZE);
             $page = $result->page;
 
             if (! $result->isRead() || ! $page instanceof ActivityHistoryPageDTO || $kind === null) {
-                $outcome = $result->outcome === ActivityReadOutcome::Missing ? RecalculationOutcome::Missing : RecalculationOutcome::Failed;
-
-                return new SourceRecalculationDTO($type, $outcome, count($seenSubjects), $changed);
+                return new SourceRecalculationDTO($type, $result->outcome === ActivityReadOutcome::Missing ? RecalculationOutcome::Missing : RecalculationOutcome::Failed, count($seenSubjects), $changed);
             }
 
             $affected = [];
 
             foreach ($page->subjects as $subject) {
                 $seenSubjects[$subject->subjectId] = true;
-                $replacement = $this->store($type, $subject->subjectId, $kind, $this->recorded($subject->facts), $dryRun);
-                $changed += $replacement->changed ? 1 : 0;
-                array_push($affected, ...$replacement->affectedUserIds());
+
+                // The page may be older than what is stored (a refresh ran meanwhile): it only says
+                // whether to look, and facts() under the lock says what is true
+                $hint = $this->facts->previewReplacement($type, $subject->subjectId, $kind, $this->recorded($subject->facts));
+
+                if (! $hint->changed) {
+                    array_push($affected, ...$hint->affectedUserIds());
+
+                    continue;
+                }
+
+                $refresh = $this->refresh($type, $subject->subjectId, $dryRun);
+
+                if (! $refresh->replacement instanceof FactsReplacement) {
+                    $this->announceQuietly($affected, $dryRun);
+
+                    return new SourceRecalculationDTO($type, RecalculationOutcome::Failed, count($seenSubjects), $changed);
+                }
+
+                $changed += $refresh->replacement->changed ? 1 : 0;
+                array_push($affected, ...$refresh->replacement->affectedUserIds());
             }
 
             $this->announceQuietly($affected, $dryRun);
@@ -123,7 +166,8 @@ final class ActivityLedger implements ActivityLedgerInterface
             $seenCursors[$cursor] = true;
         }
 
-        // The whole history was read: a stored subject it does not list no longer counts
+        // The whole history was read. A stored subject it did not list may have started counting
+        // after its page went by, so facts() decides: it goes only when read with nothing
         $removed = 0;
         $affected = [];
 
@@ -132,24 +176,26 @@ final class ActivityLedger implements ActivityLedgerInterface
                 continue;
             }
 
-            $replacement = $this->store($type, $storedId, $kind, [], $dryRun);
-            $removed++;
-            array_push($affected, ...$replacement->affectedUserIds());
+            $refresh = $this->refresh($type, $storedId, $dryRun);
+
+            if (! $refresh->replacement instanceof FactsReplacement) {
+                $this->announceQuietly($affected, $dryRun);
+
+                return new SourceRecalculationDTO($type, RecalculationOutcome::Failed, count($seenSubjects), $changed, $removed);
+            }
+
+            if ($refresh->replacement->userIdsAfter === []) {
+                $removed++;
+            } elseif ($refresh->replacement->changed) {
+                $changed++;
+            }
+
+            array_push($affected, ...$refresh->replacement->affectedUserIds());
         }
 
         $this->announceQuietly($affected, $dryRun);
 
         return new SourceRecalculationDTO($type, RecalculationOutcome::Complete, count($seenSubjects), $changed, $removed);
-    }
-
-    /**
-     * @param  list<RecordedFact>  $facts
-     */
-    private function store(string $type, string $subjectId, string $kind, array $facts, bool $dryRun): FactsReplacement
-    {
-        return $dryRun
-            ? $this->facts->previewReplacement($type, $subjectId, $kind, $facts)
-            : $this->facts->replaceSubject($type, $subjectId, $kind, $facts);
     }
 
     /**

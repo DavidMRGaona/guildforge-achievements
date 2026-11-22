@@ -6,6 +6,7 @@ namespace Modules\Achievements\Listeners;
 
 use App\Domain\Activity\Events\ActivityRecorded;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Queue\InteractsWithQueue;
 use Modules\Achievements\Application\Services\ActivityLedgerInterface;
 
 /**
@@ -15,6 +16,8 @@ use Modules\Achievements\Application\Services\ActivityLedgerInterface;
  */
 final class RecordActivityFacts implements ShouldQueue
 {
+    use InteractsWithQueue;
+
     public bool $afterCommit = true;
 
     public int $tries = 3;
@@ -22,12 +25,20 @@ final class RecordActivityFacts implements ShouldQueue
     /** @var list<int> */
     public array $backoff = [30, 120];
 
+    private const int LAST_BACKOFF = 120;
+
     public function __construct(
         private readonly ActivityLedgerInterface $ledger,
     ) {}
 
     public function handle(ActivityRecorded $event): void
     {
-        $this->ledger->refreshSubject($event->sourceType, $event->subjectId);
+        $refresh = $this->ledger->refreshSubject($event->sourceType, $event->subjectId);
+
+        // A failed source may be back soon; the rows stay as they are either way. Missing is not
+        // retried: no module offers the type.
+        if ($refresh->isFailed() && $this->job !== null && $this->attempts() < $this->tries) {
+            $this->release($this->backoff[$this->attempts() - 1] ?? self::LAST_BACKOFF);
+        }
     }
 }

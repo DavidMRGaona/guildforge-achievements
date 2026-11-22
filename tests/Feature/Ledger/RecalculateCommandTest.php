@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Tests\Feature\Ledger;
 
+use App\Application\Activity\DTOs\ActivityFactDTO;
 use App\Application\Activity\DTOs\ActivityHistoryPageDTO;
 use App\Application\Activity\DTOs\ActivitySubjectFactsDTO;
 use App\Domain\Activity\ActivityRole;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Testing\PendingCommand;
+use Modules\Achievements\Application\Enums\RecalculationOutcome;
 use Modules\Achievements\Console\Commands\RecalculateAchievementFactsCommand;
 use Modules\Achievements\Domain\Events\AchievementFactsChanged;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
@@ -68,6 +70,7 @@ final class RecalculateCommandTest extends ModuleTestCase
     {
         $this->registerSource(ScriptedActivitySource::class);
         InMemoryActivitySource::put('42', [$this->activityFact(self::ANA)]);
+        $this->putScripted('7', [$this->activityFact(self::LUIS, ActivityRole::Organizer)]);
         ScriptedActivitySource::putPage(null, new ActivityHistoryPageDTO([
             new ActivitySubjectFactsDTO('7', [$this->activityFact(self::LUIS, ActivityRole::Organizer)]),
         ], null));
@@ -122,10 +125,71 @@ final class RecalculateCommandTest extends ModuleTestCase
         );
     }
 
+    public function test_a_stored_subject_the_history_left_out_is_kept_while_its_source_still_counts_it(): void
+    {
+        // It ended while the walk was past its page: the history missed it, facts() has it
+        $this->registerSource(ScriptedActivitySource::class);
+        $this->putScripted('7', [$this->activityFact(self::LUIS, ActivityRole::Organizer)]);
+        $this->putScripted('x', [$this->activityFact(self::MARTA, ActivityRole::Organizer)]);
+        $this->ledger()->replaceSubject(ScriptedActivitySource::TYPE, 'x', MetricKinds::TOURNAMENT, [$this->recordedFact(self::MARTA, 'organizer')]);
+        ScriptedActivitySource::putPage(null, new ActivityHistoryPageDTO([
+            new ActivitySubjectFactsDTO('7', [$this->activityFact(self::LUIS, ActivityRole::Organizer)]),
+        ], null));
+
+        $this->recalculate(['--source' => ScriptedActivitySource::TYPE])
+            ->expectsOutputToContain('leídos: 1 · actualizados: 1 · retirados: 0')
+            ->assertExitCode(Command::SUCCESS);
+
+        $this->assertSame(['7', 'x'], $this->ledger()->subjectIds(ScriptedActivitySource::TYPE));
+        $this->assertSame([self::MARTA], $this->ledger()->userIdsOfSubject(ScriptedActivitySource::TYPE, 'x'));
+    }
+
+    public function test_a_stored_subject_whose_source_fails_when_read_again_is_kept_and_the_source_fails(): void
+    {
+        $this->registerSource(ScriptedActivitySource::class);
+        $this->ledger()->replaceSubject(ScriptedActivitySource::TYPE, 'x', MetricKinds::TOURNAMENT, [$this->recordedFact(self::MARTA, 'organizer')]);
+        ScriptedActivitySource::failFacts('x');
+        ScriptedActivitySource::putPage(null, new ActivityHistoryPageDTO([], null));
+
+        $this->recalculate(['--source' => ScriptedActivitySource::TYPE])
+            ->expectsOutputToContain('ha fallado')
+            ->assertExitCode(Command::FAILURE);
+
+        $this->assertSame([self::MARTA], $this->ledger()->userIdsOfSubject(ScriptedActivitySource::TYPE, 'x'));
+    }
+
+    public function test_a_page_older_than_the_source_is_only_a_hint(): void
+    {
+        // The page still lists Luis; facts(), read under the subject's lock, says Ana took over
+        $this->registerSource(ScriptedActivitySource::class);
+        $this->putScripted('7', [$this->activityFact(self::ANA, ActivityRole::Organizer)]);
+        ScriptedActivitySource::putPage(null, new ActivityHistoryPageDTO([
+            new ActivitySubjectFactsDTO('7', [$this->activityFact(self::LUIS, ActivityRole::Organizer)]),
+        ], null));
+
+        $this->recalculate(['--source' => ScriptedActivitySource::TYPE])->assertExitCode(Command::SUCCESS);
+
+        $this->assertSame([self::ANA], $this->ledger()->userIdsOfSubject(ScriptedActivitySource::TYPE, '7'));
+    }
+
+    public function test_a_history_longer_than_the_page_cap_fails_without_removing_anything(): void
+    {
+        $this->registerSource(ScriptedActivitySource::class);
+        $this->ledger()->replaceSubject(ScriptedActivitySource::TYPE, 'old', MetricKinds::TOURNAMENT, [$this->recordedFact(self::MARTA, 'organizer')]);
+        ScriptedActivitySource::putPage(null, new ActivityHistoryPageDTO([], 'a'));
+        ScriptedActivitySource::putPage('a', new ActivityHistoryPageDTO([], null));
+
+        $results = $this->app->make(ActivityLedger::class, ['maxPages' => 1])->recalculate(ScriptedActivitySource::TYPE);
+
+        $this->assertSame(RecalculationOutcome::Failed, $results[0]->outcome);
+        $this->assertSame(['old'], $this->ledger()->subjectIds(ScriptedActivitySource::TYPE));
+    }
+
     public function test_a_failed_page_stops_the_source_without_removing_anything(): void
     {
         $this->registerSource(ScriptedActivitySource::class);
         $this->ledger()->replaceSubject(ScriptedActivitySource::TYPE, 'old', MetricKinds::TOURNAMENT, [$this->recordedFact(self::MARTA, 'organizer')]);
+        $this->putScripted('7', [$this->activityFact(self::LUIS, ActivityRole::Organizer)]);
         ScriptedActivitySource::putPage(null, new ActivityHistoryPageDTO([
             new ActivitySubjectFactsDTO('7', [$this->activityFact(self::LUIS, ActivityRole::Organizer)]),
         ], 'page-2'));
@@ -143,6 +207,9 @@ final class RecalculateCommandTest extends ModuleTestCase
     {
         $this->registerSource(ScriptedActivitySource::class);
         $this->ledger()->replaceSubject(ScriptedActivitySource::TYPE, 'old', MetricKinds::TOURNAMENT, [$this->recordedFact(self::MARTA, 'organizer')]);
+        $this->putScripted('7', [$this->activityFact(self::LUIS, ActivityRole::Organizer)]);
+        $this->putScripted('8', [$this->activityFact(self::ANA, ActivityRole::Organizer)]);
+        $this->putScripted('9', [$this->activityFact(self::ANA, ActivityRole::Organizer)]);
         ScriptedActivitySource::putPage(null, new ActivityHistoryPageDTO([
             new ActivitySubjectFactsDTO('7', [$this->activityFact(self::LUIS, ActivityRole::Organizer)]),
         ], 'a'));
@@ -193,6 +260,7 @@ final class RecalculateCommandTest extends ModuleTestCase
             ->assertExitCode(Command::SUCCESS);
 
         $this->assertSame(['41'], $this->ledger()->subjectIds(InMemoryActivitySource::TYPE));
+        $this->assertSame(0, DB::table('achievements_subject_locks')->count());
         Event::assertNotDispatched(AchievementFactsChanged::class);
     }
 
@@ -205,6 +273,14 @@ final class RecalculateCommandTest extends ModuleTestCase
         $this->assertInstanceOf(PendingCommand::class, $command);
 
         return $command;
+    }
+
+    /**
+     * @param  list<ActivityFactDTO>  $facts
+     */
+    private function putScripted(string $subjectId, array $facts): void
+    {
+        ScriptedActivitySource::putFacts($subjectId, $facts);
     }
 
     private function putSubjects(int $count): void

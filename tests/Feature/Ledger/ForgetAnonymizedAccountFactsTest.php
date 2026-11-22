@@ -6,8 +6,10 @@ namespace Modules\Achievements\Tests\Feature\Ledger;
 
 use App\Domain\Events\UserAnonymized;
 use App\Domain\Events\UserDeactivated;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\MetricKinds;
+use Modules\Achievements\Listeners\ForgetAnonymizedAccountFacts;
 use Modules\Achievements\Tests\Support\BuildsActivityFacts;
 use Tests\Support\Modules\ModuleTestCase;
 
@@ -30,6 +32,12 @@ final class ForgetAnonymizedAccountFactsTest extends ModuleTestCase
         $this->ledger()->replaceSubject('tournaments.tournament', '7', MetricKinds::TOURNAMENT, [
             $this->recordedFact(self::ANA, 'organizer'),
         ]);
+    }
+
+    public function test_it_runs_on_the_queue_after_commit(): void
+    {
+        $this->assertContains(ShouldQueue::class, class_implements(ForgetAnonymizedAccountFacts::class));
+        $this->assertTrue($this->app->make(ForgetAnonymizedAccountFacts::class)->afterCommit);
     }
 
     public function test_an_anonymized_account_loses_every_fact(): void

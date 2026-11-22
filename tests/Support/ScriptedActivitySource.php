@@ -24,13 +24,14 @@ final class ScriptedActivitySource extends FakeActivitySource
     /** @var array<string, ActivityHistoryPageDTO|null> keyed by cursor, '' for the first page */
     private static array $pages = [];
 
-    private static bool $factsFail = false;
+    /** @var array<string, true>|true subjects whose facts() throws, or true for every one */
+    private static array|bool $failingFacts = [];
 
     public static function reset(): void
     {
         self::$facts = [];
         self::$pages = [];
-        self::$factsFail = false;
+        self::$failingFacts = [];
     }
 
     /**
@@ -41,9 +42,13 @@ final class ScriptedActivitySource extends FakeActivitySource
         self::$facts[$subjectId] = $facts;
     }
 
-    public static function failFacts(): void
+    public static function failFacts(?string $subjectId = null): void
     {
-        self::$factsFail = true;
+        if ($subjectId === null) {
+            self::$failingFacts = true;
+        } elseif (is_array(self::$failingFacts)) {
+            self::$failingFacts[$subjectId] = true;
+        }
     }
 
     public static function putPage(?string $cursor, ?ActivityHistoryPageDTO $page): void
@@ -63,7 +68,7 @@ final class ScriptedActivitySource extends FakeActivitySource
 
     public function facts(string $subjectId): array
     {
-        if (self::$factsFail) {
+        if (self::$failingFacts === true || isset(self::$failingFacts[$subjectId])) {
             throw new RuntimeException('The source is down.');
         }
 

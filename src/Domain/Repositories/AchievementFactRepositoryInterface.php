@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Domain\Repositories;
 
+use Closure;
 use Modules\Achievements\Domain\Entities\AchievementFact;
 use Modules\Achievements\Domain\ValueObjects\FactsReplacement;
 use Modules\Achievements\Domain\ValueObjects\RecordedFact;
@@ -19,8 +20,21 @@ use Modules\Achievements\Domain\ValueObjects\RecordedFact;
 interface AchievementFactRepositoryInterface
 {
     /**
+     * Runs `$work` in a transaction holding the subject's lock, so the reads and writes of one
+     * subject never interleave with another refresh of it. Retried on a deadlock (3 attempts).
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $work
+     * @return T
+     */
+    public function withSubjectLock(string $sourceType, string $subjectId, Closure $work): mixed;
+
+    /**
      * Makes the subject's rows exactly `$facts` (none removes the subject), in one transaction. Rows
      * that did not change are left as they are, so replacing with the same facts writes nothing.
+     * Facts of accounts anonymized meanwhile are dropped. Callers hold the subject's lock
+     * (withSubjectLock()), or two writers of one subject could interleave.
      *
      * @param  string  $kind  the source's kind (a MetricKinds value)
      * @param  list<RecordedFact>  $facts  one per person and role

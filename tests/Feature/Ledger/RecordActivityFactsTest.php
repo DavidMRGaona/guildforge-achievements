@@ -8,6 +8,7 @@ use App\Domain\Activity\ActivityRole;
 use App\Domain\Activity\Events\ActivityRecorded;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Queue\Jobs\FakeJob;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
@@ -73,6 +74,19 @@ final class RecordActivityFactsTest extends ModuleTestCase
         );
     }
 
+    public function test_the_subject_is_read_and_written_under_its_lock(): void
+    {
+        InMemoryActivitySource::put('42', [$this->activityFact(self::ANA)]);
+
+        event(new ActivityRecorded(InMemoryActivitySource::TYPE, '42'));
+        event(new ActivityRecorded(InMemoryActivitySource::TYPE, '42'));
+
+        // One row per subject, kept for good, even before the subject has any facts
+        $this->assertSame(1, DB::table('achievements_subject_locks')
+            ->where(['source_type' => InMemoryActivitySource::TYPE, 'subject_id' => '42'])
+            ->count());
+    }
+
     public function test_the_people_who_left_are_reported_too(): void
     {
         InMemoryActivitySource::put('42', [$this->activityFact(self::ANA), $this->activityFact(self::LUIS)]);
@@ -119,6 +133,42 @@ final class RecordActivityFactsTest extends ModuleTestCase
 
         $this->assertSame([self::ANA], $this->ledger()->userIdsOfSubject(ScriptedActivitySource::TYPE, '7'));
         Event::assertNotDispatched(AchievementFactsChanged::class);
+    }
+
+    public function test_a_failed_read_is_tried_again_later(): void
+    {
+        $this->registerSource(ScriptedActivitySource::class);
+        ScriptedActivitySource::failFacts();
+        $listener = $this->app->make(RecordActivityFacts::class)->withFakeQueueInteractions();
+
+        $listener->handle(new ActivityRecorded(ScriptedActivitySource::TYPE, '7'));
+
+        $listener->assertReleased(30);
+    }
+
+    public function test_the_last_attempt_of_a_failed_read_gives_up_quietly(): void
+    {
+        $this->registerSource(ScriptedActivitySource::class);
+        $this->ledger()->replaceSubject(ScriptedActivitySource::TYPE, '7', MetricKinds::TOURNAMENT, [$this->recordedFact(self::ANA, 'organizer')]);
+        ScriptedActivitySource::failFacts();
+        $listener = $this->app->make(RecordActivityFacts::class)->withFakeQueueInteractions();
+        $this->assertInstanceOf(FakeJob::class, $listener->job);
+        $listener->job->attempts = $listener->tries;
+
+        $listener->handle(new ActivityRecorded(ScriptedActivitySource::TYPE, '7'));
+
+        $listener->assertNotReleased();
+        $listener->assertNotFailed();
+        $this->assertSame([self::ANA], $this->ledger()->userIdsOfSubject(ScriptedActivitySource::TYPE, '7'));
+    }
+
+    public function test_a_missing_source_is_not_tried_again(): void
+    {
+        $listener = $this->app->make(RecordActivityFacts::class)->withFakeQueueInteractions();
+
+        $listener->handle(new ActivityRecorded('gone-module.thing', '42'));
+
+        $listener->assertNotReleased();
     }
 
     public function test_facts_of_an_anonymized_account_are_not_kept(): void

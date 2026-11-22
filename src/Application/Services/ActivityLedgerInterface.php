@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Modules\Achievements\Application\Services;
 
 use Modules\Achievements\Application\DTOs\SourceRecalculationDTO;
-use Modules\Achievements\Domain\ValueObjects\FactsReplacement;
+use Modules\Achievements\Application\DTOs\SubjectRefreshDTO;
 
 /**
  * Keeps the ledger in step with the activity sources (core#774), read only through the core's
@@ -15,23 +15,34 @@ use Modules\Achievements\Domain\ValueObjects\FactsReplacement;
  * Every kind is recorded, also one switched off in the settings: the switch only decides whether
  * it is evaluated, so turning it on again needs no recalculation of the ledger.
  *
- * After each change it dispatches AchievementFactsChanged with the accounts on either side.
+ * Every refresh that read its source, and every history page, dispatches AchievementFactsChanged
+ * with the accounts on either side, whether or not a row changed: the evaluator checks them again
+ * (granting twice grants nothing).
+ *
+ * Reads and writes of one subject run under its lock, and what is stored is always what the
+ * source's facts() said under that lock: a history page is only a hint of which subjects changed.
  */
 interface ActivityLedgerInterface
 {
     /** Rows per history page asked to a source */
     public const int HISTORY_PAGE_SIZE = 200;
 
-    /**
-     * Reads the subject's facts again and stores them. Null when nothing was stored: the source is
-     * missing or failed, or the id cannot be a subject's.
-     */
-    public function refreshSubject(string $sourceType, string $subjectId): ?FactsReplacement;
+    /** Pages of one source's history read at most in one walk (a million subjects) */
+    public const int MAX_PAGES = 5000;
 
     /**
-     * Walks the history of every source offered now (or of one) and stores each subject's facts.
-     * A stored subject absent from a history read completely is removed. Nothing is announced
-     * but silently; a dry run writes and announces nothing.
+     * Reads the subject's facts again, under its lock, and stores them.
+     */
+    public function refreshSubject(string $sourceType, string $subjectId): SubjectRefreshDTO;
+
+    /**
+     * Walks the history of every source offered now (or of one), page by page. A subject whose
+     * page differs from what is stored is read again with facts() and stored as that says. Once
+     * the whole history was read, each stored subject it did not list is read again too: it goes
+     * only when facts() is read with nothing (a subject that ended during the walk stays). A page,
+     * or one of those reads, that is not read ends the source as failed without removing anything,
+     * and so do a cursor seen before and more than MAX_PAGES pages. Everything is announced
+     * silently; a dry run writes and announces nothing.
      *
      * @return list<SourceRecalculationDTO>
      */

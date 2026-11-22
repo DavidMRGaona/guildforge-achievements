@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories;
 
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use Closure;
 use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Database\ConnectionInterface;
@@ -26,17 +27,34 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
 {
     public const string TABLE = 'achievements_facts';
 
+    public const string LOCKS_TABLE = 'achievements_subject_locks';
+
+    private const int TRANSACTION_ATTEMPTS = 3;
+
     private const string STORAGE_FORMAT = 'Y-m-d H:i:s';
 
     public function __construct(
         private ConnectionInterface $db,
     ) {}
 
+    public function withSubjectLock(string $sourceType, string $subjectId, Closure $work): mixed
+    {
+        return $this->db->transaction(function () use ($sourceType, $subjectId, $work): mixed {
+            $key = ['source_type' => $sourceType, 'subject_id' => $subjectId];
+
+            // The row exists before it is locked, so a subject with no facts yet is locked too.
+            // PostgreSQL waits on the row lock; SQLite takes the database's write lock with the insert.
+            $this->db->table(self::LOCKS_TABLE)->insertOrIgnore($key);
+            $this->db->table(self::LOCKS_TABLE)->where($key)->lockForUpdate()->first();
+
+            return $work();
+        }, self::TRANSACTION_ATTEMPTS);
+    }
+
     public function replaceSubject(string $sourceType, string $subjectId, string $kind, array $facts): FactsReplacement
     {
         return $this->db->transaction(function () use ($sourceType, $subjectId, $kind, $facts): FactsReplacement {
-            // Locked so two refreshes of one subject apply one after the other (PostgreSQL)
-            $stored = $this->storedRows($sourceType, $subjectId, lock: true);
+            $stored = $this->storedRows($sourceType, $subjectId);
             $wanted = $this->wantedRows($kind, $this->withoutAnonymizedAccounts($facts, lock: true));
             $replacement = $this->compare($stored, $wanted);
 
@@ -73,8 +91,7 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
                 ];
             }
 
-            // An upsert, so a refresh racing another one of the same subject never trips the
-            // unique index: the last one wins, and both read the same source
+            // An upsert keeps the row (and its id) of a fact whose details changed
             foreach (array_chunk($rows, 200) as $chunk) {
                 $this->table()->upsert(
                     $chunk,
@@ -90,7 +107,7 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
     public function previewReplacement(string $sourceType, string $subjectId, string $kind, array $facts): FactsReplacement
     {
         return $this->compare(
-            $this->storedRows($sourceType, $subjectId, lock: false),
+            $this->storedRows($sourceType, $subjectId),
             $this->wantedRows($kind, $this->withoutAnonymizedAccounts($facts, lock: false)),
         );
     }
@@ -204,15 +221,11 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
     /**
      * @return array<string, stdClass> keyed by person and role
      */
-    private function storedRows(string $sourceType, string $subjectId, bool $lock): array
+    private function storedRows(string $sourceType, string $subjectId): array
     {
         $query = $this->table()
             ->where('source_type', $sourceType)
             ->where('subject_id', $subjectId);
-
-        if ($lock) {
-            $query->lockForUpdate();
-        }
 
         $rows = [];
 
@@ -327,7 +340,10 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
             $encoded[$key] = ['id' => $value->id, 'label' => $value->label];
         }
 
-        return json_encode($encoded, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        // A label with broken UTF-8 is stored with U+FFFD rather than losing the whole subject
+        $json = json_encode($encoded, JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        return is_string($json) ? $json : '{}';
     }
 
     /**
