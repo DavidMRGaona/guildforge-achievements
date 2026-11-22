@@ -17,6 +17,14 @@ interface AchievementsSettingsInterface
 {
     public function settings(): AchievementsSettings;
 
+    /**
+     * The switches as stored, read from the table (never a cache), or null when they cannot be read:
+     * the table cannot be reached, or the stored value is not a JSON object. Nothing ever saved
+     * gives the defaults. What grants read, since a grant is permanent: settings()' fallback to the
+     * defaults (every kind on) must never decide one.
+     */
+    public function readStrictly(): ?AchievementsSettings;
+
     public function save(AchievementsSettings $settings): void;
 
     public function progressEnabled(): bool;

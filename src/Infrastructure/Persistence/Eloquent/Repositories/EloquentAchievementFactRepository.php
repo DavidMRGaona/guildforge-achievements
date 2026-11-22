@@ -160,6 +160,58 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
         return $facts;
     }
 
+    public function forUsers(array $userIds, array $kinds = []): array
+    {
+        $userIds = array_values(array_unique(array_map(strtolower(...), $userIds)));
+        $facts = [];
+
+        foreach (array_chunk($userIds, 500) as $chunk) {
+            $query = $this->table()
+                ->whereIn('user_id', $chunk)
+                ->orderBy('occurred_at')
+                ->orderBy('source_type')
+                ->orderBy('subject_id');
+
+            if ($kinds !== []) {
+                $query->whereIn('kind', $kinds);
+            }
+
+            foreach ($query->get() as $row) {
+                $fact = $this->toEntity($row);
+                $facts[strtolower($fact->userId)][] = $fact;
+            }
+        }
+
+        return $facts;
+    }
+
+    public function userIdsWithKinds(array $kinds, ?string $afterUserId, int $limit): array
+    {
+        if ($kinds === [] || $limit < 1) {
+            return [];
+        }
+
+        return array_values(array_map(
+            strval(...),
+            $this->table()
+                ->whereIn('kind', $kinds)
+                ->when($afterUserId !== null, static fn (Builder $query): Builder => $query->where('user_id', '>', strtolower((string) $afterUserId)))
+                ->distinct()
+                ->orderBy('user_id')
+                ->limit($limit)
+                ->pluck('user_id')
+                ->all(),
+        ));
+    }
+
+    public function sourceTypesOfKind(string $kind): array
+    {
+        return array_values(array_map(
+            strval(...),
+            $this->table()->where('kind', $kind)->distinct()->orderBy('source_type')->pluck('source_type')->all(),
+        ));
+    }
+
     public function countForUser(string $userId, string $kind, ?string $role = null): int
     {
         return $this->table()

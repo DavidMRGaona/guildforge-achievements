@@ -71,6 +71,31 @@ interface AchievementFactRepositoryInterface
     public function forUser(string $userId, array $kinds = []): array;
 
     /**
+     * The facts of several accounts at once, oldest first, keyed by account id in lower case. An
+     * account with no facts is missing from the answer.
+     *
+     * @param  list<string>  $userIds
+     * @param  list<string>  $kinds  MetricKinds values; empty for every kind
+     * @return array<string, list<AchievementFact>>
+     */
+    public function forUsers(array $userIds, array $kinds = []): array;
+
+    /**
+     * Accounts with at least one fact of these kinds, sorted, after `$afterUserId` (keyset pages).
+     *
+     * @param  list<string>  $kinds  MetricKinds values; never empty
+     * @return list<string>
+     */
+    public function userIdsWithKinds(array $kinds, ?string $afterUserId, int $limit): array;
+
+    /**
+     * The source types with facts of a kind, sorted.
+     *
+     * @return list<string>
+     */
+    public function sourceTypesOfKind(string $kind): array;
+
+    /**
      * How many facts of a kind an account has, optionally in one role (an ActivityRole value).
      */
     public function countForUser(string $userId, string $kind, ?string $role = null): int;

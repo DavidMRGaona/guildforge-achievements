@@ -4,23 +4,53 @@ declare(strict_types=1);
 
 namespace Modules\Achievements;
 
+use App\Application\Media\Contracts\MediaUsageSourceInterface;
 use App\Application\Modules\DTOs\PagePrefixDTO;
 use App\Application\Modules\DTOs\PermissionDTO;
 use App\Domain\Activity\Events\ActivityRecorded;
 use App\Domain\Events\UserAnonymized;
+use App\Domain\Modules\Events\ModuleEnabled;
+use App\Infrastructure\Media\Observers\RefreshMediaUsagesObserver;
 use App\Modules\ModuleServiceProvider;
 use Filament\Pages\Page;
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Event;
+use Modules\Achievements\Application\Services\AchievementCatalogueInterface;
+use Modules\Achievements\Application\Services\AchievementEvaluatorInterface;
+use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\ActivityLedgerInterface;
+use Modules\Achievements\Application\Services\ActivityMetricsInterface;
+use Modules\Achievements\Application\Services\StarterCatalogueInterface;
+use Modules\Achievements\Console\Commands\InstallStarterCatalogueCommand;
 use Modules\Achievements\Console\Commands\RecalculateAchievementFactsCommand;
+use Modules\Achievements\Domain\Events\AchievementFactsChanged;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
+use Modules\Achievements\Filament\Media\AchievementBadgeImageMediaSource;
 use Modules\Achievements\Filament\Pages\AchievementsSettingsPage;
+use Modules\Achievements\Infrastructure\Activity\ReaderActivityMetrics;
+use Modules\Achievements\Infrastructure\Catalogue\AchievementCatalogue;
+use Modules\Achievements\Infrastructure\Catalogue\StarterCatalogue;
+use Modules\Achievements\Infrastructure\Grants\AchievementEvaluator;
+use Modules\Achievements\Infrastructure\Grants\AchievementGranter;
+use Modules\Achievements\Infrastructure\Observers\EvaluateChangedAchievements;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementFactRepository;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementGrantRepository;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementRepository;
 use Modules\Achievements\Infrastructure\Services\ActivityLedger;
 use Modules\Achievements\Infrastructure\Settings\ModuleAchievementsSettings;
+use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
+use Modules\Achievements\Jobs\EvaluateAchievementsJob;
+use Modules\Achievements\Listeners\EvaluateAchievementsForChangedFacts;
+use Modules\Achievements\Listeners\EvaluateAchievementsOfEnabledModule;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountFacts;
+use Modules\Achievements\Listeners\ForgetAnonymizedAccountGrants;
 use Modules\Achievements\Listeners\RecordActivityFacts;
+use Modules\Achievements\Policies\AchievementPolicy;
 
 /**
  * Achievements («Logros»): what people have done in the association, as badges, levels and
@@ -44,6 +74,16 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         // The ledger: the service remembers the sources' kinds, so each job or command builds its own
         $this->app->bind(AchievementFactRepositoryInterface::class, EloquentAchievementFactRepository::class);
         $this->app->bind(ActivityLedgerInterface::class, ActivityLedger::class);
+
+        // The catalogue, the grants and the evaluator; what the sources offer is read once per request or job
+        $this->app->bind(AchievementRepositoryInterface::class, EloquentAchievementRepository::class);
+        $this->app->bind(AchievementGrantRepositoryInterface::class, EloquentAchievementGrantRepository::class);
+        $this->app->bind(AchievementGranterInterface::class, AchievementGranter::class);
+        $this->app->scoped(ActivityMetricsInterface::class, ReaderActivityMetrics::class);
+        $this->app->bind(AchievementEvaluatorInterface::class, AchievementEvaluator::class);
+        $this->app->bind(AchievementCatalogueInterface::class, AchievementCatalogue::class);
+        $this->app->bind(StarterCatalogueInterface::class, StarterCatalogue::class);
+        $this->app->singleton(AchievementWarnings::class);
     }
 
     public function boot(): void
@@ -52,10 +92,66 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
 
         Event::listen(ActivityRecorded::class, RecordActivityFacts::class);
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountFacts::class);
+        Event::listen(UserAnonymized::class, ForgetAnonymizedAccountGrants::class);
+        Event::listen(AchievementFactsChanged::class, EvaluateAchievementsForChangedFacts::class);
+        Event::listen(ModuleEnabled::class, EvaluateAchievementsOfEnabledModule::class);
+
+        AchievementModel::observe(EvaluateChangedAchievements::class);
+        $this->keepMediaUsagesUpToDate();
+        $this->registerSchedule();
 
         if ($this->app->runningInConsole()) {
-            $this->commands([RecalculateAchievementFactsCommand::class]);
+            $this->commands([RecalculateAchievementFactsCommand::class, InstallStarterCatalogueCommand::class]);
         }
+    }
+
+    /**
+     * @return array<class-string, class-string>
+     */
+    public function registerPolicies(): array
+    {
+        return [AchievementModel::class => AchievementPolicy::class];
+    }
+
+    /**
+     * @return array<class-string<MediaUsageSourceInterface>>
+     */
+    public function registerMediaSources(): array
+    {
+        return [AchievementBadgeImageMediaSource::class];
+    }
+
+    /**
+     * Creating or deleting an achievement refreshes its badge image's usage in the media library; an
+     * update only when the image, the name or the secrecy changed (a usage carries the title).
+     */
+    private function keepMediaUsagesUpToDate(): void
+    {
+        $always = new RefreshMediaUsagesObserver(
+            AchievementBadgeImageMediaSource::TYPE,
+            static fn (Model $model): array => [(string) $model->getKey()],
+        );
+        $whenShownChanges = new RefreshMediaUsagesObserver(
+            AchievementBadgeImageMediaSource::TYPE,
+            static fn (Model $model): array => $model->wasChanged(['image_public_id', 'name', 'is_secret']) ? [(string) $model->getKey()] : [],
+        );
+
+        AchievementModel::created($always->saved(...));
+        AchievementModel::updated($whenShownChanges->saved(...));
+        AchievementModel::deleted($always->deleted(...));
+    }
+
+    /**
+     * Years of account change with the date alone: they are evaluated every night (not silently:
+     * these are real anniversaries).
+     */
+    private function registerSchedule(): void
+    {
+        $this->callAfterResolving(Schedule::class, static function (Schedule $schedule): void {
+            $schedule->job(new EvaluateAchievementsJob(silent: false, onlyAccountYears: true))
+                ->daily()
+                ->name('achievements:account-years');
+        });
     }
 
     /**

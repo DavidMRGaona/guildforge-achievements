@@ -181,6 +181,32 @@ final class EloquentAchievementFactRepositoryTest extends ModuleTestCase
         ])->userIdsAfter);
     }
 
+    public function test_facts_of_several_accounts_are_read_at_once_by_kind(): void
+    {
+        $this->repository()->replaceSubject(self::TYPE, '1', 'game_session', [$this->recordedFact(self::ANA), $this->recordedFact(self::LUIS)]);
+        $this->repository()->replaceSubject(self::TYPE, '2', 'game_session', [$this->recordedFact(self::ANA, when: '2026-01-01 10:00:00')]);
+        $this->repository()->replaceSubject('core.account', self::ANA, 'account', [$this->recordedFact(self::ANA, 'owner')]);
+
+        $facts = $this->repository()->forUsers([strtoupper(self::ANA), self::LUIS, self::MARTA], ['game_session']);
+
+        $this->assertSame([self::ANA, self::LUIS], array_keys($facts));
+        $this->assertSame(['2', '1'], array_map(static fn (AchievementFact $fact): string => $fact->subjectId, $facts[self::ANA]));
+        $this->assertCount(1, $facts[self::LUIS]);
+        $this->assertCount(3, $this->repository()->forUsers([self::ANA])[self::ANA]);
+    }
+
+    public function test_accounts_with_facts_of_some_kinds_are_listed_in_keyset_pages(): void
+    {
+        $this->repository()->replaceSubject(self::TYPE, '1', 'game_session', [$this->recordedFact(self::MARTA), $this->recordedFact(self::ANA)]);
+        $this->repository()->replaceSubject(self::TYPE, '2', 'game_session', [$this->recordedFact(self::ANA)]);
+        $this->repository()->replaceSubject('core.account', self::LUIS, 'account', [$this->recordedFact(self::LUIS, 'owner')]);
+
+        $this->assertSame([self::ANA, self::MARTA], $this->repository()->userIdsWithKinds(['game_session'], null, 10));
+        $this->assertSame([self::ANA], $this->repository()->userIdsWithKinds(['game_session', 'account'], null, 1));
+        $this->assertSame([self::LUIS, self::MARTA], $this->repository()->userIdsWithKinds(['game_session', 'account'], self::ANA, 10));
+        $this->assertSame([], $this->repository()->userIdsWithKinds([], null, 10));
+    }
+
     public function test_an_account_id_is_read_in_lower_case(): void
     {
         $this->repository()->replaceSubject(self::TYPE, '42', 'game_session', [$this->recordedFact(self::ANA)]);
