@@ -5,7 +5,7 @@ summary: Crea logros, decide cuándo se conceden solos y entiende por qué uno s
 category: users-and-roles
 audience: panel
 order: 80
-keywords: [logros, insignias, catálogo, reglas, conceder, partidas, sistemas, torneos, podio, eventos, antigüedad, secreto, sin fuente, puntos, umbral, recalcular]
+keywords: [logros, insignias, catálogo, reglas, conceder, partidas, sistemas, torneos, podio, eventos, antigüedad, secreto, sin fuente, puntos, umbral, recalcular, rareza, gente activa, destacados, perfil, menú, página de logros]
 conditions:
   permissions:
     any: ['achievements:achievements.view_any', 'achievements:achievements.manage']
@@ -51,6 +51,14 @@ Cuando vuelves a encender un tipo de actividad o los logros secretos en los ajus
 ## Lo que se concede no se retira
 
 Una concesión es para siempre: si una partida deja de contar o subes el umbral, quien ya tenía el logro lo conserva. Por eso un logro que tiene alguien no se puede borrar, solo desactivar: deja de concederse y de enseñarse, y quien lo tenía lo conserva. **Borrar** solo aparece, en el menú **⋯**, mientras nadie lo tiene, y pide marcar una casilla.
+
+## Lo que ve la gente
+
+Cada persona ve sus logros en la sección **Logros** de su perfil público, con su fecha y su **rareza**, y quien puede ver ese perfil los ve también. Solo el dueño ve los que le faltan y cuánto lleva («7 de 10»), mientras **Progreso visible** esté encendido en los ajustes. Hasta tres logros destacados salen junto a su nombre, en su perfil, en su tarjeta y en el foro: los que marque con la estrella o, si no elige, sus tres más raros. Cada persona puede ocultar sus logros a los demás desde su sección.
+
+La **rareza** es la parte de la gente activa que tiene un logro: cuentas que han participado en algo en los últimos doce meses, sin las desactivadas ni las anonimizadas. Se calcula cada noche y cada vez que se concede un logro. Con **Rareza** apagada en los ajustes no se enseña en ningún sitio.
+
+La página **Logros** de la web enseña el catálogo con la rareza de cada logro; los secretos salen como «Logro secreto». Al habilitar el módulo se añade un enlace a ella en el menú de la cabecera; puedes moverlo o borrarlo en **Sitio web** → **Navegación**, y no vuelve.
 
 ## Catálogo inicial
 

@@ -1,0 +1,31 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Http\Middleware\ThrottleWhereListed;
+use Illuminate\Support\Facades\Route;
+use Modules\Achievements\AchievementsServiceProvider;
+use Modules\Achievements\Http\Controllers\AchievementCatalogueController;
+use Modules\Achievements\Http\Controllers\ProfileAchievementsController;
+
+/*
+|--------------------------------------------------------------------------
+| Web routes of the achievements module
+|--------------------------------------------------------------------------
+|
+| The module loader already applies the "web" middleware.
+|
+*/
+
+Route::prefix('logros')
+    ->name('achievements.')
+    ->group(function (): void {
+        // The catalogue with the rarity of each achievement, for everybody
+        Route::get('/', AchievementCatalogueController::class)->name('index');
+
+        // The owner's choices from their profile's section: only the owner of the profile at
+        // {handle} passes (the core's profile editor rule), anybody else gets a 404
+        Route::put('miembros/{handle}', [ProfileAchievementsController::class, 'update'])
+            ->middleware(['auth', ThrottleWhereListed::class.':'.AchievementsServiceProvider::PROFILE_CHOICES_LIMITER])
+            ->name('profile.update');
+    });

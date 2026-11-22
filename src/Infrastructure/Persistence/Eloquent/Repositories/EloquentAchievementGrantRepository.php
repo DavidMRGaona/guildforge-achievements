@@ -133,6 +133,30 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
         return $grants;
     }
 
+    public function forUsers(array $userIds): array
+    {
+        $userIds = array_values(array_unique(array_map(strtolower(...), $userIds)));
+        $grants = [];
+
+        foreach (array_chunk($userIds, 500) as $chunk) {
+            $rows = $this->table()
+                ->whereIn('user_id', $chunk)
+                ->orderBy('granted_at')
+                ->orderBy('id')
+                ->get();
+
+            foreach ($rows as $row) {
+                $grant = $this->toEntity($row);
+
+                if ($grant instanceof AchievementGrant) {
+                    $grants[strtolower($grant->userId)][] = $grant;
+                }
+            }
+        }
+
+        return $grants;
+    }
+
     public function holds(string $userId, string $achievementId): bool
     {
         if (! AchievementIds::isWellFormed($achievementId)) {
