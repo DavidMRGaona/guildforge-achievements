@@ -8,6 +8,7 @@ use Illuminate\Contracts\Events\Dispatcher;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Domain\Entities\AchievementGrant;
 use Modules\Achievements\Domain\Events\AchievementGranted;
+use Modules\Achievements\Domain\Events\AchievementRevoked;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\NewGrant;
 
@@ -35,5 +36,21 @@ final readonly class AchievementGranter implements AchievementGranterInterface
         }
 
         return $granted;
+    }
+
+    public function revoke(string $grantId, string $actorId, string $reason): ?AchievementGrant
+    {
+        $revoked = $this->grants->revoke($grantId, $actorId, $reason);
+
+        if ($revoked instanceof AchievementGrant) {
+            $this->events->dispatch(new AchievementRevoked(
+                grantId: $revoked->id,
+                userId: $revoked->userId,
+                achievementId: $revoked->achievementId,
+                season: $revoked->season,
+            ));
+        }
+
+        return $revoked;
     }
 }
