@@ -10,6 +10,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Str;
 use Modules\Achievements\Domain\Entities\AchievementFact;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
@@ -236,6 +237,54 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
             ->count();
     }
 
+    public function firstMeetings(array $userIds, string $kind, ?string $role, ?string $withRole): array
+    {
+        $meetings = [];
+
+        foreach (array_chunk($this->userIds(array_map(strtolower(...), $userIds)), 500) as $chunk) {
+            $rows = $this->db->table(self::TABLE.' as mine')
+                ->join(self::TABLE.' as others', static function (JoinClause $join): void {
+                    $join->on('others.source_type', '=', 'mine.source_type')
+                        ->on('others.subject_id', '=', 'mine.subject_id')
+                        ->on('others.user_id', '<>', 'mine.user_id');
+                })
+                // Anonymized or deleted for good: never counted, even before the ledger forgets them
+                ->join('users', 'users.id', '=', 'others.user_id')
+                ->whereNull('users.anonymized_at')
+                ->whereIn('mine.user_id', $chunk)
+                ->where('mine.kind', $kind)
+                ->when($role !== null, static fn (Builder $query): Builder => $query->where('mine.role', $role))
+                ->when($withRole !== null, static fn (Builder $query): Builder => $query->where('others.role', $withRole))
+                ->groupBy('mine.user_id', 'others.user_id')
+                ->select('mine.user_id as user_id')
+                ->selectRaw('min(mine.occurred_at) as first_at')
+                ->get();
+
+            $this->collectInstants($rows, $meetings);
+        }
+
+        return $this->sortedInstants($meetings);
+    }
+
+    public function userIdsSharingSubjectsWith(string $userId): array
+    {
+        $userId = strtolower($userId);
+
+        return $this->userIds(array_map(
+            static fn (mixed $id): string => strtolower((string) $id),
+            $this->db->table(self::TABLE.' as mine')
+                ->join(self::TABLE.' as others', static function (JoinClause $join): void {
+                    $join->on('others.source_type', '=', 'mine.source_type')
+                        ->on('others.subject_id', '=', 'mine.subject_id')
+                        ->on('others.user_id', '<>', 'mine.user_id');
+                })
+                ->where('mine.user_id', $userId)
+                ->distinct()
+                ->pluck('others.user_id')
+                ->all(),
+        ));
+    }
+
     public function deleteForUser(string $userId): int
     {
         return $this->table()->where('user_id', strtolower($userId))->delete();
@@ -278,6 +327,39 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
             $facts,
             static fn (RecordedFact $fact): bool => ! isset($anonymized[strtolower($fact->userId)]),
         ));
+    }
+
+    /**
+     * @param  iterable<stdClass>  $rows  `user_id` and `first_at`, one per account and other account
+     * @param  array<string, list<DateTimeImmutable>>  $instants
+     */
+    private function collectInstants(iterable $rows, array &$instants): void
+    {
+        $zone = new DateTimeZone(date_default_timezone_get());
+
+        foreach ($rows as $row) {
+            if ($row->first_at === null) {
+                continue;
+            }
+
+            $instants[strtolower((string) $row->user_id)][] = new DateTimeImmutable($this->storedInstant($row->first_at), $zone);
+        }
+    }
+
+    /**
+     * @param  array<string, list<DateTimeImmutable>>  $instants
+     * @return array<string, list<DateTimeImmutable>>
+     */
+    private function sortedInstants(array $instants): array
+    {
+        foreach ($instants as $userId => $list) {
+            sort($list);
+            $instants[$userId] = $list;
+        }
+
+        ksort($instants, SORT_STRING);
+
+        return $instants;
     }
 
     private function table(): Builder

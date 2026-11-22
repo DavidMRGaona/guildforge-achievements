@@ -70,6 +70,7 @@ return [
             'no_source' => 'Sin fuente',
             'kind_off' => 'Tipo apagado',
             'secrets_off' => 'Secretos apagados',
+            'community_off' => 'Comunidad apagada',
         ],
 
         'delete' => [
@@ -83,6 +84,7 @@ return [
                 'metric' => 'Qué se mide',
                 'kind' => 'Tipo de actividad',
                 'role' => 'Papel',
+                'with_role' => 'Papel de las demás personas',
                 'distinct_key' => 'Distintos en',
                 'attribute_key' => 'Solo con',
                 'attribute_value' => 'Valor',
@@ -91,14 +93,15 @@ return [
                 'threshold' => 'Cuántos hacen falta',
             ],
             'helpers' => [
-                'metric' => '«Solo a mano» no se concede nunca solo.',
+                'metric' => '«Solo a mano» no se concede nunca solo. «Personas distintas» es un logro de comunidad: solo se concede con los logros de comunidad encendidos.',
                 'kind' => 'Solo salen los tipos con alguna fuente activa.',
                 'role' => 'Por ejemplo, jugar o dirigir. Sin papel, cuenta cualquiera.',
+                'with_role' => 'Qué papel tenían las personas que se cuentan: jugador, para «dirigir a 20 personas». Sin papel, cuenta cualquiera. En estos logros solo valen jugador y dirección.',
                 'distinct_key' => 'Por ejemplo, el sistema de juego: «3 sistemas distintos».',
                 'attribute_key' => 'Para contar solo una parte: las partidas de un sistema, por ejemplo.',
                 'placement_max' => 'Para torneos: 1 es ganar y 3, subir al podio. Vacío, cualquier puesto.',
                 'basis' => 'Los de cuenta se cumplen solos con la fecha; los de socio, con cada año que informa el módulo de socios.',
-                'threshold' => 'Número de cosas, de valores distintos o de años.',
+                'threshold' => 'Número de cosas, de valores distintos, de personas o de años.',
             ],
             'placeholders' => [
                 'any_role' => 'Cualquier papel',
@@ -108,6 +111,7 @@ return [
                 'count' => 'Número de actividades',
                 'distinct' => 'Valores distintos',
                 'years' => 'Años',
+                'people' => 'Personas distintas',
                 'manual' => 'Solo a mano',
             ],
             'basis' => [
@@ -139,6 +143,8 @@ return [
                 'membership_years' => ':threshold años como socio',
                 'distinct' => ':threshold de :attribute distintos',
                 'placement' => 'puesto ≤ :placement',
+                'people' => 'Personas distintas: :threshold',
+                'with_role' => 'con :role',
             ],
         ],
 
@@ -370,7 +376,7 @@ return [
             'rarity' => 'Muestra qué parte de la gente activa tiene cada logro.',
             'secrets' => 'Hay logros que no se enseñan hasta conseguirlos.',
             'seasons_and_streaks' => 'Logros que se repiten cada temporada y rachas de meses seguidos.',
-            'community' => 'Logros que se consiguen entre todas las personas de la asociación.',
+            'community' => 'Logros por jugar con gente distinta, dirigir a muchas personas y dirigir la primera partida de alguien. Solo se cuentan personas, nunca se dice quiénes.',
             'bulk_grants' => 'Quien pueda conceder logros puede darlos a varias personas a la vez.',
             'announcements' => 'Avisar a la gente de los logros poco frecuentes y de los de retos que consigue otra persona, si esa persona lo permite en su pestaña «Logros».',
             'announcements_rarity_threshold' => 'Solo se anuncian los logros que tiene menos de este porcentaje de la gente activa. Los de retos se anuncian siempre.',
