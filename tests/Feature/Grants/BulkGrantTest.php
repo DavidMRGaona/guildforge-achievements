@@ -258,6 +258,7 @@ final class BulkGrantTest extends ModuleTestCase
 
     public function test_a_batch_that_fails_keeps_what_earlier_batches_granted(): void
     {
+        Event::fake([AchievementGranted::class]);
         $people = [];
 
         for ($i = 0; $i < BulkGrantInterface::PER_BATCH + 20; $i++) {
@@ -295,6 +296,8 @@ final class BulkGrantTest extends ModuleTestCase
         // The first batch stays, the failing one is rolled back whole
         $this->assertSame(BulkGrantInterface::PER_BATCH, DB::table('achievements_grants')->count());
         $this->assertSame(BulkGrantInterface::PER_BATCH, DB::table('achievements_grant_log')->count());
+        // Only the committed batch announced its grants
+        Event::assertDispatchedTimes(AchievementGranted::class, BulkGrantInterface::PER_BATCH);
 
         // Granting again finishes the job and skips whoever already holds it
         $this->app->forgetInstance(AchievementGranterInterface::class);
@@ -302,6 +305,33 @@ final class BulkGrantTest extends ModuleTestCase
         $this->assertSame(BulkGrantOutcome::Granted, $again->outcome);
         $this->assertSame(20, $again->granted);
         $this->assertSame(BulkGrantInterface::PER_BATCH, $again->alreadyHeld);
+    }
+
+    public function test_a_listener_failing_after_a_batch_committed_neither_undoes_nor_stops_the_grant(): void
+    {
+        $people = [];
+
+        for ($i = 0; $i < BulkGrantInterface::PER_BATCH + 20; $i++) {
+            $people[] = $this->account();
+        }
+
+        ParticipationActivitySource::put('7', 'Jornadas 2027', array_map(fn (string $id) => $this->activityFact($id, ActivityRole::Attendee), $people));
+        $this->ledgerSubject(ParticipationActivitySource::TYPE, '7', 'event', [$this->recordedFact($people[0], 'attendee')]);
+        $failed = false;
+        Event::listen(AchievementGranted::class, static function () use (&$failed): void {
+            if (! $failed) {
+                $failed = true;
+
+                throw new QueryException('pgsql', 'insert', [], new PDOException('a listener broke'));
+            }
+        });
+
+        $result = $this->bulk()->grant($this->request(ActivityRole::Attendee), silent: true, reason: null, actor: $this->actor);
+
+        $this->assertTrue($failed);
+        $this->assertSame(BulkGrantOutcome::Granted, $result->outcome);
+        $this->assertSame(BulkGrantInterface::PER_BATCH + 20, $result->granted);
+        $this->assertSame(BulkGrantInterface::PER_BATCH + 20, DB::table('achievements_grants')->count());
     }
 
     public function test_the_subjects_offered_are_those_the_viewer_may_see_and_match_the_search(): void

@@ -202,6 +202,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
                 name: 'achievements.manage',
                 label: __('achievements::messages.permissions.achievements.manage'),
                 group: __('achievements::messages.title'),
+                description: __('achievements::messages.permissions.achievements.manage_description'),
                 module: $this->moduleName(),
                 roles: ['editor'],
             ),

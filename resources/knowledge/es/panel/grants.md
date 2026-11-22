@@ -35,7 +35,7 @@ Sirve para dar un logro a todas las personas que participaron en algo con un pap
 3. Elige **Con qué papel** y pulsa **Siguiente**.
 4. Comprueba a cuántas personas se concederá, cuántas ya lo tienen y a cuántas se les retiró.
 
-   > **Atención:** quien concede en lote ve a quién se lo concede, es decir, quién participó en esa partida, evento o reserva. Da `achievements.grant` solo a quien ya puede ver esas participaciones en su módulo.
+   > **Atención:** quien concede en lote ve a quién se lo concede, es decir, quién participó en esa partida, evento o reserva. Quien gestiona el catálogo también lo ve en **Personas que lo tienen** y en el historial. Da `achievements.grant` o `achievements.manage` solo a quien ya puede ver esas participaciones en su módulo.
 5. Elige el **Aviso**: **En silencio** o **Con aviso a cada persona**.
 6. Escribe un **Motivo** si quieres (el mismo para todas), marca la casilla y pulsa **Conceder en lote**.
 

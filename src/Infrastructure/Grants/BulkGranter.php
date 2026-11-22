@@ -8,7 +8,7 @@ use App\Application\Activity\DTOs\ActivitySubjectDTO;
 use App\Application\Activity\Services\ActivityReaderInterface;
 use App\Domain\Activity\ActivityIdentifierRule;
 use Illuminate\Contracts\Auth\Authenticatable;
-use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Connection;
 use Illuminate\Database\DeadlockException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
@@ -36,7 +36,7 @@ final readonly class BulkGranter implements BulkGrantInterface
         private AchievementGrantRepositoryInterface $grants,
         private AchievementGranterInterface $granter,
         private AchievementsSettingsInterface $settings,
-        private ConnectionInterface $db,
+        private Connection $db,
     ) {}
 
     public function subjects(string $sourceType, ?string $search, Authenticatable $viewer): array
@@ -121,19 +121,40 @@ final readonly class BulkGranter implements BulkGrantInterface
         // A transaction per batch keeps each lock short; a batch that fails (a deadlock, say) is
         // rolled back alone and what earlier batches granted stays. Each notice waits for its commit.
         foreach (array_chunk(array_values(array_diff($people, $held, $revoked)), self::PER_BATCH) as $batch) {
+            $committed = false;
+            $batchGranted = 0;
+
             try {
-                $granted += $this->db->transaction(fn (): int => $this->grantBatch($batch, $request, $silent, $reason, $actorId));
+                $this->db->transaction(function () use ($batch, $request, $silent, $reason, $actorId, &$committed, &$batchGranted): void {
+                    // Registered first, so it runs before the notices queued by the grants below: a
+                    // listener failing after the commit never makes a committed batch look rolled back
+                    $this->db->afterCommit(static function () use (&$committed): void {
+                        $committed = true;
+                    });
+
+                    $batchGranted = $this->grantBatch($batch, $request, $silent, $reason, $actorId);
+                });
             } catch (QueryException|DeadlockException $exception) {
-                // Neither the query nor its bindings: they would carry the accounts
-                Log::warning('A bulk grant of an achievement stopped partway.', [
+                if (! $committed) {
+                    // Neither the query nor its bindings: they would carry the accounts
+                    Log::warning('A bulk grant of an achievement stopped partway.', [
+                        'achievement_id' => $request->achievementId,
+                        'source_type' => $request->sourceType,
+                        'granted' => $granted,
+                        'exception' => $exception::class,
+                    ]);
+
+                    return new BulkGrantCountDTO(BulkGrantOutcome::Partial, count($people), count($held), count($revoked), $granted);
+                }
+
+                // The batch is committed: its grants stand, and the next batches still run
+                Log::warning('A listener of a bulk-granted achievement failed after its batch was committed.', [
                     'achievement_id' => $request->achievementId,
-                    'source_type' => $request->sourceType,
-                    'granted' => $granted,
                     'exception' => $exception::class,
                 ]);
-
-                return new BulkGrantCountDTO(BulkGrantOutcome::Partial, count($people), count($held), count($revoked), $granted);
             }
+
+            $granted += $batchGranted;
         }
 
         return new BulkGrantCountDTO(BulkGrantOutcome::Granted, count($people), count($held), count($revoked), $granted);

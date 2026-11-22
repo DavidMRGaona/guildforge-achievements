@@ -11,6 +11,7 @@ return [
             'manage' => 'Gestionar el catálogo, los retos y los tipos de reconocimiento',
             'grant' => 'Conceder y retirar logros',
             'grant_description' => 'Quien concede en lote ve a quién se lo concede, es decir, quién participó en esa partida, evento o reserva. Da este permiso solo a quien ya puede ver esas participaciones en su módulo.',
+            'manage_description' => 'Quien gestiona el catálogo ve quién tiene cada logro y, tras una concesión en lote, a quién se le concedió, es decir, quién participó en esa partida, evento o reserva. Da este permiso solo a quien ya puede ver esas participaciones en su módulo.',
             'configure' => 'Configurar los logros',
         ],
     ],
