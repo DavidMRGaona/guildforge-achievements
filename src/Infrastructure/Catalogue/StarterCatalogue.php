@@ -134,6 +134,9 @@ final readonly class StarterCatalogue implements StarterCatalogueInterface
             'years_5' => ['gem', ProfileBadgeColour::Teal, 30, $this->rule(AchievementRule::years(YearsBasis::Account, 5))],
             'first_proposal' => ['vote', ProfileBadgeColour::Sky, 10, $this->count(ActivityKind::Proposal->value, role: ActivityRole::Proposer->value)],
             'first_table_played' => ['flag', ProfileBadgeColour::Pink, 10, $this->count($session, role: ActivityRole::Creator->value)],
+            'people_played_10' => ['users', ProfileBadgeColour::Sky, 15, $this->rule(AchievementRule::people($session, 10, $player, $player))],
+            'people_run_20' => ['handshake', ProfileBadgeColour::Violet, 25, $this->rule(AchievementRule::people($session, 20, $director, $player))],
+            'mentor' => ['hand-heart', ProfileBadgeColour::Green, 20, $this->rule(AchievementRule::mentor(1))],
         ];
     }
 

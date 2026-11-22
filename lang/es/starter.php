@@ -88,4 +88,16 @@ return [
         'name' => 'Primera mesa creada',
         'description' => 'Crea una mesa que llegue a jugarse.',
     ],
+    'people_played_10' => [
+        'name' => 'Buena compañía',
+        'description' => 'Juega partidas con 10 personas distintas.',
+    ],
+    'people_run_20' => [
+        'name' => 'Mesa abierta',
+        'description' => 'Dirige partidas a 20 personas distintas.',
+    ],
+    'mentor' => [
+        'name' => 'Mentor',
+        'description' => 'Dirige la primera partida de alguien.',
+    ],
 ];

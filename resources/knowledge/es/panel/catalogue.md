@@ -5,7 +5,7 @@ summary: Crea logros, decide cuándo se conceden solos y entiende por qué uno s
 category: users-and-roles
 audience: panel
 order: 80
-keywords: [logros, insignias, catálogo, reglas, conceder, partidas, sistemas, torneos, podio, eventos, antigüedad, secreto, sin fuente, puntos, umbral, recalcular, rareza, gente activa, destacados, perfil, menú, página de logros]
+keywords: [logros, insignias, catálogo, reglas, conceder, partidas, sistemas, torneos, podio, eventos, antigüedad, secreto, sin fuente, puntos, umbral, recalcular, rareza, gente activa, destacados, perfil, menú, página de logros, comunidad, personas distintas, mentor, primera partida, dirigir]
 conditions:
   permissions:
     any: ['achievements:achievements.view_any', 'achievements:achievements.manage']
@@ -26,6 +26,8 @@ Para crear, editar o borrar logros hace falta el permiso de gestionar el catálo
    - **Número de actividades**: cuántas partidas, campañas, torneos, eventos, mensajes… Puedes quedarte con un **Papel** (jugar, dirigir, organizar…), con un valor concreto (**Solo con** un sistema de juego, por ejemplo) o con un **Puesto máximo** (3 es subir al podio).
    - **Valores distintos**: cuántos valores distintos hay, por ejemplo «3 sistemas distintos».
    - **Años**: años desde el alta en la web, o años como socio.
+   - **Personas distintas**: con cuántas personas distintas ha coincidido alguien en partidas, campañas, torneos o eventos. **Papel** es el de la persona que consigue el logro y **Papel de las demás personas**, el de quienes se cuentan: dirección y jugador es «dirigir a 20 personas distintas».
+   - **Mentor: primeras partidas dirigidas**: a cuántas personas les dirigió su primera partida como jugadoras.
    - **Solo a mano**: no se concede nunca solo.
 4. Escribe **Cuántos hacen falta** y guarda.
 
@@ -44,9 +46,20 @@ Escribe la descripción con totales («Juega 10 partidas»), nunca con una parti
 - **Desactivado**: no se concede ni se enseña. Quien ya lo tenía lo conserva.
 - **Tipo apagado**: su tipo de actividad está apagado en *Sistema → Configuración → Logros*.
 - **Secretos apagados**: es secreto y los logros secretos están apagados en los ajustes.
+- **Comunidad apagada**: es un logro de comunidad y los logros de comunidad están apagados en los ajustes.
 - **Solo a mano** y **Regla no válida**: no se conceden solos. Una regla no válida se arregla editando el logro y guardando la regla de nuevo.
 
-Cuando vuelves a encender un tipo de actividad o los logros secretos en los ajustes, los logros vuelven a evaluarse para todo el mundo, sin avisos. Mientras estuvo apagado no se concedió nada de ese tipo.
+Cuando vuelves a encender un tipo de actividad, los logros secretos o los de comunidad en los ajustes, los logros vuelven a evaluarse para todo el mundo, sin avisos. Mientras estuvo apagado no se concedió nada de ese tipo.
+
+## Logros de comunidad
+
+Premian a quien trae y cuida gente, no solo a quien juega mucho: jugar con muchas personas distintas, dirigir a muchas personas y dirigir la primera partida de alguien. Se encienden y se apagan con **Logros de comunidad** en *Sistema → Configuración → Logros*.
+
+- Solo cuentan personas, nunca dicen quiénes: ni el logro ni el progreso («7 de 10») nombran a nadie.
+- La primera partida de alguien es la primera que jugó como jugador, de las que constan en la web. Si dos personas la dirigieron, cuenta para las dos.
+- Las cuentas anonimizadas dejan de contar. Las de quien oculta sus logros siguen contando, porque solo se da el número.
+- Un logro de comunidad conseguido no se pierde aunque luego el número baje: por ejemplo, si una partida deja de contar.
+- El progreso se guarda unos minutos y se vuelve a contar en cuanto cambian las partidas de esa persona. Si no se puede contar, no se enseña: nunca sale un 0 que no es.
 
 ## Lo que se concede no se retira
 
@@ -66,4 +79,4 @@ La página **Logros** de la web enseña los logros que se pueden conseguir ahora
 
 ## Catálogo inicial
 
-Al instalar el módulo se crea un catálogo con logros de bienvenida, partidas jugadas y dirigidas, sistemas distintos, campañas, torneos, eventos, antigüedad y propuestas. Solo empiezan activos los que tienen fuente. Puedes editarlos y borrarlos como cualquier otro. Si vuelves a crear el catálogo inicial, un logro que borraste vuelve desactivado.
+Al instalar el módulo se crea un catálogo con logros de bienvenida, partidas jugadas y dirigidas, sistemas distintos, campañas, torneos, eventos, antigüedad, propuestas y comunidad (jugar con 10 personas distintas, dirigir a 20 y mentor). Solo empiezan activos los que tienen fuente. Puedes editarlos y borrarlos como cualquier otro. Si vuelves a crear el catálogo inicial, un logro que borraste vuelve desactivado.

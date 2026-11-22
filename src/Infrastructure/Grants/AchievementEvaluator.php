@@ -18,6 +18,7 @@ use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\AchievementStatusRule;
 use Modules\Achievements\Application\Services\ActivityMetricsInterface;
+use Modules\Achievements\Application\Services\CommunityMetricsInterface;
 use Modules\Achievements\Domain\Entities\Achievement;
 use Modules\Achievements\Domain\Entities\AchievementGrant;
 use Modules\Achievements\Domain\Enums\GrantSource;
@@ -46,6 +47,7 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
         private AnnouncementWindow $window,
         private TimezoneServiceInterface $time,
         private AchievementWarnings $warnings,
+        private CommunityMetricsInterface $community,
     ) {}
 
     public function evaluate(array $userIds, bool $silent, ?array $achievementIds = null, bool $dryRun = false): EvaluationResultDTO
@@ -57,9 +59,20 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
         }
 
         [$evaluable, $pending] = $selection;
-        $result = $this->evaluateUsers($this->userIds($userIds), $evaluable, $silent, $dryRun);
+        $userIds = $this->userIds($userIds);
+        $result = $this->evaluateUsers($userIds, $evaluable, $silent, $dryRun);
+        $granted = $result->granted;
 
-        return new EvaluationResultDTO(EvaluationOutcome::Evaluated, $result->granted, $result->users, $result->achievements, $pending);
+        // A change to someone's games may change whose first game they played, and so who ran it:
+        // those people are evaluated too, for the mentor rules only
+        $mentorRules = array_values(array_filter($evaluable, static fn (array $entry): bool => $entry[1]->metric === MetricType::Mentor));
+        $mentors = $mentorRules === [] || $userIds === [] ? [] : array_values(array_diff($this->community->mentorsOf($userIds), $userIds));
+
+        if ($mentors !== []) {
+            array_push($granted, ...$this->evaluateUsers($mentors, $mentorRules, $silent, $dryRun)->granted);
+        }
+
+        return new EvaluationResultDTO(EvaluationOutcome::Evaluated, $granted, $result->users, $result->achievements, $pending);
     }
 
     public function evaluateEverybody(?array $achievementIds, bool $silent, bool $dryRun = false, bool $onlyAccountYears = false, ?array $onlyKinds = null): EvaluationResultDTO
@@ -113,6 +126,7 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
             $held = $this->grants->heldAchievementIds($chunk);
             // Taken away by hand: never granted again by a rule, nor counted by a dry run
             $revoked = $this->grants->revokedAchievementIds($chunk);
+            $people = $this->communityPeople($evaluable, $chunk);
 
             foreach ($chunk as $userId) {
                 $personFacts = $facts[$userId] ?? [];
@@ -129,7 +143,7 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
                         continue;
                     }
 
-                    $metAt = $this->rules->metAt($rule, $personFacts, $now, $zone);
+                    $metAt = $this->rules->metAt($rule, $personFacts, $now, $zone, $people[$achievement->id][$userId] ?? null);
 
                     if (! $metAt instanceof DateTimeImmutable) {
                         continue;
@@ -154,6 +168,32 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
         }
 
         return new EvaluationResultDTO(EvaluationOutcome::Evaluated, $granted, count($userIds), count($evaluable));
+    }
+
+    /**
+     * The people each community rule counts for each account of the chunk, keyed by achievement: one
+     * aggregate query per rule shape, shared by the rules of the same shape. A ledger that cannot be
+     * read throws, so nothing is granted on a guess.
+     *
+     * @param  list<array{Achievement, AchievementRule}>  $evaluable
+     * @param  list<string>  $userIds
+     * @return array<string, array<string, list<DateTimeImmutable>>>
+     */
+    private function communityPeople(array $evaluable, array $userIds): array
+    {
+        $byShape = [];
+        $people = [];
+
+        foreach ($evaluable as [$achievement, $rule]) {
+            if (! $rule->isCommunity()) {
+                continue;
+            }
+
+            $shape = $rule->peopleShape();
+            $people[$achievement->id] = $byShape[$shape] ??= $this->community->people($rule, $userIds);
+        }
+
+        return $people;
     }
 
     /**

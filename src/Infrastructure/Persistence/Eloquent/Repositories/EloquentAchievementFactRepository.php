@@ -10,6 +10,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Str;
 use Modules\Achievements\Domain\Entities\AchievementFact;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
@@ -236,6 +237,91 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
             ->count();
     }
 
+    public function firstMeetings(array $userIds, string $kind, ?string $role, ?string $withRole): array
+    {
+        $meetings = [];
+
+        foreach (array_chunk($this->userIds(array_map(strtolower(...), $userIds)), 500) as $chunk) {
+            $rows = $this->db->table(self::TABLE.' as mine')
+                ->join(self::TABLE.' as others', static function (JoinClause $join): void {
+                    $join->on('others.source_type', '=', 'mine.source_type')
+                        ->on('others.subject_id', '=', 'mine.subject_id')
+                        ->on('others.user_id', '<>', 'mine.user_id');
+                })
+                // Anonymized or deleted for good: never counted, even before the ledger forgets them
+                ->join('users', 'users.id', '=', 'others.user_id')
+                ->whereNull('users.anonymized_at')
+                ->whereIn('mine.user_id', $chunk)
+                ->where('mine.kind', $kind)
+                ->when($role !== null, static fn (Builder $query): Builder => $query->where('mine.role', $role))
+                ->when($withRole !== null, static fn (Builder $query): Builder => $query->where('others.role', $withRole))
+                ->groupBy('mine.user_id', 'others.user_id')
+                ->select('mine.user_id as user_id')
+                ->selectRaw('min(mine.occurred_at) as first_at')
+                ->get();
+
+            $this->collectInstants($rows, $meetings);
+        }
+
+        return $this->sortedInstants($meetings);
+    }
+
+    public function newcomersWelcomed(array $userIds, string $kind, string $hostRole, string $newcomerRole): array
+    {
+        $newcomers = [];
+
+        foreach (array_chunk($this->userIds(array_map(strtolower(...), $userIds)), 500) as $chunk) {
+            $rows = $this->db->table(self::TABLE.' as host')
+                ->join(self::TABLE.' as newcomer', static function (JoinClause $join): void {
+                    $join->on('newcomer.source_type', '=', 'host.source_type')
+                        ->on('newcomer.subject_id', '=', 'host.subject_id')
+                        ->on('newcomer.user_id', '<>', 'host.user_id');
+                })
+                ->join('users', 'users.id', '=', 'newcomer.user_id')
+                ->whereNull('users.anonymized_at')
+                ->whereIn('host.user_id', $chunk)
+                ->where('host.kind', $kind)
+                ->where('host.role', $hostRole)
+                ->where('newcomer.role', $newcomerRole)
+                ->where('newcomer.occurred_at', '=', $this->firstFactOf('newcomer', $kind, $newcomerRole))
+                ->groupBy('host.user_id', 'newcomer.user_id')
+                ->select('host.user_id as user_id')
+                ->selectRaw('min(newcomer.occurred_at) as first_at')
+                ->get();
+
+            $this->collectInstants($rows, $newcomers);
+        }
+
+        return $this->sortedInstants($newcomers);
+    }
+
+    public function hostsOfFirstFacts(array $userIds, string $kind, string $hostRole, string $newcomerRole): array
+    {
+        $hosts = [];
+
+        foreach (array_chunk($this->userIds(array_map(strtolower(...), $userIds)), 500) as $chunk) {
+            $rows = $this->db->table(self::TABLE.' as newcomer')
+                ->join(self::TABLE.' as host', static function (JoinClause $join): void {
+                    $join->on('host.source_type', '=', 'newcomer.source_type')
+                        ->on('host.subject_id', '=', 'newcomer.subject_id')
+                        ->on('host.user_id', '<>', 'newcomer.user_id');
+                })
+                ->whereIn('newcomer.user_id', $chunk)
+                ->where('newcomer.kind', $kind)
+                ->where('newcomer.role', $newcomerRole)
+                ->where('host.role', $hostRole)
+                ->where('newcomer.occurred_at', '=', $this->firstFactOf('newcomer', $kind, $newcomerRole))
+                ->distinct()
+                ->pluck('host.user_id');
+
+            foreach ($rows as $hostId) {
+                $hosts[strtolower((string) $hostId)] = true;
+            }
+        }
+
+        return $this->userIds(array_keys($hosts));
+    }
+
     public function deleteForUser(string $userId): int
     {
         return $this->table()->where('user_id', strtolower($userId))->delete();
@@ -278,6 +364,54 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
             $facts,
             static fn (RecordedFact $fact): bool => ! isset($anonymized[strtolower($fact->userId)]),
         ));
+    }
+
+    /**
+     * The instant of the earliest fact of `$kind` in `$role` of the account in `$alias.user_id`: a
+     * correlated subquery answered from the index on (user_id, kind, occurred_at).
+     */
+    private function firstFactOf(string $alias, string $kind, string $role): Closure
+    {
+        return static function (Builder $query) use ($alias, $kind, $role): void {
+            $query->from(self::TABLE.' as earliest')
+                ->selectRaw('min(earliest.occurred_at)')
+                ->whereColumn('earliest.user_id', $alias.'.user_id')
+                ->where('earliest.kind', $kind)
+                ->where('earliest.role', $role);
+        };
+    }
+
+    /**
+     * @param  iterable<stdClass>  $rows  `user_id` and `first_at`, one per account and other account
+     * @param  array<string, list<DateTimeImmutable>>  $instants
+     */
+    private function collectInstants(iterable $rows, array &$instants): void
+    {
+        $zone = new DateTimeZone(date_default_timezone_get());
+
+        foreach ($rows as $row) {
+            if ($row->first_at === null) {
+                continue;
+            }
+
+            $instants[strtolower((string) $row->user_id)][] = new DateTimeImmutable($this->storedInstant($row->first_at), $zone);
+        }
+    }
+
+    /**
+     * @param  array<string, list<DateTimeImmutable>>  $instants
+     * @return array<string, list<DateTimeImmutable>>
+     */
+    private function sortedInstants(array $instants): array
+    {
+        foreach ($instants as $userId => $list) {
+            sort($list);
+            $instants[$userId] = $list;
+        }
+
+        ksort($instants, SORT_STRING);
+
+        return $instants;
     }
 
     private function table(): Builder

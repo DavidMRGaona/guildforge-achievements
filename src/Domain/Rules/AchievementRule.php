@@ -17,15 +17,22 @@ use JsonException;
  *      "threshold": 10, "window": {"type": "all_time"}}
  *     {"version": 1, "metric": "distinct", "kind": "game_session", "key": "game_system", "filters": {…}, "threshold": 3}
  *     {"version": 1, "metric": "years", "basis": "account" | "membership", "threshold": 5}
+ *     {"version": 1, "metric": "people", "kind": "game_session", "filters": {"role": "director", "with_role": "player"}, "threshold": 20}
+ *     {"version": 1, "metric": "mentor", "threshold": 1}
  *     {"version": 1, "metric": "manual"}
  *
  * Reading never throws, and anything it does not understand makes the whole rule unreadable
  * (tryFrom() answers null): another version, an unknown metric, kind, role, basis or window, a key
  * it does not expect, a value of the wrong type or out of range. An unreadable rule is never
  * evaluated, never «matches everything»: grants are permanent, so a rule half understood must grant
- * nothing. Later issues fit in this shape: seasons and streaks as new window types, community
- * achievements and challenges as new metrics; each needs a release that reads them, and until then
- * a rule using them is unreadable for an older one.
+ * nothing. Later issues fit in this shape: seasons and streaks as new window types, challenges as
+ * new metrics; each needs a release that reads them, and until then a rule using them is unreadable
+ * for an older one.
+ *
+ * Community metrics (`people`, `mentor`) count other people, never name them: `people` counts the
+ * different accounts that took part in the same subjects (`role` is the person's own part,
+ * `with_role` the others'), only for the kinds done together (COMMUNITY_KINDS); `mentor` counts the
+ * accounts whose first game session as a player was one the person ran.
  *
  * `filters.attribute.label` is only the value's name when the rule was saved, for the panel; it
  * never takes part in the evaluation.
@@ -43,10 +50,22 @@ final readonly class AchievementRule
     /** The only window of this release: every fact, whenever it happened */
     public const string WINDOW_ALL_TIME = 'all_time';
 
+    /** Kinds of activity done with other people: the only ones a `people` rule may count */
+    public const array COMMUNITY_KINDS = ['game_session', 'campaign', 'tournament', 'event'];
+
+    /** A mentor ran the first game session somebody played */
+    public const string MENTOR_KIND = 'game_session';
+
+    public const string MENTOR_ROLE = 'director';
+
+    public const string NEWCOMER_ROLE = 'player';
+
     private const array KEYS = [
         'count' => ['version', 'metric', 'kind', 'filters', 'threshold', 'window'],
         'distinct' => ['version', 'metric', 'kind', 'key', 'filters', 'threshold', 'window'],
         'years' => ['version', 'metric', 'basis', 'threshold', 'window'],
+        'people' => ['version', 'metric', 'kind', 'filters', 'threshold', 'window'],
+        'mentor' => ['version', 'metric', 'threshold', 'window'],
         'manual' => ['version', 'metric'],
     ];
 
@@ -61,6 +80,7 @@ final readonly class AchievementRule
         public ?int $placementMax = null,
         public ?string $distinctKey = null,
         public ?YearsBasis $basis = null,
+        public ?string $withRole = null,
     ) {}
 
     public static function count(string $kind, int $threshold, ?string $role = null, ?string $attributeKey = null, ?string $attributeValue = null, ?string $attributeLabel = null, ?int $placementMax = null): ?self
@@ -89,6 +109,28 @@ final readonly class AchievementRule
     public static function years(YearsBasis $basis, int $threshold): ?self
     {
         return self::tryFrom(['version' => self::VERSION, 'metric' => MetricType::Years->value, 'basis' => $basis->value, 'threshold' => $threshold]);
+    }
+
+    /**
+     * Different people met in subjects of `$kind`: `$role` is the person's own part (null: any),
+     * `$withRole` the others' (null: any).
+     */
+    public static function people(string $kind, int $threshold, ?string $role = null, ?string $withRole = null): ?self
+    {
+        $filters = self::withoutNulls(['role' => $role, 'with_role' => $withRole]);
+
+        return self::tryFrom(self::withoutNulls([
+            'version' => self::VERSION,
+            'metric' => MetricType::People->value,
+            'kind' => $kind,
+            'filters' => $filters === [] ? null : $filters,
+            'threshold' => $threshold,
+        ]));
+    }
+
+    public static function mentor(int $threshold): ?self
+    {
+        return self::tryFrom(['version' => self::VERSION, 'metric' => MetricType::Mentor->value, 'threshold' => $threshold]);
     }
 
     public static function manual(): self
@@ -135,6 +177,14 @@ final readonly class AchievementRule
             return $basis instanceof YearsBasis ? new self($metric, $threshold, basis: $basis) : null;
         }
 
+        if ($metric === MetricType::Mentor) {
+            return new self($metric, $threshold);
+        }
+
+        if ($metric === MetricType::People) {
+            return self::readPeopleRule($threshold, $raw);
+        }
+
         return self::readActivityRule($metric, $threshold, $raw);
     }
 
@@ -144,14 +194,32 @@ final readonly class AchievementRule
     }
 
     /**
+     * Measured over other people's facts (see MetricType::isCommunity()).
+     */
+    public function isCommunity(): bool
+    {
+        return $this->metric->isCommunity();
+    }
+
+    /**
+     * Who a community rule counts, without its threshold: two rules of the same shape count the
+     * same people, so they share one query and one cached count.
+     */
+    public function peopleShape(): string
+    {
+        return implode('|', [$this->metric->value, (string) $this->kind, (string) $this->role, (string) $this->withRole]);
+    }
+
+    /**
      * The kind of activity whose facts decide the rule: the rule's own, the one of a years basis, or
      * null for a manual rule.
      */
     public function evaluatedKind(): ?string
     {
         return match ($this->metric) {
-            MetricType::Count, MetricType::Distinct => $this->kind,
+            MetricType::Count, MetricType::Distinct, MetricType::People => $this->kind,
             MetricType::Years => $this->basis?->kind(),
+            MetricType::Mentor => self::MENTOR_KIND,
             MetricType::Manual => null,
         };
     }
@@ -171,6 +239,20 @@ final readonly class AchievementRule
                 'basis' => $this->basis?->value,
                 'threshold' => $this->threshold,
             ],
+            MetricType::Mentor => [
+                'version' => self::VERSION,
+                'metric' => $this->metric->value,
+                'threshold' => $this->threshold,
+                'window' => ['type' => self::WINDOW_ALL_TIME],
+            ],
+            MetricType::People => self::withoutNulls([
+                'version' => self::VERSION,
+                'metric' => $this->metric->value,
+                'kind' => $this->kind,
+                'filters' => $this->peopleFilters($this->role, $this->withRole),
+                'threshold' => $this->threshold,
+                'window' => ['type' => self::WINDOW_ALL_TIME],
+            ]),
             MetricType::Count, MetricType::Distinct => self::withoutNulls([
                 'version' => self::VERSION,
                 'metric' => $this->metric->value,
@@ -181,6 +263,41 @@ final readonly class AchievementRule
                 'window' => ['type' => self::WINDOW_ALL_TIME],
             ]),
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $raw
+     */
+    private static function readPeopleRule(int $threshold, array $raw): ?self
+    {
+        $kind = $raw['kind'] ?? null;
+
+        if (! is_string($kind) || ! in_array($kind, self::COMMUNITY_KINDS, true)) {
+            return null;
+        }
+
+        $filters = $raw['filters'] ?? [];
+
+        if (! is_array($filters) || ($filters !== [] && ! self::isMap($filters)) || array_diff(array_keys($filters), ['role', 'with_role']) !== []) {
+            return null;
+        }
+
+        $role = $filters['role'] ?? null;
+        $withRole = $filters['with_role'] ?? null;
+
+        if (! self::isRoleOrNull($role) || ! self::isRoleOrNull($withRole)) {
+            return null;
+        }
+
+        return new self(MetricType::People, $threshold, kind: $kind, role: $role, withRole: $withRole);
+    }
+
+    /**
+     * @phpstan-assert-if-true string|null $value
+     */
+    private static function isRoleOrNull(mixed $value): bool
+    {
+        return $value === null || (is_string($value) && ActivityRole::tryFrom($value) instanceof ActivityRole);
     }
 
     /**
@@ -298,6 +415,16 @@ final readonly class AchievementRule
                 : self::withoutNulls(['key' => $attributeKey, 'value' => $attributeValue, 'label' => $attributeLabel]),
             'placement_max' => $placementMax,
         ]);
+
+        return $filters === [] ? null : $filters;
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    private function peopleFilters(?string $role, ?string $withRole): ?array
+    {
+        $filters = self::withoutNulls(['role' => $role, 'with_role' => $withRole]);
 
         return $filters === [] ? null : $filters;
     }

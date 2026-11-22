@@ -18,6 +18,9 @@ use Modules\Achievements\Domain\Entities\AchievementFact;
  * - years, account: full years from the day of the earliest account fact to today, both as
  *   calendar dates in the display zone (the anniversary counts from its first minute); membership:
  *   membership year subjects.
+ * - people and mentor (community): the people the rule counts, which come from other people's
+ *   facts and so from outside (`$people`: one instant per different person, when they were first
+ *   met); without them, 0.
  * - manual: always 0, never met.
  *
  * metAt() says when the rule became met, from the facts themselves: the fact that reached the
@@ -28,18 +31,21 @@ final class RuleEvaluator
 {
     /**
      * @param  list<AchievementFact>  $facts  the person's facts (other kinds are ignored)
+     * @param  list<DateTimeImmutable>|null  $people  community rules: when each different person was first met
      */
-    public function isMet(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone): bool
+    public function isMet(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone, ?array $people = null): bool
     {
-        return ! $rule->isManual() && $this->value($rule, $facts, $now, $displayZone) >= $rule->threshold;
+        return ! $rule->isManual() && $this->value($rule, $facts, $now, $displayZone, $people) >= $rule->threshold;
     }
 
     /**
      * @param  list<AchievementFact>  $facts
+     * @param  list<DateTimeImmutable>|null  $people  community rules: when each different person was first met
      */
-    public function value(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone): int
+    public function value(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone, ?array $people = null): int
     {
         return match ($rule->metric) {
+            MetricType::People, MetricType::Mentor => count($people ?? []),
             MetricType::Count => count($this->subjects($rule, $facts)),
             MetricType::Distinct => $this->distinctValues($rule, $facts),
             MetricType::Years => $rule->basis === YearsBasis::Account
@@ -52,14 +58,23 @@ final class RuleEvaluator
     /**
      * The instant the rule became met, or null while it is not (and for manual rules). For count and
      * distinct, the earliest instant by which `threshold` subjects (values) had a matching fact; for
-     * account years, the first minute of the anniversary day in the display zone.
+     * account years, the first minute of the anniversary day in the display zone; for community
+     * rules, when the person who reached the threshold was first met.
      *
      * @param  list<AchievementFact>  $facts
+     * @param  list<DateTimeImmutable>|null  $people  community rules: when each different person was first met
      */
-    public function metAt(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone): ?DateTimeImmutable
+    public function metAt(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone, ?array $people = null): ?DateTimeImmutable
     {
-        if (! $this->isMet($rule, $facts, $now, $displayZone)) {
+        if (! $this->isMet($rule, $facts, $now, $displayZone, $people)) {
             return null;
+        }
+
+        if ($rule->isCommunity()) {
+            $met = $people ?? [];
+            sort($met);
+
+            return $met[$rule->threshold - 1] ?? null;
         }
 
         if ($rule->metric === MetricType::Years && $rule->basis === YearsBasis::Account) {
