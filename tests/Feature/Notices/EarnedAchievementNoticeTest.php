@@ -112,7 +112,7 @@ final class EarnedAchievementNoticeTest extends ModuleTestCase
 
         // Each grant asks for the delivery, later and once per person while one is waiting
         Bus::assertDispatched(DeliverAchievementNoticesJob::class, static fn (DeliverAchievementNoticesJob $job): bool => $job->delay !== null);
-        $this->assertSame(3, DB::table('achievements_pending_notices')->count());
+        $this->assertSame(3, DB::table('achievements_pending_notices')->where('kind', 'earned')->count());
         $this->assertSame('achievements:notices:'.strtolower((string) $this->ana->id), new DeliverAchievementNoticesJob((string) $this->ana->id)->uniqueId());
 
         $this->deliver($this->ana);
@@ -122,7 +122,7 @@ final class EarnedAchievementNoticeTest extends ModuleTestCase
         $this->assertSame(1, $items[0]->count);
         $this->assertSame('Has conseguido 3 logros', $items[0]->title);
         $this->assertSame('«Primera», «Segunda» y «Tercera»', $items[0]->body);
-        $this->assertSame(0, DB::table('achievements_pending_notices')->count());
+        $this->assertSame(0, DB::table('achievements_pending_notices')->where('kind', 'earned')->count());
 
         // Delivering again tells nothing twice
         $this->deliver($this->ana);

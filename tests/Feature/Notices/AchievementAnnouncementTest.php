@@ -5,15 +5,23 @@ declare(strict_types=1);
 namespace Modules\Achievements\Tests\Feature\Notices;
 
 use App\Application\Authorization\Services\AssociationMembershipServiceInterface;
+use App\Application\Services\TimezoneServiceInterface;
 use App\Infrastructure\Persistence\Eloquent\Models\RoleModel;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use App\Infrastructure\Persistence\Eloquent\Models\UserProfileModel;
+use DateTimeInterface;
+use DateTimeZone;
+use Illuminate\Console\Scheduling\Event;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
+use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\Enums\GrantSource;
 use Modules\Achievements\Jobs\DeliverAchievementAnnouncementsJob;
-use Modules\Achievements\Jobs\DeliverAchievementNoticesJob;
+use Modules\Achievements\Jobs\ReleaseAchievementAnnouncementsJob;
 use Modules\Achievements\Notifications\AchievementNoticeCategories;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsNotices;
@@ -57,6 +65,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->rarity([(string) $achievement->id => 4.5]);
 
         $this->earn($this->ana, $achievement);
+        $this->release();
 
         $items = $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS);
         $this->assertCount(1, $items);
@@ -87,11 +96,13 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->settings(new AchievementsSettings(announcementsRarityThreshold: 20.0));
 
         $this->earn($this->ana, $achievement);
+        $this->release();
         $this->assertSame([], $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
 
         $rarer = $this->manualAchievement('Por debajo');
         $this->rarity([(string) $rarer->id => 19.9]);
         $this->earn($this->ana, $rarer);
+        $this->release();
         $this->assertCount(1, $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
     }
 
@@ -101,6 +112,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->rarity([], activePeople: 0);
 
         $this->earn($this->ana, $achievement);
+        $this->release();
 
         $this->assertSame([], $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
     }
@@ -111,6 +123,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->rarity([(string) $achievement->id => 80.0]);
 
         $this->earn($this->ana, $achievement, GrantSource::Challenge);
+        $this->release();
 
         $this->assertCount(1, $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
     }
@@ -121,6 +134,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->rarity([(string) $achievement->id => 1.0]);
 
         $this->earn($this->ana, $achievement, GrantSource::Bulk);
+        $this->release();
 
         // It says who took part in one thing: the owner hears of it, nobody else
         $this->assertSame([], $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
@@ -133,6 +147,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->rarity([(string) $achievement->id => 1.0]);
 
         $this->earn($this->ana, $achievement, GrantSource::Rule, silent: true);
+        $this->release();
 
         $this->assertSame([], $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
     }
@@ -144,6 +159,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->rarity([(string) $achievement->id => 1.0]);
 
         $this->earn($this->ana, $achievement);
+        $this->release();
 
         $this->assertSame([], $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
     }
@@ -155,6 +171,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->rarity([(string) $achievement->id => 1.0]);
 
         $this->earn($carla, $achievement);
+        $this->release();
 
         $this->assertSame([], $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
     }
@@ -166,6 +183,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->rarity([(string) $achievement->id => 1.0]);
 
         $this->earn($this->ana, $achievement);
+        $this->release();
 
         $this->assertSame([], $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
     }
@@ -177,6 +195,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->rarity([(string) $achievement->id => 1.0]);
 
         $this->earn($this->ana, $achievement);
+        $this->release();
 
         $this->assertSame([], $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
         $this->assertCount(1, $this->bellOf($this->ana, AchievementNoticeCategories::EARNED));
@@ -189,6 +208,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->rarity([(string) $achievement->id => 1.0]);
 
         $this->earn($this->ana, $achievement);
+        $this->release();
 
         $this->assertSame([], $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
     }
@@ -203,6 +223,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->rarity([(string) $achievement->id => 1.0]);
 
         $this->earn($this->ana, $achievement);
+        $this->release();
 
         $this->assertCount(1, $this->bellOf($socia, AchievementNoticeCategories::ANNOUNCEMENTS));
         $this->assertSame([], $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
@@ -216,6 +237,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->grantAt($holder, (string) $secret->id);
 
         $this->earn($this->ana, $secret);
+        $this->release();
 
         $this->assertSame('Ana ha conseguido un logro secreto', $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS)[0]->title);
         $this->assertSame('Ana ha conseguido «La puerta escondida»', $this->bellOf($holder, AchievementNoticeCategories::ANNOUNCEMENTS)[0]->title);
@@ -223,21 +245,19 @@ final class AchievementAnnouncementTest extends ModuleTestCase
 
     public function test_a_featured_secret_is_named_to_everybody(): void
     {
-        Bus::fake([DeliverAchievementNoticesJob::class]);
         $secret = $this->manualAchievement('La puerta escondida', secret: true);
         $this->rarity([(string) $secret->id => 1.0]);
         $this->earn($this->ana, $secret);
         $this->choose($this->ana, featured: [(string) $secret->id]);
         $this->allowAnnouncing($this->ana);
 
-        $this->deliver($this->ana);
+        $this->release();
 
         $this->assertSame('Ana ha conseguido «La puerta escondida»', $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS)[0]->title);
     }
 
     public function test_several_rare_achievements_at_once_are_one_announcement(): void
     {
-        Bus::fake([DeliverAchievementNoticesJob::class]);
         $first = $this->manualAchievement('Primero raro');
         $second = $this->manualAchievement('Segundo raro');
         $secret = $this->manualAchievement('Tercero secreto', secret: true);
@@ -246,7 +266,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->earn($this->ana, $second);
         $this->earn($this->ana, $secret);
 
-        $this->deliver($this->ana);
+        $this->release();
 
         $items = $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS);
         $this->assertCount(1, $items);
@@ -261,19 +281,20 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->rarity([(string) $achievement->id => 1.0]);
 
         $this->earn($this->ana, $achievement);
+        $this->release();
 
         $this->assertSame([], $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
     }
 
     public function test_announcements_go_out_in_batches_of_accounts_without_the_owner(): void
     {
-        Bus::fake([DeliverAchievementNoticesJob::class, DeliverAchievementAnnouncementsJob::class]);
+        Bus::fake([DeliverAchievementAnnouncementsJob::class]);
         $anonymized = UserModel::factory()->create(['anonymized_at' => now()]);
         $achievement = $this->manualAchievement('Raro');
         $this->rarity([(string) $achievement->id => 1.0]);
         $this->earn($this->ana, $achievement);
 
-        $this->deliver($this->ana);
+        $this->release();
 
         Bus::assertDispatched(DeliverAchievementAnnouncementsJob::class, fn (DeliverAchievementAnnouncementsJob $job): bool => $job->ownerId === strtolower((string) $this->ana->id)
             && $job->achievementIds === [strtolower((string) $achievement->id)]
@@ -289,6 +310,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $achievement = $this->manualAchievement('Raro');
         $this->rarity([(string) $achievement->id => 1.0]);
         $this->earn($this->ana, $achievement);
+        $this->release();
         $this->allowAnnouncing($this->ana, announce: false);
 
         $this->app->forgetScopedInstances();
@@ -303,9 +325,100 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->app->forgetScopedInstances();
     }
 
-    private function deliver(UserModel $user): void
+    public function test_nothing_is_told_to_others_until_the_daily_release(): void
+    {
+        $achievement = $this->manualAchievement('Raro');
+        $this->rarity([(string) $achievement->id => 1.0]);
+
+        $this->earn($this->ana, $achievement);
+
+        // The owner hears of it at once; others only in the release, never at the moment it was got
+        $this->assertCount(1, $this->bellOf($this->ana, AchievementNoticeCategories::EARNED));
+        $this->assertSame([], $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
+
+        $this->release();
+        $this->assertCount(1, $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
+
+        // Taken once: a second release tells nothing again
+        $this->release();
+        $this->assertSame(1, $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS)[0]->count);
+    }
+
+    public function test_the_release_runs_once_a_day_in_the_display_zone(): void
+    {
+        $events = collect(app(Schedule::class)->events())->filter(
+            static fn ($event): bool => $event->description === 'achievements:announcements',
+        );
+
+        $this->assertCount(1, $events);
+        $event = $events->first();
+        $this->assertInstanceOf(Event::class, $event);
+        $this->assertSame('0 10 * * *', $event->expression);
+        $zone = $event->timezone;
+        $this->assertSame(app(TimezoneServiceInterface::class)->displayTimezone()->getName(), $zone instanceof DateTimeZone ? $zone->getName() : $zone);
+    }
+
+    public function test_each_owner_goes_out_at_a_moment_of_its_own_within_the_spread(): void
+    {
+        Bus::fake([DeliverAchievementAnnouncementsJob::class]);
+        $this->travelTo(Date::parse('2026-11-23 10:00:00'));
+        $carla = $this->person('Carla');
+        $this->allowAnnouncing($carla);
+        $achievement = $this->manualAchievement('Raro de una misma mesa');
+        $this->rarity([(string) $achievement->id => 1.0]);
+        $this->earn($this->ana, $achievement);
+        $this->earn($carla, $achievement);
+
+        $this->release();
+
+        $delays = [];
+        Bus::dispatched(DeliverAchievementAnnouncementsJob::class)->each(function (DeliverAchievementAnnouncementsJob $job) use (&$delays): void {
+            $this->assertInstanceOf(DateTimeInterface::class, $job->delay);
+            $seconds = $job->delay->getTimestamp() - now()->getTimestamp();
+            $this->assertGreaterThanOrEqual(0, $seconds);
+            $this->assertLessThanOrEqual(ReleaseAchievementAnnouncementsJob::SPREAD_SECONDS, $seconds);
+            $delays[$job->ownerId][] = $seconds;
+        });
+
+        $this->assertCount(2, $delays);
+        // All the batches of one owner go out together
+        foreach ($delays as $ownerDelays) {
+            $this->assertCount(1, array_unique($ownerDelays));
+        }
+    }
+
+    public function test_unreadable_settings_keep_the_announcements_for_the_next_release(): void
+    {
+        $achievement = $this->manualAchievement('Raro');
+        $this->rarity([(string) $achievement->id => 1.0]);
+        $this->earn($this->ana, $achievement);
+        $unreadable = $this->createStub(AchievementsSettingsInterface::class);
+        $unreadable->method('readStrictly')->willReturn(null);
+        $this->app->scoped(AchievementsSettingsInterface::class, static fn (): AchievementsSettingsInterface => $unreadable);
+
+        $this->release();
+
+        $this->assertSame([], $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
+        $this->assertSame(1, DB::table('achievements_pending_notices')->where('kind', 'announcement')->count());
+    }
+
+    public function test_what_waited_while_announcements_were_off_is_never_told(): void
+    {
+        $achievement = $this->manualAchievement('Raro');
+        $this->rarity([(string) $achievement->id => 1.0]);
+        $this->earn($this->ana, $achievement);
+        $this->settings(new AchievementsSettings(announcements: false));
+        $this->release();
+
+        $this->settings(new AchievementsSettings(announcements: true));
+        $this->release();
+
+        $this->assertSame([], $this->bellOf($this->bea, AchievementNoticeCategories::ANNOUNCEMENTS));
+    }
+
+    private function release(): void
     {
         $this->app->forgetScopedInstances();
-        app()->call([new DeliverAchievementNoticesJob((string) $user->id), 'handle']);
+        app()->call([new ReleaseAchievementAnnouncementsJob, 'handle']);
     }
 }

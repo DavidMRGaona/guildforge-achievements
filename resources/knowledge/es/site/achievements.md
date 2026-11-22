@@ -63,7 +63,7 @@ Para encenderlo:
 1. Abre **Ajustes de la cuenta** y entra en la pestaña **Logros**.
 2. Enciende **Anunciar mis logros raros**. Se guarda al momento.
 
-El anuncio solo dice el nombre del logro: nunca en qué mesa, sesión o evento estuviste. Solo llega a quien puede ver tu perfil en ese momento. Un logro secreto solo se nombra a quien también lo tiene, o si lo has destacado; a los demás les llega «Ana ha conseguido un logro secreto». Lo que la asociación concede en lote no se anuncia nunca. Si ocultas tus logros, no se anuncia ninguno.
+Los anuncios no salen al momento: salen una vez al día, y los de cada persona a una hora distinta, así que no dicen cuándo lo conseguiste ni con quién estabas. El anuncio solo dice el nombre del logro: nunca en qué mesa, sesión o evento estuviste. Solo llega a quien puede ver tu perfil en ese momento. Un logro secreto solo se nombra a quien también lo tiene, o si lo has destacado; a los demás les llega «Ana ha conseguido un logro secreto». Lo que la asociación concede en lote no se anuncia nunca. Si ocultas tus logros, no se anuncia ninguno.
 
 Cada persona elige si recibe estos anuncios en **Ajustes de la cuenta → Avisos**, en **Logros poco comunes de otras personas**.
 

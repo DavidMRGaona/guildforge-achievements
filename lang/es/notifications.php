@@ -11,7 +11,7 @@ return [
         ],
         'announcements' => [
             'label' => 'Logros poco comunes de otras personas',
-            'description' => 'Un aviso cuando alguien cuyo perfil puedes ver consigue un logro que tiene poca gente o el de un reto, si esa persona quiere anunciarlo.',
+            'description' => 'Una vez al día, un aviso de los logros que tiene poca gente o de los de retos que consiguen las personas cuyo perfil puedes ver, si quieren anunciarlos.',
         ],
     ],
 

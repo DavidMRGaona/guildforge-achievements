@@ -12,7 +12,13 @@ final readonly class EloquentPendingAchievementNoticeRepository implements Pendi
 {
     public const string TABLE = 'achievements_pending_notices';
 
+    public const string EARNED = 'earned';
+
+    public const string ANNOUNCEMENT = 'announcement';
+
     private const string GRANTS = 'achievements_grants';
+
+    private const int CHUNK = 500;
 
     public function __construct(
         private ConnectionInterface $db,
@@ -26,35 +32,59 @@ final readonly class EloquentPendingAchievementNoticeRepository implements Pendi
             return;
         }
 
-        // Copied from the grant itself, in one statement: a grant revoked meanwhile adds nothing
-        $this->db->table(self::TABLE)->insertOrIgnoreUsing(
-            ['grant_id', 'user_id', 'granted_at'],
-            $this->db->table(self::GRANTS)->where('id', $grantId)->select(['id', 'user_id', 'granted_at']),
-        );
+        foreach ([self::EARNED, self::ANNOUNCEMENT] as $kind) {
+            // Copied from the grant itself, in one statement: a grant revoked meanwhile adds nothing
+            $this->db->table(self::TABLE)->insertOrIgnoreUsing(
+                ['grant_id', 'kind', 'user_id', 'granted_at'],
+                $this->db->table(self::GRANTS)
+                    ->where('id', $grantId)
+                    ->select('id')
+                    ->selectRaw('? as kind', [$kind])
+                    ->addSelect(['user_id', 'granted_at']),
+            );
+        }
     }
 
     public function claim(string $userId): array
     {
-        $userId = strtolower($userId);
+        $claimed = $this->take(self::EARNED, strtolower($userId));
 
-        return $this->db->transaction(function () use ($userId): array {
-            /** @var list<string> $grantIds */
-            $grantIds = $this->table()
-                ->where('user_id', $userId)
+        return $claimed[strtolower($userId)] ?? [];
+    }
+
+    public function claimAnnouncements(): array
+    {
+        return $this->take(self::ANNOUNCEMENT, null);
+    }
+
+    /**
+     * @return array<string, list<string>> holder id => grant ids, oldest first
+     */
+    private function take(string $kind, ?string $userId): array
+    {
+        return $this->db->transaction(function () use ($kind, $userId): array {
+            $rows = $this->table()
+                ->where('kind', $kind)
+                ->when($userId !== null, static fn (Builder $query): Builder => $query->where('user_id', $userId))
                 ->orderBy('granted_at')
                 ->orderBy('grant_id')
                 ->lockForUpdate()
-                ->pluck('grant_id')
-                ->map(static fn (mixed $id): string => strtolower((string) $id))
-                ->all();
+                ->get(['grant_id', 'user_id']);
 
-            if ($grantIds !== []) {
-                foreach (array_chunk($grantIds, 500) as $chunk) {
-                    $this->table()->whereIn('grant_id', $chunk)->delete();
-                }
+            $claimed = [];
+            $grantIds = [];
+
+            foreach ($rows as $row) {
+                $grantId = strtolower((string) $row->grant_id);
+                $claimed[strtolower((string) $row->user_id)][] = $grantId;
+                $grantIds[] = $grantId;
             }
 
-            return $grantIds;
+            foreach (array_chunk($grantIds, self::CHUNK) as $chunk) {
+                $this->table()->where('kind', $kind)->whereIn('grant_id', $chunk)->delete();
+            }
+
+            return $claimed;
         });
     }
 

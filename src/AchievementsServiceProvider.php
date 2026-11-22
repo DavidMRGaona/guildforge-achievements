@@ -82,6 +82,7 @@ use Modules\Achievements\Infrastructure\Settings\ModuleAchievementsSettings;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Jobs\RefreshAchievementRarityJob;
+use Modules\Achievements\Jobs\ReleaseAchievementAnnouncementsJob;
 use Modules\Achievements\Listeners\EvaluateAchievementsForChangedFacts;
 use Modules\Achievements\Listeners\EvaluateAchievementsOfEnabledModule;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountFacts;
@@ -274,6 +275,11 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
                 ->dailyAt('03:30')
                 ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
                 ->name('achievements:rarity');
+            // What others hear of goes out once a day, each owner at their own moment (#6)
+            $schedule->job(new ReleaseAchievementAnnouncementsJob)
+                ->dailyAt(ReleaseAchievementAnnouncementsJob::RELEASE_AT)
+                ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
+                ->name('achievements:announcements');
         });
     }
 
