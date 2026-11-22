@@ -33,8 +33,6 @@ Al guardar, el logro se concede **sin avisos** a quien ya cumpla la regla. Lo mi
 
 Solo se avisa de un logro recién conseguido: el que se cumple con una actividad de las dos últimas semanas, o el aniversario de los dos últimos días. Lo que ya se cumplía antes se concede sin avisos.
 
-La imagen de un logro secreto se guarda aparte y no sale en la biblioteca de medios. Si marcas como secreto un logro que ya tiene imagen, quítala y vuelve a subirla.
-
 Escribe la descripción con totales («Juega 10 partidas»), nunca con una partida o una campaña concreta: quién jugó una mesa no es público.
 
 ## Estados

@@ -14,14 +14,12 @@ use Filament\Actions\DeleteAction;
 use Filament\Tables\Columns\Column;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Modules\Achievements\AchievementsServiceProvider;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Domain\Enums\GrantSource;
 use Modules\Achievements\Domain\ValueObjects\NewGrant;
 use Modules\Achievements\Filament\Media\AchievementBadgeImageMediaSource;
-use Modules\Achievements\Filament\Media\SecretBadgeImageMediaSource;
 use Modules\Achievements\Filament\Resources\AchievementResource;
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\CreateAchievement;
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\EditAchievement;
@@ -72,7 +70,7 @@ final class AchievementResourceTest extends ModuleTestCase
         $provider = new AchievementsServiceProvider($this->app);
 
         $this->assertSame([AchievementModel::class => AchievementPolicy::class], $provider->registerPolicies());
-        $this->assertSame([AchievementBadgeImageMediaSource::class, SecretBadgeImageMediaSource::class], $provider->registerMediaSources());
+        $this->assertSame([AchievementBadgeImageMediaSource::class], $provider->registerMediaSources());
     }
 
     public function test_viewing_needs_view_any_or_manage_and_writing_needs_manage(): void
@@ -299,24 +297,6 @@ final class AchievementResourceTest extends ModuleTestCase
         $this->assertNull($achievement->fresh());
     }
 
-    public function test_a_secret_achievement_keeps_its_image_in_the_hidden_folder(): void
-    {
-        Bus::fake([EvaluateAchievementsJob::class]);
-        Storage::fake('images');
-        Storage::disk('images')->put('achievements/badges/2026/11/a.png', 'png');
-        $achievement = $this->achievement($this->countRule(), ['image_public_id' => 'achievements/badges/2026/11/a.png']);
-        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
-
-        Livewire::test(EditAchievement::class, ['record' => $achievement->getKey()])
-            ->fillForm(['is_secret' => true])
-            ->call('save')
-            ->assertHasFormErrors(['image_public_id']);
-        $this->assertFalse((bool) $achievement->fresh()?->is_secret);
-
-        $this->assertSame(['achievements/badges/secret/'], $this->app->make(SecretBadgeImageMediaSource::class)->folders());
-        $this->assertSame(['secret/'], $this->app->make(AchievementBadgeImageMediaSource::class)->excludedSubfolders());
-    }
-
     public function test_saving_again_keeps_the_label_of_a_value_the_sources_no_longer_offer(): void
     {
         Bus::fake([EvaluateAchievementsJob::class]);
@@ -354,20 +334,20 @@ final class AchievementResourceTest extends ModuleTestCase
         );
     }
 
-    public function test_secret_badges_are_listed_only_by_the_hidden_source(): void
+    public function test_the_media_source_claims_the_badge_folder_and_masks_secret_titles(): void
     {
         Bus::fake([EvaluateAchievementsJob::class]);
-        $this->achievement($this->countRule(), ['name' => 'Dragón dormido', 'is_secret' => true, 'image_public_id' => 'achievements/badges/secret/2026/11/a.png']);
+        $this->achievement($this->countRule(), ['name' => 'Dragón dormido', 'is_secret' => true, 'image_public_id' => 'achievements/badges/2026/11/a.png']);
         $this->achievement($this->countRule(), ['name' => 'Visible', 'image_public_id' => 'achievements/badges/2026/11/b.png']);
-        $public = $this->app->make(AchievementBadgeImageMediaSource::class);
-        $secret = $this->app->make(SecretBadgeImageMediaSource::class);
+        $source = $this->app->make(AchievementBadgeImageMediaSource::class);
 
-        $this->assertSame('achievements.badge-image', $public->type());
-        $this->assertSame(['achievements/badges/'], $public->folders());
-        $this->assertFalse($public->hidden());
-        $this->assertSame(['Visible'], array_map(static fn ($usage): string => $usage->title, iterator_to_array($public->usages(), false)));
+        $this->assertSame('achievements.badge-image', $source->type());
+        $this->assertSame(['achievements/badges/'], $source->folders());
+        $this->assertSame([], $source->excludedSubfolders());
+        $this->assertFalse($source->hidden());
 
-        $this->assertTrue($secret->hidden());
-        $this->assertSame(['Logro secreto'], array_map(static fn ($usage): string => $usage->title, iterator_to_array($secret->usages(), false)));
+        $titles = array_map(static fn ($usage): string => $usage->title, iterator_to_array($source->usages(), false));
+        sort($titles);
+        $this->assertSame(['Logro secreto', 'Visible'], $titles);
     }
 }

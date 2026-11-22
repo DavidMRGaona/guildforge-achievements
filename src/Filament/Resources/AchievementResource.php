@@ -20,7 +20,6 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -28,11 +27,9 @@ use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Modules\Achievements\Application\Enums\AchievementStatus;
 use Modules\Achievements\Filament\Media\AchievementBadgeImageMediaSource;
-use Modules\Achievements\Filament\Media\SecretBadgeImageMediaSource;
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\CreateAchievement;
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\EditAchievement;
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\ListAchievements;
@@ -112,8 +109,7 @@ final class AchievementResource extends BaseResource
                             ->helperText(self::text('helpers.image'))
                             ->image()
                             ->disk('images')
-                            // A secret badge's image goes to the folder the media library never lists
-                            ->directory(fn (Get $get): string => ($get('is_secret') ? SecretBadgeImageMediaSource::FOLDER : AchievementBadgeImageMediaSource::FOLDER).now()->format('Y/m'))
+                            ->directory(fn (): string => AchievementBadgeImageMediaSource::FOLDER.now()->format('Y/m'))
                             ->getUploadedFileNameForStorageUsing(
                                 fn (TemporaryUploadedFile $file): string => Str::uuid()->toString().'.'.$file->getClientOriginalExtension()
                             )
@@ -132,8 +128,7 @@ final class AchievementResource extends BaseResource
 
                         Toggle::make('is_secret')
                             ->label(self::text('fields.is_secret'))
-                            ->helperText(self::text('helpers.is_secret'))
-                            ->live(),
+                            ->helperText(self::text('helpers.is_secret')),
 
                         Toggle::make('is_active')
                             ->label(self::text('fields.is_active'))
@@ -254,24 +249,6 @@ final class AchievementResource extends BaseResource
         }
 
         return $options;
-    }
-
-    /**
-     * A secret achievement keeps its image in the hidden folder, or the media library would show it
-     * to whoever opens it: one chosen from the library, or uploaded before it became secret, has to
-     * be uploaded again.
-     *
-     * @param  array<string, mixed>  $data
-     *
-     * @throws ValidationException
-     */
-    public static function checkImageFolder(array $data): void
-    {
-        $image = $data['image_public_id'] ?? null;
-
-        if (($data['is_secret'] ?? false) === true && is_string($image) && $image !== '' && ! str_starts_with($image, SecretBadgeImageMediaSource::FOLDER)) {
-            throw ValidationException::withMessages(['data.image_public_id' => self::text('validation.secret_image')]);
-        }
     }
 
     /**

@@ -57,8 +57,6 @@ final class EditAchievement extends EditRecord
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        AchievementResource::checkImageFolder($data);
-
         return AchievementRuleForm::intoRule($data, $this->achievement());
     }
 

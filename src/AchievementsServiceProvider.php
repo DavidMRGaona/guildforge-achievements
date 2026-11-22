@@ -30,7 +30,6 @@ use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
 use Modules\Achievements\Filament\Media\AchievementBadgeImageMediaSource;
-use Modules\Achievements\Filament\Media\SecretBadgeImageMediaSource;
 use Modules\Achievements\Filament\Pages\AchievementsSettingsPage;
 use Modules\Achievements\Infrastructure\Activity\ReaderActivityMetrics;
 use Modules\Achievements\Infrastructure\Catalogue\AchievementCatalogue;
@@ -119,7 +118,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
      */
     public function registerMediaSources(): array
     {
-        return [AchievementBadgeImageMediaSource::class, SecretBadgeImageMediaSource::class];
+        return [AchievementBadgeImageMediaSource::class];
     }
 
     /**
@@ -128,17 +127,18 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
      */
     private function keepMediaUsagesUpToDate(): void
     {
-        foreach ([AchievementBadgeImageMediaSource::TYPE, SecretBadgeImageMediaSource::TYPE] as $type) {
-            $always = new RefreshMediaUsagesObserver($type, static fn (Model $model): array => [(string) $model->getKey()]);
-            $whenShownChanges = new RefreshMediaUsagesObserver(
-                $type,
-                static fn (Model $model): array => $model->wasChanged(['image_public_id', 'name', 'is_secret']) ? [(string) $model->getKey()] : [],
-            );
+        $always = new RefreshMediaUsagesObserver(
+            AchievementBadgeImageMediaSource::TYPE,
+            static fn (Model $model): array => [(string) $model->getKey()],
+        );
+        $whenShownChanges = new RefreshMediaUsagesObserver(
+            AchievementBadgeImageMediaSource::TYPE,
+            static fn (Model $model): array => $model->wasChanged(['image_public_id', 'name', 'is_secret']) ? [(string) $model->getKey()] : [],
+        );
 
-            AchievementModel::created($always->saved(...));
-            AchievementModel::updated($whenShownChanges->saved(...));
-            AchievementModel::deleted($always->deleted(...));
-        }
+        AchievementModel::created($always->saved(...));
+        AchievementModel::updated($whenShownChanges->saved(...));
+        AchievementModel::deleted($always->deleted(...));
     }
 
     /**
