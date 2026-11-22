@@ -77,7 +77,7 @@ final class AchievementResourceTest extends ModuleTestCase
         $this->assertSame([AchievementBadgeImageMediaSource::class], $provider->registerMediaSources());
     }
 
-    public function test_viewing_needs_view_any_or_manage_and_writing_needs_manage(): void
+    public function test_viewing_needs_view_any_manage_or_grant_and_writing_needs_manage(): void
     {
         $this->actingAs($this->userWith(AchievementPolicy::VIEW_ANY));
         $this->assertTrue(AchievementResource::canViewAny());
@@ -87,7 +87,12 @@ final class AchievementResourceTest extends ModuleTestCase
         $this->assertTrue(AchievementResource::canViewAny());
         $this->assertTrue(AchievementResource::canCreate());
 
-        $this->actingAs($this->userWith('achievements:achievements.grant', 'achievements:achievements.configure'));
+        // Granting needs seeing what there is to grant
+        $this->actingAs($this->userWith('achievements:achievements.grant'));
+        $this->assertTrue(AchievementResource::canViewAny());
+        $this->assertFalse(AchievementResource::canCreate());
+
+        $this->actingAs($this->userWith('achievements:achievements.configure'));
         $this->assertFalse(AchievementResource::canViewAny());
     }
 

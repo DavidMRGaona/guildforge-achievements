@@ -52,6 +52,8 @@ Cuando vuelves a encender un tipo de actividad o los logros secretos en los ajus
 
 Una concesión es para siempre: si una partida deja de contar o subes el umbral, quien ya tenía el logro lo conserva. Por eso un logro que tiene alguien no se puede borrar, solo desactivar: deja de concederse y de enseñarse, y quien lo tenía lo conserva. **Borrar** solo aparece, en el menú **⋯**, mientras nadie lo tiene, y pide marcar una casilla.
 
+Solo una persona con permiso para conceder logros puede retirar uno, a mano y con un motivo, y entonces no vuelve a concederse solo. Lo explica la guía «Conceder y retirar logros a mano».
+
 ## Catálogo inicial
 
 Al instalar el módulo se crea un catálogo con logros de bienvenida, partidas jugadas y dirigidas, sistemas distintos, campañas, torneos, eventos, antigüedad y propuestas. Solo empiezan activos los que tienen fuente. Puedes editarlos y borrarlos como cualquier otro. Si vuelves a crear el catálogo inicial, un logro que borraste vuelve desactivado.

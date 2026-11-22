@@ -125,6 +125,21 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
         ));
     }
 
+    public function recentSubjectIds(string $sourceType, int $limit): array
+    {
+        return array_values(array_map(
+            strval(...),
+            $this->table()
+                ->where('source_type', $sourceType)
+                ->groupBy('subject_id')
+                ->orderByRaw('MAX(occurred_at) DESC')
+                ->orderBy('subject_id')
+                ->limit(max(1, $limit))
+                ->pluck('subject_id')
+                ->all(),
+        ));
+    }
+
     public function userIdsOfSubject(string $sourceType, string $subjectId): array
     {
         return array_values(array_map(

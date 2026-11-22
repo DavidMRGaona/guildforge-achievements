@@ -111,6 +111,8 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
         foreach (array_chunk($userIds, self::USERS_PER_CHUNK) as $chunk) {
             $facts = $this->facts->forUsers($chunk, $kinds);
             $held = $this->grants->heldAchievementIds($chunk);
+            // Taken away by hand: never granted again by a rule, nor counted by a dry run
+            $revoked = $this->grants->revokedAchievementIds($chunk);
 
             foreach ($chunk as $userId) {
                 $personFacts = $facts[$userId] ?? [];
@@ -120,7 +122,7 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
                     continue;
                 }
 
-                $holds = array_fill_keys($held[$userId] ?? [], true);
+                $holds = array_fill_keys([...$held[$userId] ?? [], ...$revoked[$userId] ?? []], true);
 
                 foreach ($evaluable as [$achievement, $rule]) {
                     if (isset($holds[$achievement->id])) {

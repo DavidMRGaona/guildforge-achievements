@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Achievements\Infrastructure\Persistence\Eloquent\Models;
 
 use App\Infrastructure\Persistence\Eloquent\Concerns\StoresInstantsInStorageTimezone;
+use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -45,6 +46,24 @@ final class AchievementGrantModel extends Model
     public function achievement(): BelongsTo
     {
         return $this->belongsTo(AchievementModel::class, 'achievement_id');
+    }
+
+    /**
+     * Deactivated accounts included (they keep their achievements).
+     *
+     * @return BelongsTo<UserModel, $this>
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(UserModel::class, 'user_id')->withTrashed();
+    }
+
+    /**
+     * @return BelongsTo<UserModel, $this>
+     */
+    public function actor(): BelongsTo
+    {
+        return $this->belongsTo(UserModel::class, 'actor_id')->withTrashed();
     }
 
     /**

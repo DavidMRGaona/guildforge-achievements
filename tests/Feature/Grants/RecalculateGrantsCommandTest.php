@@ -10,8 +10,12 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Testing\PendingCommand;
+use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Console\Commands\RecalculateAchievementFactsCommand;
+use Modules\Achievements\Domain\Entities\AchievementGrant;
+use Modules\Achievements\Domain\Enums\GrantSource;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
+use Modules\Achievements\Domain\ValueObjects\NewGrant;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsActivityFacts;
@@ -101,6 +105,22 @@ final class RecalculateGrantsCommandTest extends ModuleTestCase
             ->assertExitCode(Command::SUCCESS);
 
         $this->assertSame(0, DB::table('achievements_grants')->count());
+    }
+
+    public function test_a_dry_run_never_counts_an_achievement_taken_away(): void
+    {
+        $ana = $this->account(self::ANA);
+        $luis = $this->account(self::LUIS);
+        $achievement = $this->achievement($this->countRule());
+        $granter = $this->app->make(AchievementGranterInterface::class);
+        $grant = $granter->grant(new NewGrant($ana, $achievement->id, GrantSource::Manual, silent: true));
+        $this->assertInstanceOf(AchievementGrant::class, $grant);
+        $granter->revoke($grant->id, $luis, 'Partida falsa');
+        $this->ledgerSubject(InMemoryActivitySource::TYPE, '42', 'game_session', [$this->recordedFact($ana), $this->recordedFact($luis)]);
+
+        $this->recalculate(['--achievement' => $achievement->id, '--dry-run' => true])
+            ->expectsOutputToContain('se concederían: 1')
+            ->assertExitCode(Command::SUCCESS);
     }
 
     public function test_an_unknown_achievement_or_a_malformed_account_is_refused(): void

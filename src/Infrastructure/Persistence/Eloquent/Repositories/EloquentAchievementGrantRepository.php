@@ -12,18 +12,23 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Str;
 use Modules\Achievements\Domain\Entities\AchievementGrant;
+use Modules\Achievements\Domain\Enums\GrantLogAction;
 use Modules\Achievements\Domain\Enums\GrantSource;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
+use Modules\Achievements\Domain\ValueObjects\GrantReason;
 use Modules\Achievements\Domain\ValueObjects\NewGrant;
 use stdClass;
 
 /**
  * Written with the query builder and `INSERT … ON CONFLICT DO NOTHING` (insertOrIgnore), so two jobs
- * granting the same achievement at once write one row and only one of them reports it as new.
+ * granting the same achievement at once write one row and only one of them reports it as new (and
+ * writes its history entry, in the same transaction).
  */
 final readonly class EloquentAchievementGrantRepository implements AchievementGrantRepositoryInterface
 {
     public const string TABLE = 'achievements_grants';
+
+    public const string LOG_TABLE = 'achievements_grant_log';
 
     private const string CATALOGUE_TABLE = 'achievements_catalogue';
 
@@ -44,7 +49,10 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
             return null;
         }
 
-        return $this->db->transaction(function () use ($grant, $userId, $achievementId): ?AchievementGrant {
+        $actorId = $grant->actorId === null ? null : ActivityIdentifierRule::userId($grant->actorId);
+        $reason = GrantReason::normalise($grant->reason);
+
+        return $this->db->transaction(function () use ($grant, $userId, $achievementId, $actorId, $reason): ?AchievementGrant {
             // Shared locks: an anonymization (or a deletion of the achievement) running meanwhile
             // waits for this write, and then removes what it wrote
             $user = UserModel::withTrashed()->whereKey($userId)->sharedLock()->first(['id', 'anonymized_at']);
@@ -53,7 +61,16 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
                 return null;
             }
 
-            if (! $this->db->table(self::CATALOGUE_TABLE)->where('id', $achievementId)->sharedLock()->exists()) {
+            $name = $this->db->table(self::CATALOGUE_TABLE)->where('id', $achievementId)->sharedLock()->value('name');
+
+            if ($name === null) {
+                return null;
+            }
+
+            $seasonKey = $grant->season ?? '';
+
+            // Taken away by hand: only a person granting it again brings it back
+            if ($grant->source !== GrantSource::Manual && $this->lastAction($userId, $achievementId, $seasonKey) === GrantLogAction::Revoked) {
                 return null;
             }
 
@@ -66,10 +83,10 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
                 'user_id' => $userId,
                 'achievement_id' => $achievementId,
                 'season' => $grant->season,
-                'season_key' => $grant->season ?? '',
+                'season_key' => $seasonKey,
                 'granted_at' => $stamp,
                 'source' => $grant->source->value,
-                'actor_id' => $grant->actorId === null ? null : ActivityIdentifierRule::userId($grant->actorId),
+                'actor_id' => $actorId,
                 'silent' => $grant->silent,
                 'created_at' => $stamp,
                 'updated_at' => $stamp,
@@ -79,6 +96,9 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
                 return null;
             }
 
+            // Stamped once written: its entry never sorts before a revoke that waited for this commit
+            $this->log(GrantLogAction::Granted, $grant->source, $achievementId, (string) $name, $userId, $actorId, $seasonKey, $reason, $this->now());
+
             return new AchievementGrant(
                 id: $id,
                 userId: $userId,
@@ -86,10 +106,123 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
                 season: $grant->season,
                 grantedAt: new DateTimeImmutable($stamp, $now->getTimezone()),
                 source: $grant->source,
-                actorId: $grant->actorId === null ? null : ActivityIdentifierRule::userId($grant->actorId),
+                actorId: $actorId,
                 silent: $grant->silent,
             );
         }, self::TRANSACTION_ATTEMPTS);
+    }
+
+    public function find(string $grantId): ?AchievementGrant
+    {
+        if (! AchievementIds::isWellFormed($grantId)) {
+            return null;
+        }
+
+        $row = $this->table()->where('id', strtolower($grantId))->first();
+
+        return $row instanceof stdClass ? $this->toEntity($row) : null;
+    }
+
+    public function revoke(string $grantId, string $actorId, string $reason): ?AchievementGrant
+    {
+        $reason = GrantReason::normalise($reason);
+        $actorId = ActivityIdentifierRule::userId($actorId);
+
+        if ($reason === null || $actorId === null || ! AchievementIds::isWellFormed($grantId)) {
+            return null;
+        }
+
+        return $this->db->transaction(function () use ($grantId, $actorId, $reason): ?AchievementGrant {
+            $userId = $this->table()->where('id', strtolower($grantId))->value('user_id');
+
+            if ($userId === null) {
+                return null;
+            }
+
+            // The account first, then the grant, as everywhere else: a grant by a rule, a challenge
+            // or in bulk holds the account's row with a shared lock while it reads the history, so
+            // it either commits before this revoke (which then removes what it wrote) or waits for
+            // it and finds the revoke. Anonymizing (deleteForUser()) takes the same lock.
+            $this->db->table('users')->where('id', (string) $userId)->lockForUpdate()->first(['id']);
+            $row = $this->table()->where('id', strtolower($grantId))->lockForUpdate()->first();
+
+            if (! $row instanceof stdClass) {
+                return null;
+            }
+
+            $grant = $this->toEntity($row);
+
+            if (! $grant instanceof AchievementGrant) {
+                return null;
+            }
+
+            // The grant's foreign key keeps the achievement while the row exists
+            $name = (string) $this->db->table(self::CATALOGUE_TABLE)->where('id', $grant->achievementId)->value('name');
+
+            $this->table()->where('id', $grant->id)->delete();
+
+            $this->log(GrantLogAction::Revoked, GrantSource::Manual, $grant->achievementId, $name, $grant->userId, $actorId, (string) $row->season_key, $reason, $this->now());
+
+            return $grant;
+        }, self::TRANSACTION_ATTEMPTS);
+    }
+
+    public function revokedAmong(string $achievementId, array $userIds): array
+    {
+        if (! AchievementIds::isWellFormed($achievementId)) {
+            return [];
+        }
+
+        $userIds = array_values(array_unique(array_map(strtolower(...), $userIds)));
+        $latest = [];
+
+        foreach (array_chunk($userIds, 500) as $chunk) {
+            $rows = $this->db->table(self::LOG_TABLE)
+                ->where('achievement_id', strtolower($achievementId))
+                ->where('season_key', '')
+                ->whereIn('user_id', $chunk)
+                ->orderBy('created_at')
+                ->orderBy('id')
+                ->get(['user_id', 'action']);
+
+            foreach ($rows as $row) {
+                $latest[strtolower((string) $row->user_id)] = (string) $row->action;
+            }
+        }
+
+        return array_keys(array_filter($latest, static fn (string $action): bool => $action === GrantLogAction::Revoked->value));
+    }
+
+    public function revokedAchievementIds(array $userIds): array
+    {
+        $userIds = array_values(array_unique(array_map(strtolower(...), $userIds)));
+        $latest = [];
+
+        foreach (array_chunk($userIds, 500) as $chunk) {
+            $rows = $this->db->table(self::LOG_TABLE)
+                ->whereIn('user_id', $chunk)
+                ->whereNotNull('achievement_id')
+                ->where('season_key', '')
+                ->orderBy('created_at')
+                ->orderBy('id')
+                ->get(['user_id', 'achievement_id', 'action']);
+
+            foreach ($rows as $row) {
+                $latest[strtolower((string) $row->user_id)][strtolower((string) $row->achievement_id)] = (string) $row->action;
+            }
+        }
+
+        $revoked = [];
+
+        foreach ($latest as $userId => $actions) {
+            $ids = array_keys(array_filter($actions, static fn (string $action): bool => $action === GrantLogAction::Revoked->value));
+
+            if ($ids !== []) {
+                $revoked[(string) $userId] = array_map(strval(...), $ids);
+            }
+        }
+
+        return $revoked;
     }
 
     public function heldAchievementIds(array $userIds): array
@@ -163,7 +296,65 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
 
     public function deleteForUser(string $userId): int
     {
-        return $this->table()->where('user_id', strtolower($userId))->delete();
+        $userId = strtolower($userId);
+
+        return $this->db->transaction(function () use ($userId): int {
+            // The account first, as revoke() does, so the two never wait on each other in a circle
+            $this->db->table('users')->where('id', $userId)->lockForUpdate()->first(['id']);
+
+            $this->db->table(self::LOG_TABLE)
+                ->where('user_id', $userId)
+                ->update(['user_id' => null, 'reason' => null]);
+
+            return $this->table()->where('user_id', $userId)->delete();
+        }, self::TRANSACTION_ATTEMPTS);
+    }
+
+    private function now(): string
+    {
+        return new DateTimeImmutable('now', new DateTimeZone(date_default_timezone_get()))->format(self::STORAGE_FORMAT);
+    }
+
+    /**
+     * The latest history entry of an account for an achievement (and season). uuid7 ids keep the
+     * order of entries written within the same second.
+     */
+    private function lastAction(string $userId, string $achievementId, string $seasonKey): ?GrantLogAction
+    {
+        $action = $this->db->table(self::LOG_TABLE)
+            ->where('user_id', $userId)
+            ->where('achievement_id', $achievementId)
+            ->where('season_key', $seasonKey)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->value('action');
+
+        return $action === null ? null : GrantLogAction::tryFrom((string) $action);
+    }
+
+    private function log(
+        GrantLogAction $action,
+        GrantSource $source,
+        string $achievementId,
+        string $achievementName,
+        string $userId,
+        ?string $actorId,
+        string $seasonKey,
+        ?string $reason,
+        string $stamp,
+    ): void {
+        $this->db->table(self::LOG_TABLE)->insert([
+            'id' => (string) Str::uuid7(),
+            'achievement_id' => $achievementId,
+            'achievement_name' => mb_substr($achievementName, 0, 60),
+            'user_id' => $userId,
+            'actor_id' => $actorId,
+            'action' => $action->value,
+            'source' => $source->value,
+            'season_key' => $seasonKey,
+            'reason' => $reason,
+            'created_at' => $stamp,
+        ]);
     }
 
     private function table(): Builder

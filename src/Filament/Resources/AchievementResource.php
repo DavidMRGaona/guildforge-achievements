@@ -19,6 +19,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
@@ -35,6 +36,9 @@ use Modules\Achievements\Filament\Media\AchievementBadgeImageMediaSource;
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\CreateAchievement;
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\EditAchievement;
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\ListAchievements;
+use Modules\Achievements\Filament\Resources\AchievementResource\Pages\ViewAchievement;
+use Modules\Achievements\Filament\Resources\AchievementResource\RelationManagers\GrantLogRelationManager;
+use Modules\Achievements\Filament\Resources\AchievementResource\RelationManagers\GrantsRelationManager;
 use Modules\Achievements\Filament\Support\AchievementPanelView;
 use Modules\Achievements\Filament\Support\AchievementRuleForm;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
@@ -212,11 +216,55 @@ final class AchievementResource extends BaseResource
             ->defaultSort(static fn (Builder $query): Builder => self::sortByShownName($query, 'asc'));
     }
 
+    /**
+     * What the view page shows (AchievementPolicy::view() keeps secret ones for whoever manages the
+     * catalogue, so nothing here is masked).
+     */
+    public static function infolist(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                Section::make(self::text('sections.badge'))
+                    ->schema([
+                        TextEntry::make('name')
+                            ->label(self::text('fields.name')),
+                        TextEntry::make('status')
+                            ->label(self::text('fields.status'))
+                            ->state(static fn (AchievementModel $record): string => AchievementPanelView::status($record)->value)
+                            ->formatStateUsing(static fn (string $state): string => AchievementStatus::from($state)->label())
+                            ->color(static fn (string $state): string => AchievementStatus::from($state)->colour())
+                            ->badge(),
+                        TextEntry::make('description')
+                            ->label(self::text('fields.description'))
+                            ->placeholder('—')
+                            ->columnSpanFull(),
+                        TextEntry::make('rule_summary')
+                            ->label(self::text('fields.rule'))
+                            ->state(static fn (AchievementModel $record): string => AchievementPanelView::ruleSummary($record)),
+                        TextEntry::make('points')
+                            ->label(self::text('fields.points')),
+                    ])
+                    ->columns(2),
+            ]);
+    }
+
+    /**
+     * @return array<class-string>
+     */
+    public static function getRelations(): array
+    {
+        return [
+            GrantsRelationManager::class,
+            GrantLogRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [
             'index' => ListAchievements::route('/'),
             'create' => CreateAchievement::route('/create'),
+            'view' => ViewAchievement::route('/{record}'),
             'edit' => EditAchievement::route('/{record}/edit'),
         ];
     }

@@ -11,7 +11,7 @@ El core rechaza el módulo si no se cumplen (`module.json` → `requires`).
 
 ## Qué hace
 
-Un catálogo de logros que se conceden solos con lo que cada persona hace en la asociación, a partir del registro de actividad. Cada mecánica restante (perfil, avisos, temporadas, retos…) llega con su propia issue.
+Un catálogo de logros que se conceden solos con lo que cada persona hace en la asociación, a partir del registro de actividad, o a mano y en lote desde el panel, con su historial. Cada mecánica restante (perfil, avisos, temporadas, retos…) llega con su propia issue.
 
 ## Registro de actividad
 
@@ -25,7 +25,7 @@ Los logros se calculan con lo que cuentan las fuentes de actividad del core (`do
 
 ## Catálogo de logros
 
-*Personas → Logros* (orden 50), con la política `AchievementPolicy`: `achievements.view_any` (o `manage`) para ver la tabla, `achievements.manage` para crear, editar y borrar. Cada logro tiene nombre (60 caracteres), descripción (200), icono y color de las listas cerradas del core (`ProfileBadgeIcons::NAMES`, `ProfileBadgeColour`), imagen opcional, puntos, secreto, activo y una regla. Tabla `achievements_catalogue` (el prefijo del módulo es obligatorio).
+*Personas → Logros* (orden 50), con la política `AchievementPolicy`: `achievements.view_any`, `manage` o `grant` para ver la tabla, `achievements.manage` para crear, editar y borrar. Quien no gestiona el catálogo abre cada logro en su página de ver (un secreto, nunca). Cada logro tiene nombre (60 caracteres), descripción (200), icono y color de las listas cerradas del core (`ProfileBadgeIcons::NAMES`, `ProfileBadgeColour`), imagen opcional, puntos, secreto, activo y una regla. Tabla `achievements_catalogue` (el prefijo del módulo es obligatorio).
 
 - **Imagen.** Se sube a Cloudinary por el disco `images`, en `achievements/badges/<año>/<mes>/`, o se elige de la biblioteca de medios. La fuente de medios `achievements.badge-image` reclama esa carpeta; el modelo libera la imagen sustituida o borrada a través del core. El uso de un logro secreto se titula «Logro secreto», pero su miniatura sí se ve en la biblioteca (que solo abre el equipo, con `media.view_any`): el core solo puede ocultar carpetas enteras, y nunca borra lo que hay en ellas. Ocultar un uso concreto llegará con DavidMRGaona/GuildForge#830.
 - **Secretos.** Quien no tiene un logro secreto ve «Logro secreto», sin nombre, regla, icono ni imagen: en el panel (quien no puede gestionar el catálogo; tampoco lo encuentra al buscar), en el título de su uso en la biblioteca de medios y en `AchievementCatalogueInterface`, la lectura que usarán las páginas. Con los logros secretos apagados en los ajustes, los secretos no se evalúan.
@@ -61,7 +61,27 @@ Tabla `achievements_grants`: cuenta, logro, temporada (nula por ahora), `granted
 
 - Se concede solo a través de `AchievementGranterInterface::grant(NewGrant)`. Lo ya concedido no se vuelve a conceder (`INSERT … ON CONFLICT DO NOTHING`, así que dos trabajos a la vez escriben una fila), ni a una cuenta que no existe o está anonimizada (se lee con bloqueo compartido), ni a un logro borrado.
 - Cada concesión nueva lanza `AchievementGranted` (ids, origen, `silent`) cuando su transacción se confirma; nunca dentro de la red de seguridad de la impersonación.
-- **Nunca se retira sola**: el evaluador solo añade y un logro con titulares no se puede borrar. Al anonimizar una cuenta (`UserAnonymized`) se borran sus concesiones, en cola.
+- **Nunca se retira sola**: el evaluador solo añade y un logro con titulares no se puede borrar. Retirarla a mano (`AchievementGranterInterface::revoke()`, con motivo obligatorio) es la única forma de quitarla; lanza `AchievementRevoked` (ids) tras el commit.
+- **Lo retirado no vuelve solo.** `grant()` rechaza una concesión por regla, por reto o en lote si la última entrada del historial de esa cuenta y ese logro es una retirada. Solo una concesión a mano la devuelve. El evaluador tampoco la cuenta, ni en un `--dry-run`. `revoke()` y la anonimización bloquean primero la fila de la cuenta y después la concesión, y `grant()` la tiene con un bloqueo compartido mientras lee el historial: una concesión que corre a la vez que una retirada o espera y la ve, o termina antes y la retirada se la lleva.
+- Al anonimizar una cuenta (`UserAnonymized`) se borran sus concesiones, en cola.
+
+### A mano y en lote
+
+En el panel, con `achievements.grant` (`AchievementPolicy::grant()` y `revoke()`). Un logro secreto solo lo concede o retira quien también gestiona el catálogo, y uno desactivado se puede retirar pero no conceder.
+
+- **En el logro** (página de ver o de editar): *Personas que lo tienen*, con **Conceder** (una cuenta por su nombre, motivo opcional y si se avisa), **Conceder en lote** y **Retirar** en el menú **⋯** de cada fila; debajo, *Historial de concesiones*.
+- **Cuentas que se pueden ver.** Desde el logro solo se encuentran, se eligen y se retiran cuentas que quien concede puede ver (`UserPolicy::view()`, lo mismo que pide la ficha de la cuenta). Las demás salen como «Cuenta oculta», en *Personas que lo tienen* y en el historial, y la búsqueda por nombre (`name` o `display_name`) solo se ofrece con `users.view_any`.
+- **En la ficha de la cuenta** (*Personas → Usuarios*): *Logros* y *Historial de logros*, al final de la página. El core no tiene un hueco para módulos ahí, así que se cuelgan del render hook `PAGE_END` de Filament con alcance a `EditUser` (`AccountAchievementsHook`), como dos componentes Livewire (`AccountAchievements`, `AccountGrantLog`) que comprueban el acceso en cada petición (`AccountGrantsAccess`: `achievements.grant` o `manage`, y poder ver la cuenta).
+- **Retirar** pide un diálogo con motivo obligatorio y una casilla.
+- **En lote** (`BulkGrantInterface`), solo con *Concesión en lote* encendida. Se elige una cosa de una fuente de actividad entre las más recientes del registro, descrita con `ActivityReaderInterface::describe()` para quien concede (lo que no le enseña no aparece ni se puede conceder), y un papel; se concede a quien lo tuvo según `facts()` del lector, solo si el resultado es `Read`. Dos pasos: qué, y después cuántas personas, el aviso (en silencio o con aviso) y una casilla. Con `GrantSource::Bulk`, de 100 en 100 personas (`PER_BATCH`), cada tanda en su transacción: si una falla (un deadlock, por ejemplo), lo concedido en las anteriores se queda y el resultado es `Partial`, con cuántas se concedieron; repetir no concede dos veces. Con más de 1000 personas (`MAX_PEOPLE`) no se concede nada (`TooMany`). El selector busca entre las 200 cosas más recientes del registro de ese tipo (`RECENT_SUBJECTS`). Falla cerrado: ajustes leídos con `readStrictly()`, logro activo, cosa visible y hechos leídos; si algo falla, no se concede nada.
+- **Quién ve el lote.** El diálogo da números (`BulkGrantCountDTO`: personas, ya lo tenían, se les retiró, concedidos), pero después *Personas que lo tienen* y el historial nombran a quienes lo recibieron, es decir, a quien participó. **Quien concede en lote ve a quién se lo concede, es decir, quién participó en esa partida, evento o reserva. Lo mismo vale para quien gestiona el catálogo, que también ve titulares e historial. Da `achievements.grant` o `achievements.manage` solo a quien ya puede ver esas participaciones en su módulo.** (Decisión del producto: el equipo sí ve a quién se concedió algo en lote.)
+- **Impersonación en modo «Solo mirar»**: todas estas acciones se rechazan (comportamiento por defecto del core; ninguna está marcada como de lectura).
+
+### Historial
+
+Tabla `achievements_grant_log`, de solo lectura en el panel: logro (y su nombre, que se conserva si el logro se borra), cuenta, quién (`actor_id`, nulo para las reglas), acción (`granted` o `revoked`), origen (`rule`, `manual`, `bulk`, `challenge`; una retirada siempre es `manual`), temporada y motivo (500 caracteres). Se escribe en la misma transacción que la concesión o la retirada, también para las concesiones por regla.
+
+Al anonimizar una cuenta, sus entradas se quedan **sin la cuenta y sin el motivo** (que se escribió sobre esa persona): así sigue constando lo que hicieron otras personas al conceder o retirar, sin nada que la identifique. Las entradas en las que la cuenta anonimizada fue quien concedió o retiró se quedan como están.
 
 ## Evaluador
 
@@ -109,8 +129,8 @@ Es idempotente: crea solo los que faltan (por su `starter_key`) y deja como est�
 | Permiso | Para qué |
 |---|---|
 | `achievements.view_any` | Ver los logros en el panel |
-| `achievements.manage` | Catálogo, retos y tipos de reconocimiento (sugerido para el rol `editor`) |
-| `achievements.grant` | Conceder, conceder en lote y retirar logros (sin rol por defecto) |
+| `achievements.manage` | Catálogo, retos y tipos de reconocimiento (sugerido para el rol `editor`). Ve quién tiene cada logro, también tras un lote, es decir, quién participó: dalo solo a quien ya ve esas participaciones en su módulo |
+| `achievements.grant` | Conceder, conceder en lote y retirar logros (sin rol por defecto). Ve a quién se concede en lote, es decir, quién participó: dalo solo a quien ya ve esas participaciones en su módulo |
 | `achievements.configure` | La página de ajustes (sin rol por defecto) |
 
 ## Ajustes
@@ -119,7 +139,8 @@ Es idempotente: crea solo los que faltan (por su `starter_key`) y deja como est�
 
 | Ajuste | Por defecto |
 |---|---|
-| Progreso visible, rareza, logros secretos, temporadas y rachas, logros de comunidad, concesión en lote | Encendidos |
+| Progreso visible, rareza, logros secretos, temporadas y rachas, logros de comunidad | Encendidos |
+| Concesión en lote | Apagada (también si el valor guardado está mal formado) |
 | Anuncios de logros raros | Encendido, con umbral de rareza del 10 % |
 | Puntos, niveles, clasificación, retos | Apagados |
 | Reconocimientos | Apagados, con un plazo de 14 días |
