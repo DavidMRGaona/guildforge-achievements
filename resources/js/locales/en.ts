@@ -33,6 +33,25 @@ export default {
             tooMany: 'Too many changes in a row. Wait a moment and try again.',
             seeAll: 'See every achievement',
         },
+        account: {
+            tabLabel: 'Achievements',
+            title: 'Achievements',
+            announceRare: {
+                label: 'Announce my rare achievements',
+                help: 'Whoever can see your profile gets a notice when you get an achievement held by fewer than {threshold} % of active people, or a challenge one. Only the achievement’s name is told.',
+                hidden: 'Your achievements are hidden right now: none is announced.',
+                on: 'Your rare achievements will be announced.',
+                off: 'Your achievements are no longer announced.',
+            },
+            inLeaderboard: {
+                label: 'Appear in the leaderboard',
+                help: 'Your name and points show in the achievements leaderboard, which only signed-in people who can see your profile see.',
+                on: 'You appear in the leaderboard.',
+                off: 'You no longer appear in the leaderboard.',
+            },
+            notices: 'The bell’s achievement notices are chosen in',
+            noticesLink: 'Notices',
+        },
         catalogue: {
             title: 'Achievements',
             subtitle: 'Badges earned by playing, running games and taking part in the association.',

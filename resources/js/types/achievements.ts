@@ -44,3 +44,21 @@ export interface CatalogueAchievement extends AchievementSummary {
     held: boolean;
     rarity: number | null;
 }
+
+/** The account settings' «Logros» tab (`/perfil?tab=achievements`) */
+export interface AccountAchievements {
+    /** Others hear of the owner's rare and challenge achievements (off until turned on) */
+    announceRare: boolean;
+    /** The owner appears in the leaderboard (on until left) */
+    inLeaderboard: boolean;
+    /** The owner hides their achievements: nothing is announced then */
+    hidden: boolean;
+    /** Each choice is offered only while its mechanic is on */
+    offersAnnouncements: boolean;
+    offersLeaderboard: boolean;
+    /** Percent of active people under which an achievement is rare */
+    threshold: number;
+    updateUrl: string;
+    /** The «Avisos» tab, where the bell's categories are chosen */
+    noticesUrl: string;
+}

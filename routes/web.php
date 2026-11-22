@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Middleware\ThrottleWhereListed;
 use Illuminate\Support\Facades\Route;
 use Modules\Achievements\AchievementsServiceProvider;
+use Modules\Achievements\Http\Controllers\AccountAchievementsController;
 use Modules\Achievements\Http\Controllers\AchievementCatalogueController;
 use Modules\Achievements\Http\Controllers\ProfileAchievementsController;
 
@@ -28,4 +29,9 @@ Route::prefix('logros')
         Route::put('miembros/{handle}', [ProfileAchievementsController::class, 'update'])
             ->middleware(['auth', ThrottleWhereListed::class.':'.AchievementsServiceProvider::PROFILE_CHOICES_LIMITER])
             ->name('profile.update');
+
+        // The signed-in account's choices from the account settings' «Logros» tab (#6)
+        Route::put('preferencias', [AccountAchievementsController::class, 'update'])
+            ->middleware(['auth', ThrottleWhereListed::class.':'.AchievementsServiceProvider::PROFILE_CHOICES_LIMITER])
+            ->name('account.update');
     });
