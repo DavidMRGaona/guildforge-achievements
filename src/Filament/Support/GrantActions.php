@@ -52,7 +52,8 @@ final class GrantActions
     private const int MAX_ACCOUNTS = 50;
 
     /**
-     * «Conceder», from an achievement: to one account found by its name.
+     * «Conceder», from an achievement: to one account found by its name, among those the person may
+     * see (UserPolicy::view(), as on the account page).
      *
      * @param  Closure(): AchievementModel  $achievement
      */
@@ -310,7 +311,8 @@ final class GrantActions
     }
 
     /**
-     * Accounts whose name matches, that are not anonymized and do not hold the achievement.
+     * Accounts whose name matches, that are not anonymized, do not hold the achievement and the person
+     * may see.
      *
      * @return array<string, string>
      */
@@ -319,6 +321,12 @@ final class GrantActions
         $search = trim($search);
 
         if ($search === '') {
+            return [];
+        }
+
+        $viewer = self::viewer();
+
+        if (! $viewer instanceof UserModel) {
             return [];
         }
 
@@ -333,14 +341,21 @@ final class GrantActions
             ->whereNotIn('id', AchievementGrantModel::query()->select('user_id')->where('achievement_id', $achievement->id)->where('season_key', ''))
             ->orderBy('name')
             ->limit(self::MAX_ACCOUNTS)
-            ->pluck('name', 'id')
-            ->mapWithKeys(static fn (mixed $name, mixed $id): array => [(string) $id => (string) $name])
+            ->get(['id', 'name'])
+            // The same check as the account page: only accounts the person may see (UserPolicy::view())
+            ->filter(static fn (UserModel $user): bool => $viewer->can('view', $user))
+            ->mapWithKeys(static fn (UserModel $user): array => [(string) $user->id => $user->name])
             ->all();
     }
 
     private static function mayReceive(AchievementModel $achievement, string $userId): bool
     {
-        return UserModel::query()->whereKey($userId)->whereNull('anonymized_at')->exists()
+        $viewer = self::viewer();
+        $user = UserModel::query()->whereKey($userId)->whereNull('anonymized_at')->first();
+
+        return $viewer instanceof UserModel
+            && $user instanceof UserModel
+            && $viewer->can('view', $user)
             && AchievementGrantModel::query()->where('achievement_id', $achievement->id)->where('user_id', strtolower($userId))->where('season_key', '')->doesntExist();
     }
 

@@ -31,6 +31,7 @@ use Modules\Achievements\Filament\Resources\AchievementResource\Pages\EditAchiev
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\ViewAchievement;
 use Modules\Achievements\Filament\Resources\AchievementResource\RelationManagers\GrantLogRelationManager;
 use Modules\Achievements\Filament\Resources\AchievementResource\RelationManagers\GrantsRelationManager;
+use Modules\Achievements\Filament\Support\GrantActions;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementGrantModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Policies\AchievementPolicy;
@@ -111,7 +112,7 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
     public function test_granting_by_hand_from_the_achievement_logs_who_and_why(): void
     {
         Event::fake([AchievementGranted::class]);
-        $actor = $this->userWith(AchievementPolicy::GRANT);
+        $actor = $this->userWith(AchievementPolicy::GRANT, 'users.view');
         $this->actingAs($actor);
         $ana = $this->account(self::ANA);
 
@@ -131,7 +132,7 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
 
     public function test_an_account_that_already_holds_it_or_is_anonymized_is_not_offered(): void
     {
-        $this->actingAs($this->userWith(AchievementPolicy::GRANT));
+        $this->actingAs($this->userWith(AchievementPolicy::GRANT, 'users.view'));
         $ana = $this->account(self::ANA);
         $this->grantTo($ana);
         $gone = $this->account(self::LUIS, anonymized: true);
@@ -144,6 +145,23 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
             ->assertHasFormErrors(['user_id']);
 
         $this->assertSame(1, AchievementGrantModel::query()->count());
+    }
+
+    public function test_accounts_are_found_and_granted_only_by_whoever_may_see_them(): void
+    {
+        $this->actingAs($this->userWith(AchievementPolicy::GRANT));
+        $ana = $this->account(self::ANA);
+        UserModel::query()->whereKey($ana)->update(['name' => 'Ana Ejemplo']);
+
+        $search = new \ReflectionMethod(GrantActions::class, 'accountsWithout');
+        $this->assertSame([], $search->invoke(null, $this->fundadora, 'Ana'));
+        $this->holders()
+            ->callAction(TestAction::make('grantAchievement')->table(), data: ['user_id' => $ana])
+            ->assertHasFormErrors(['user_id']);
+        $this->assertSame(0, AchievementGrantModel::query()->count());
+
+        $this->actingAs($this->userWith(AchievementPolicy::GRANT, 'users.view'));
+        $this->assertSame([$ana => 'Ana Ejemplo'], $search->invoke(null, $this->fundadora, 'Ana'));
     }
 
     public function test_only_whoever_may_grant_sees_the_grant_actions(): void
