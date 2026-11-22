@@ -6,16 +6,21 @@ namespace Modules\Achievements\Tests\Feature\Leaderboard;
 
 use App\Application\Authorization\Services\AssociationMembershipServiceInterface;
 use App\Application\Services\EmailVerificationPolicyInterface;
+use App\Http\Middleware\ThrottleWhereListed;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
+use Modules\Achievements\AchievementsServiceProvider;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
+use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Application\Services\AchievementLeaderboardInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Domain\Enums\GrantSource;
 use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
+use Modules\Achievements\Domain\ValueObjects\NewGrant;
 use Modules\Achievements\Infrastructure\Leaderboard\CachedLeaderboardStandings;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
@@ -217,18 +222,49 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
                 ->where('viewer.status', 'no_public_name'));
     }
 
-    public function test_secret_achievements_add_to_the_total_without_being_named(): void
+    public function test_others_see_totals_without_the_secrets_masked_to_them(): void
     {
         $viewer = $this->person('Vera');
         $secret = $this->achievement($this->countRule(), ['name' => 'El secreto', 'points' => 50, 'is_secret' => true]);
-        $this->scored('Pública', 'public', [$this->ten, $secret]);
+        $owner = $this->scored('Pública', 'public', [$this->ten, $secret]);
 
         $this->actingAs($viewer)->get('/logros/clasificacion')
             ->assertOk()
-            ->assertDontSee('El secreto')
             ->assertInertia(fn (Assert $page): Assert => $page
-                ->where('entries.0.points', 60)
+                ->where('entries.0.points', 10)
                 ->missing('entries.0.achievements'));
+
+        // The owner sees every point of their own
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($owner)->get('/logros/clasificacion')
+            ->assertInertia(fn (Assert $page): Assert => $page->where('viewer.entry.points', 60));
+    }
+
+    public function test_a_secret_featured_by_one_never_tells_who_else_holds_it(): void
+    {
+        $viewer = $this->person('Vera');
+        $s = $this->achievement($this->countRule(), ['name' => 'S', 'points' => 40, 'is_secret' => true]);
+        $bea = $this->scored('Bea', 'public', [$s]);
+        $this->scored('Carl', 'public', [$s, $this->ten]);
+        $this->choose($bea, featured: [(string) $s->id]);
+        // Somebody whose only points are a secret masked to the viewer is not listed with 0
+        $this->scored('Dani', 'public', [$s]);
+
+        $this->actingAs($viewer)->get('/logros/clasificacion')
+            ->assertInertia(fn (Assert $page): Assert => $page
+                ->has('entries', 2)
+                ->where('entries.0.publicName', 'Bea')
+                ->where('entries.0.points', 40)
+                ->where('entries.1.publicName', 'Carl')
+                ->where('entries.1.points', 10));
+
+        // Whoever holds S too sees Carl's and Dani's in full
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($bea)->get('/logros/clasificacion')
+            ->assertInertia(fn (Assert $page): Assert => $page
+                ->has('entries', 3)
+                ->where('entries.0.publicName', 'Carl')
+                ->where('entries.0.points', 50));
     }
 
     public function test_ties_share_a_rank(): void
@@ -305,20 +341,50 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
             ->assertInertia(fn (Assert $page): Assert => $page->has('entries', 3)->where('pagination.page', 2));
     }
 
-    public function test_a_grant_shows_on_the_next_request_despite_the_cache(): void
+    public function test_a_grant_a_revoke_and_a_change_of_points_show_on_the_next_request_despite_the_cache(): void
     {
         $viewer = $this->person('Vera');
         $ana = $this->scored('Ana', 'public', [$this->ten]);
         $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 10));
 
-        $this->grantAt($ana, (string) $this->thirty->id);
-        // What a grant or revoke does (their events), and what a change of points does
-        app(AchievementLeaderboardInterface::class)->forget();
-
+        $grant = app(AchievementGranterInterface::class)->grant(new NewGrant((string) $ana->id, (string) $this->thirty->id, GrantSource::Manual, silent: true, actorId: (string) $viewer->id));
+        $this->assertNotNull($grant);
         $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 40));
 
-        $this->thirty->update(['points' => 5]);
+        $this->thirty->refresh()->update(['points' => 5]);
         $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 15));
+
+        // Made secret: Vera does not hold it, so its points leave Ana's total for her at once
+        $this->thirty->refresh()->update(['is_secret' => true]);
+        $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 10));
+
+        app(AchievementGranterInterface::class)->revoke($grant->id, (string) $viewer->id, 'Por error');
+        $this->thirty->refresh()->update(['is_secret' => false]);
+        $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 10));
+    }
+
+    public function test_choosing_from_the_account_tab_is_seen_at_once(): void
+    {
+        $viewer = $this->person('Vera');
+        $ana = $this->scored('Ana', 'public', [$this->ten]);
+        $this->optOut($ana);
+        // Ana is left out of the kept standings
+        $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->has('entries', 0));
+
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($ana)->put('/logros/preferencias', ['inLeaderboard' => true])->assertStatus(303);
+        $this->app->forgetScopedInstances();
+
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->has('entries', 1));
+    }
+
+    public function test_the_page_has_its_own_rate_limit(): void
+    {
+        $route = app('router')->getRoutes()->getByName('achievements.leaderboard');
+
+        $this->assertNotNull($route);
+        $this->assertContains(ThrottleWhereListed::class.':'.AchievementsServiceProvider::LEADERBOARD_LIMITER, $route->gatherMiddleware());
     }
 
     public function test_a_malformed_cache_is_read_from_the_database_and_never_trusted(): void
@@ -328,7 +394,7 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $cache = app(Repository::class);
         $cache->forever(CachedLeaderboardStandings::VERSION_KEY, 'v');
         // Somebody the viewer may not see, planted with more points, and a broken row
-        $cache->put('achievements:leaderboard:v1:all:v', [['userId' => 'x', 'points' => 'many']], 600);
+        $cache->put(CachedLeaderboardStandings::KEY_PREFIX.'all:v', [['userId' => 'x', 'open' => 'many', 'secrets' => []]], 600);
 
         $this->actingAs($viewer)->get('/logros/clasificacion')
             ->assertInertia(fn (Assert $page): Assert => $page->has('entries', 1)->where('entries.0.points', 10));
@@ -353,13 +419,18 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $this->scored('Ana', 'public', [$this->ten]);
         $points = $this->createStub(AchievementPointsRepositoryInterface::class);
         $points->method('standings')->willThrowException(new RuntimeException('down'));
-        $points->method('totals')->willReturn([]);
+        $points->method('breakdowns')->willReturn([]);
         $points->method('firstGrantedAt')->willReturn(null);
         $this->app->instance(AchievementPointsRepositoryInterface::class, $points);
 
         $this->actingAs($viewer)->get('/logros/clasificacion')
             ->assertOk()
-            ->assertInertia(fn (Assert $page): Assert => $page->where('available', false)->has('entries', 0));
+            ->assertInertia(fn (Assert $page): Assert => $page
+                ->where('available', false)
+                ->has('entries', 0)
+                // Nothing said about the viewer: a «no points» could be wrong
+                ->where('viewer.status', null)
+                ->where('viewer.entry', null));
     }
 
     /**

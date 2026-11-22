@@ -479,9 +479,6 @@ function progressPercent(item: LockedAchievement): number {
                     ? t('achievements.profile.secretMore', { count: secretCount }, secretCount)
                     : t('achievements.profile.secretOnly', { count: secretCount }, secretCount)
             }}
-            <template v-if="points && points.secretPoints > 0">
-                {{ t('achievements.points.secret', { points: formatPoints(points.secretPoints) }) }}
-            </template>
         </p>
 
         <!-- What is left, for the owner -->

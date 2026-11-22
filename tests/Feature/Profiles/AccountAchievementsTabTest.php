@@ -59,9 +59,18 @@ final class AccountAchievementsTabTest extends ModuleTestCase
                 ->where('achievementsAccount.noticesUrl', '/perfil?tab=mail'));
     }
 
+    public function test_without_points_there_is_no_leaderboard_switch(): void
+    {
+        $this->settings(new AchievementsSettings(points: false, leaderboard: true));
+
+        $this->actingAs($this->ana)
+            ->get('/perfil')
+            ->assertInertia(fn (Assert $page): Assert => $page->where('achievementsAccount.offersLeaderboard', false));
+    }
+
     public function test_the_leaderboard_switch_shows_with_the_leaderboard_on(): void
     {
-        $this->settings(new AchievementsSettings(leaderboard: true));
+        $this->settings(new AchievementsSettings(points: true, leaderboard: true));
 
         $this->actingAs($this->ana)
             ->get('/perfil')
@@ -101,7 +110,7 @@ final class AccountAchievementsTabTest extends ModuleTestCase
 
     public function test_the_owner_saves_their_choices_and_keeps_the_rest(): void
     {
-        $this->settings(new AchievementsSettings(leaderboard: true));
+        $this->settings(new AchievementsSettings(points: true, leaderboard: true));
         $held = $this->manualAchievement('Destacado');
         $this->grantAt($this->ana, (string) $held->id);
         $this->choose($this->ana, hidden: false, featured: [(string) $held->id]);

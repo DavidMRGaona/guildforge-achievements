@@ -19,7 +19,8 @@ import type {
 interface Props {
     entries: LeaderboardEntry[];
     pagination: LeaderboardPagination;
-    viewer: { entry: LeaderboardEntry | null; status: LeaderboardViewerStatus };
+    /** status is null when it could not be told: nothing is said then */
+    viewer: { entry: LeaderboardEntry | null; status: LeaderboardViewerStatus | null };
     available?: boolean;
     /** The season shown, or null for all time */
     season?: number | null;
@@ -156,6 +157,7 @@ function initials(name: string): string {
     <div class="mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         <!-- Where the viewer stands, or why they are not there: only about themselves -->
         <div
+            v-if="available && (viewer.entry || viewer.status)"
             class="rounded-lg border border-[var(--color-border)] bg-muted p-4 text-sm"
             data-test="viewer"
         >
@@ -176,7 +178,7 @@ function initials(name: string): string {
                     }}
                 </span>
             </p>
-            <p v-else class="text-base-secondary">
+            <p v-else-if="viewer.status" class="text-base-secondary">
                 {{ t(`achievements.leaderboard.status.${viewer.status}`) }}
                 <Link
                     v-if="

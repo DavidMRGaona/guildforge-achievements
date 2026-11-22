@@ -75,7 +75,6 @@ export default {
             level: 'Nivel {number} · {name}',
             toNext: 'Hacia el nivel «{name}»',
             missing: 'Te faltan {points} para «{name}».',
-            secret: 'Suman {points}.',
             seeLeaderboard: 'Ver la clasificación',
         },
         leaderboard: {
@@ -102,7 +101,7 @@ export default {
             empty: 'Todavía no hay nadie en la clasificación.',
             unavailable: 'La clasificación no está disponible ahora mismo. Inténtalo más tarde.',
             explained:
-                'Los puntos salen de los logros que tiene cada persona; los secretos también suman, sin decir cuáles son.',
+                'Los puntos salen de los logros que tiene cada persona. Los logros secretos que tú no tienes no se suman aquí, salvo que su dueño los haya destacado.',
             pagesLabel: 'Páginas de la clasificación',
             previous: 'Anterior',
             next: 'Siguiente',

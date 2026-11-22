@@ -64,7 +64,7 @@ final class PointsAndLevelsTest extends ModuleTestCase
         $this->twenty->update(['is_active' => false]);
         $this->app->forgetScopedInstances();
 
-        $summary = app(AchievementPointsInterface::class)->summary((string) $this->ana->id);
+        $summary = app(AchievementPointsInterface::class)->summary((string) $this->ana->id, (string) $this->ana->id);
 
         $this->assertSame(35, $summary->total);
         $this->assertSame(20, $summary->season);
@@ -99,7 +99,7 @@ final class PointsAndLevelsTest extends ModuleTestCase
         $this->assertSame(2, $this->levelStat($this->render($this->ana, $this->ana))?->value);
     }
 
-    public function test_others_see_the_points_of_secrets_they_may_not_see_only_as_one_sum(): void
+    public function test_others_get_no_points_of_the_secrets_masked_to_them(): void
     {
         $props = $this->achievementsSection($this->render($this->ana, $this->luis))?->props;
 
@@ -107,13 +107,50 @@ final class PointsAndLevelsTest extends ModuleTestCase
         $this->assertSame(1, $props['secretCount']);
         $this->assertSame(['Veinte'], array_column($props['earned'], 'name'));
         $this->assertSame(20, $props['earned'][0]['points']);
-        $this->assertSame(35, $props['points']['total']);
-        $this->assertSame(15, $props['points']['secretPoints']);
+        // 35 with the secret: a total minus what is shown would give its 15 points away
+        $this->assertSame(20, $props['points']['total']);
+        $this->assertArrayNotHasKey('secretPoints', $props['points']);
         $this->assertSame(20, $props['points']['season']);
         $this->assertSame('Aprendiz', $props['points']['level']['name']);
         // The next level is the owner's own progress
         $this->assertNull($props['points']['nextLevel']);
         $this->assertStringNotContainsString('El secreto', (string) json_encode($props));
+        $this->assertSame(2, $this->levelStat($this->render($this->ana, $this->luis))?->value);
+    }
+
+    public function test_a_featured_secret_and_one_the_viewer_holds_add_up_and_never_tell_who_else_holds_it(): void
+    {
+        // Bea features S (revealing it and its points); Carl holds S without featuring it
+        $s = $this->achievement($this->countRule(), ['name' => 'S', 'points' => 40, 'is_secret' => true]);
+        $bea = $this->person('Bea');
+        $carl = $this->person('Carl');
+        $this->grantAt($bea, (string) $s->id);
+        $this->grantAt($carl, (string) $s->id);
+        $this->grantAt($carl, (string) $this->twenty->id);
+        $this->choose($bea, featured: [(string) $s->id]);
+
+        $beaSeen = $this->achievementsSection($this->render($bea, $this->luis))?->props;
+        $carlSeen = $this->achievementsSection($this->render($carl, $this->luis))?->props;
+
+        $this->assertSame(40, $beaSeen['points']['total'] ?? null);
+        // Carl's 40 of S are not added: «1 secret» and a total that says nothing about which
+        $this->assertSame(1, $carlSeen['secretCount'] ?? null);
+        $this->assertSame(20, $carlSeen['points']['total'] ?? null);
+
+        // Whoever holds S sees it on Carl, and his full total
+        $this->assertSame(60, $this->achievementsSection($this->render($carl, $bea))?->props['points']['total'] ?? null);
+        // Carl sees his own in full
+        $this->assertSame(60, $this->achievementsSection($this->render($carl, $carl))?->props['points']['total'] ?? null);
+    }
+
+    public function test_a_guest_gets_no_link_to_the_leaderboard(): void
+    {
+        $this->assertSame('/logros', $this->levelStat($this->render($this->ana, null))?->url);
+        $props = $this->achievementsSection($this->render($this->ana, null))?->props;
+
+        $this->assertIsArray($props);
+        $this->assertArrayHasKey('points', $props);
+        $this->assertNull($props['points']['leaderboardUrl']);
     }
 
     public function test_the_owner_sees_their_next_level_and_the_leaderboard_choice(): void
@@ -121,7 +158,7 @@ final class PointsAndLevelsTest extends ModuleTestCase
         $props = $this->achievementsSection($this->render($this->ana, $this->ana))?->props;
 
         $this->assertIsArray($props);
-        $this->assertSame(0, $props['points']['secretPoints']);
+        $this->assertSame(35, $props['points']['total']);
         $this->assertSame('Habitual', $props['points']['nextLevel']['name']);
         $this->assertSame('/logros/clasificacion', $props['points']['leaderboardUrl']);
         $this->assertTrue($props['owner']['leaderboard']);

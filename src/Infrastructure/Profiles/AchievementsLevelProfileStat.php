@@ -71,13 +71,15 @@ final readonly class AchievementsLevelProfileStat implements DescribesProfileSta
             return null;
         }
 
-        $summary = $this->points->summary($owner->id);
+        // The level of the total this viewer may see: secrets masked to them are not added
+        $summary = $this->points->summary($owner->id, $viewerId);
 
         if ($summary->total === 0 || ! $summary->level instanceof Level) {
             return null;
         }
 
-        $url = $this->settings->leaderboardShown()
+        // Only signed-in accounts open the leaderboard
+        $url = $viewerId !== null && $this->settings->leaderboardShown()
             ? route('achievements.leaderboard', absolute: false)
             : route('achievements.index', absolute: false);
 

@@ -6,23 +6,26 @@ namespace Modules\Achievements\Infrastructure\Leaderboard;
 
 use Illuminate\Contracts\Cache\Repository;
 use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterface;
+use Modules\Achievements\Domain\ValueObjects\PointsBreakdown;
 use Modules\Achievements\Domain\ValueObjects\PointsPeriod;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Throwable;
 
 /**
- * The standings (account ids and points, nothing else) kept in the cache for a few minutes under a
- * version token that every grant, revoke and change of points or choices replaces. Only points are
- * kept: who the viewer may see, and each person's choices, are read again on every request.
+ * The standings kept in the cache for a few minutes: ids and points only (each account's points of
+ * achievements that are not secret, and the id and points of each secret one it holds). They live
+ * under a version token that every grant, revoke, change of an achievement's points or secrecy and
+ * change of choices replaces. Who the viewer may see, which secrets are revealed to them and each
+ * person's choices are worked out again on every request, never kept.
  *
- * Fails closed: a cache that cannot be read, or holds anything but a list of id and points, gives
- * the database's answer; a cache that cannot be written changes nothing for this request.
+ * Fails closed: a cache that cannot be read, or holds anything but that shape, gives the database's
+ * answer; a cache that cannot be written changes nothing for this request.
  */
 final readonly class CachedLeaderboardStandings
 {
     public const string VERSION_KEY = 'achievements:leaderboard:version';
 
-    private const string KEY_PREFIX = 'achievements:leaderboard:v1:';
+    public const string KEY_PREFIX = 'achievements:leaderboard:v2:';
 
     private const int CACHE_SECONDS = 600;
 
@@ -33,7 +36,7 @@ final readonly class CachedLeaderboardStandings
     ) {}
 
     /**
-     * @return list<array{userId: string, points: int}>
+     * @return array<string, PointsBreakdown> account id in lower case => its points
      */
     public function standings(PointsPeriod $period): array
     {
@@ -56,7 +59,7 @@ final readonly class CachedLeaderboardStandings
 
         if ($key !== null) {
             try {
-                $this->cache->put($key, $standings, self::CACHE_SECONDS);
+                $this->cache->put($key, $this->write($standings), self::CACHE_SECONDS);
             } catch (Throwable $exception) {
                 $this->warn('leaderboard_cache_unwritable', $exception);
             }
@@ -76,7 +79,22 @@ final readonly class CachedLeaderboardStandings
     }
 
     /**
-     * @return list<array{userId: string, points: int}>|null
+     * @param  array<string, PointsBreakdown>  $standings
+     * @return list<array{userId: string, open: int, secrets: array<string, int>}>
+     */
+    private function write(array $standings): array
+    {
+        $rows = [];
+
+        foreach ($standings as $userId => $points) {
+            $rows[] = ['userId' => $userId, 'open' => $points->open, 'secrets' => $points->secrets];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<string, PointsBreakdown>|null
      */
     private function read(mixed $cached): ?array
     {
@@ -87,11 +105,21 @@ final readonly class CachedLeaderboardStandings
         $standings = [];
 
         foreach ($cached as $row) {
-            if (! is_array($row) || ! is_string($row['userId'] ?? null) || ! is_int($row['points'] ?? null) || $row['points'] <= 0) {
+            if (! is_array($row) || ! is_string($row['userId'] ?? null) || ! is_int($row['open'] ?? null) || $row['open'] < 0 || ! is_array($row['secrets'] ?? null)) {
                 return null;
             }
 
-            $standings[] = ['userId' => $row['userId'], 'points' => $row['points']];
+            $secrets = [];
+
+            foreach ($row['secrets'] as $id => $points) {
+                if (! is_string($id) || ! is_int($points) || $points < 0) {
+                    return null;
+                }
+
+                $secrets[$id] = $points;
+            }
+
+            $standings[$row['userId']] = new PointsBreakdown($row['open'], $secrets);
         }
 
         return $standings;

@@ -53,7 +53,7 @@ final class LeaderboardController extends Controller
             ],
             'viewer' => [
                 'entry' => $page->viewer?->toArray(),
-                'status' => $page->viewerStatus->value,
+                'status' => $page->viewerStatus?->value,
             ],
             'available' => $page->available,
             'season' => $season,

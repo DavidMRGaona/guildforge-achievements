@@ -28,7 +28,7 @@ Route::prefix('logros')
         // The leaderboard (#10): signed-in accounts only (and, with `auth`, the core's email
         // verification applies); it answers 404 while points or the leaderboard are off
         Route::get('clasificacion', LeaderboardController::class)
-            ->middleware('auth')
+            ->middleware(['auth', ThrottleWhereListed::class.':'.AchievementsServiceProvider::LEADERBOARD_LIMITER])
             ->name('leaderboard');
 
         // The owner's choices from their profile's section: only the owner of the profile at

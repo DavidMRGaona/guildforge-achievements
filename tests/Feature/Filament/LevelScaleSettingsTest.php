@@ -61,6 +61,21 @@ final class LevelScaleSettingsTest extends ModuleTestCase
         $this->assertSame([['threshold' => 0, 'name' => 'Novato'], ['threshold' => 100, 'name' => 'Experto']], $settings->levelScale()->toArray());
     }
 
+    public function test_the_starter_scale_saved_untouched_keeps_following_the_site_language(): void
+    {
+        Livewire::test(AchievementsSettingsPage::class)
+            ->fillForm(['points' => true, 'levels' => true])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->app->forgetScopedInstances();
+        $settings = app(AchievementsSettingsInterface::class)->settings();
+
+        $this->assertTrue($settings->levels);
+        $this->assertNull($settings->levelScale);
+        $this->assertNull($settings->toArray()['levels_scale']);
+    }
+
     public function test_a_scale_that_does_not_climb_is_refused_and_nothing_is_saved(): void
     {
         Livewire::test(AchievementsSettingsPage::class)

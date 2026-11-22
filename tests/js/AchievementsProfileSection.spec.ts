@@ -235,13 +235,12 @@ describe('AchievementsProfileSection points', () => {
         total: 35,
         season: 20,
         seasonYear: 2026,
-        secretPoints: 15,
         level: { number: 2, name: 'Aprendiz', threshold: 20 },
         nextLevel: null,
         leaderboardUrl: '/logros/clasificacion',
     };
 
-    it('shows the totals, the level and the secrets as one sum', () => {
+    it('shows the totals and the level, and only counts the secrets', () => {
         const wrapper = mount(AchievementsProfileSection, {
             props: {
                 earned: [earned({ points: 20 })],
@@ -255,7 +254,7 @@ describe('AchievementsProfileSection points', () => {
         expect(summary).toContain('35 puntos');
         expect(summary).toContain('20 puntos en la temporada 2026');
         expect(summary).toContain('Nivel 2 · Aprendiz');
-        expect(wrapper.find('[data-test="secret-count"]').text()).toContain('Suman 15 puntos.');
+        expect(wrapper.find('[data-test="secret-count"]').text()).not.toContain('punto');
         expect(wrapper.find('[data-test="earned"]').text()).toContain('20 puntos');
     });
 

@@ -100,13 +100,15 @@ describe('Achievements/Leaderboard', () => {
                 ...base,
                 entries: [],
                 available: false,
-                viewer: { entry: null, status: 'no_points' },
+                viewer: { entry: null, status: null },
             },
             global: { stubs },
         });
 
         expect(wrapper.find('[data-test="unavailable"]').exists()).toBe(true);
         expect(wrapper.find('[data-test="entries"]').exists()).toBe(false);
+        // Nothing said about the viewer: it could be wrong
+        expect(wrapper.find('[data-test="viewer"]').exists()).toBe(false);
     });
 
     it('pages forward keeping the season', () => {

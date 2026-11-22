@@ -75,7 +75,6 @@ export default {
             level: 'Level {number} · {name}',
             toNext: 'Towards level «{name}»',
             missing: '{points} to go for «{name}».',
-            secret: 'Worth {points}.',
             seeLeaderboard: 'See the leaderboard',
         },
         leaderboard: {
@@ -102,7 +101,7 @@ export default {
             empty: 'Nobody is in the leaderboard yet.',
             unavailable: 'The leaderboard is not available right now. Try again later.',
             explained:
-                'Points come from each person’s achievements; secret ones count too, without saying which.',
+                'Points come from each person’s achievements. Secret ones you do not hold are not added here, unless their owner featured them.',
             pagesLabel: 'Leaderboard pages',
             previous: 'Previous',
             next: 'Next',

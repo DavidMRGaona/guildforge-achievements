@@ -28,6 +28,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Inertia\Inertia;
@@ -114,6 +115,11 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
     /** The owner's choices from the profile section (featured badges, hiding them) */
     public const string PROFILE_CHOICES_LIMITER = 'achievements-profile-choices';
 
+    /** The leaderboard page (#10): each request works out what one viewer may see */
+    public const string LEADERBOARD_LIMITER = 'achievements-leaderboard';
+
+    private const int LEADERBOARD_PER_MINUTE = 30;
+
     private const int PROFILE_CHOICES_PER_MINUTE = 20;
 
     private const int PROFILE_CHOICES_PER_HOUR = 200;
@@ -186,16 +192,19 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
 
         AchievementModel::observe(EvaluateChangedAchievements::class);
         AchievementModel::observe(ForgetFeaturedWhenMadeSecret::class);
-        // An achievement's points count for everybody who holds it
+        // An achievement's points count for everybody who holds it, and whether it is secret decides
+        // who sees them: the kept standings go once the change is committed
         AchievementModel::updated(static function (AchievementModel $achievement): void {
-            if ($achievement->wasChanged('points')) {
-                app(AchievementLeaderboardInterface::class)->forget();
+            if ($achievement->wasChanged(['points', 'is_secret'])) {
+                DB::afterCommit(static fn () => app(AchievementLeaderboardInterface::class)->forget());
             }
         });
         RateLimiter::for(self::PROFILE_CHOICES_LIMITER, static fn (Request $request): array => [
             Limit::perMinute(self::PROFILE_CHOICES_PER_MINUTE)->by('achievements-choices:'.self::requesterKey($request)),
             Limit::perHour(self::PROFILE_CHOICES_PER_HOUR)->by('achievements-choices-hour:'.self::requesterKey($request)),
         ]);
+        RateLimiter::for(self::LEADERBOARD_LIMITER, static fn (Request $request): Limit => Limit::perMinute(self::LEADERBOARD_PER_MINUTE)
+            ->by('achievements-leaderboard:'.self::requesterKey($request)));
         $this->showOnTheUserPage();
         $this->shareAccountTab();
         $this->keepMediaUsagesUpToDate();

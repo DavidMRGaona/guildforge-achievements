@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Infrastructure\Leaderboard;
 
+use App\Application\Profiles\DTOs\PublicProfileDTO;
 use App\Application\Profiles\Services\ProfileAccessRule;
 use App\Domain\Activity\ActivityIdentifierRule;
 use App\Infrastructure\Seo\CloudinaryImageUrlBuilder;
@@ -12,6 +13,7 @@ use Modules\Achievements\Application\DTOs\LeaderboardEntryDTO;
 use Modules\Achievements\Application\DTOs\LeaderboardPageDTO;
 use Modules\Achievements\Application\Enums\LeaderboardViewerStatus;
 use Modules\Achievements\Application\Services\AchievementLeaderboardInterface;
+use Modules\Achievements\Application\Services\AchievementPointsInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
@@ -21,17 +23,22 @@ use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Throwable;
 
 /**
- * On every request, over the standings (cached points only):
+ * On every request, over the standings (cached ids and points only):
  *
  * 1. the core describes each candidate's profile and its ProfileAccessRule keeps those the viewer
  *    may see (visibleAmong(): deactivated, anonymized, hidden or stricter profiles go, as on the
  *    profile page; the viewer always sees their own);
  * 2. accounts without a public name go, the viewer's own included: nobody is ever shown by the
  *    account name;
- * 3. each person's choices are read again, so hiding achievements or opting out takes effect at once.
+ * 3. each person's choices are read again, so hiding achievements or opting out takes effect at once;
+ * 4. each total is the one this viewer may see: their own in full, anybody else's without the secret
+ *    achievements masked to the viewer (not held by them, not featured by the owner). A total minus
+ *    what the viewer can see would otherwise give a secret's points, and with them who holds it.
+ *    Rows left without points go.
  *
  * Ranks are worked out over what is left, ties sharing a rank («1, 2, 2, 4»): a gap or a position
- * never stands for somebody the viewer may not see.
+ * never stands for somebody the viewer may not see. Ties are ordered by public name and account id,
+ * never by when anything was granted.
  */
 final readonly class Leaderboard implements AchievementLeaderboardInterface
 {
@@ -43,6 +50,7 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
         private ProfileAccessRule $access,
         private AchievementPreferencesRepositoryInterface $preferences,
         private AchievementPointsRepositoryInterface $points,
+        private AchievementPointsInterface $pointsShown,
         private AchievementsSettingsInterface $settings,
         private CloudinaryImageUrlBuilder $cloudinary,
         private AchievementWarnings $warnings,
@@ -53,14 +61,15 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
         $viewerId = ActivityIdentifierRule::userId((string) $viewer->getAuthIdentifier()) ?? strtolower((string) $viewer->getAuthIdentifier());
 
         try {
-            $rows = $this->visibleRows($viewer, $period);
+            $rows = $this->visibleRows($viewer, $viewerId, $period);
         } catch (Throwable $exception) {
             $this->warnings->warn('leaderboard_unavailable', '[Achievements] The leaderboard could not be worked out; nobody is shown.', [
                 'reason' => 'leaderboard_unavailable',
                 'exception' => $exception::class,
             ]);
 
-            return LeaderboardPageDTO::unavailable($this->statusOf($viewerId, $period));
+            // Nothing said about the viewer either: a «no points» there could be wrong
+            return LeaderboardPageDTO::unavailable();
         }
 
         $scale = $this->settings->levelsShown() ? $this->settings->levelScale() : null;
@@ -112,11 +121,12 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
     }
 
     /**
-     * The standings the viewer may see, the most points first, then by public name.
+     * The standings the viewer may see with the totals they may see, the most points first, then by
+     * public name.
      *
      * @return list<array{userId: string, points: int, publicName: string, handle: string, avatarPublicId: string|null}>
      */
-    private function visibleRows(Authenticatable $viewer, PointsPeriod $period): array
+    private function visibleRows(Authenticatable $viewer, string $viewerId, PointsPeriod $period): array
     {
         $standings = $this->standings->standings($period);
 
@@ -124,23 +134,22 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
             return [];
         }
 
-        $described = $this->profiles->describe(array_column($standings, 'userId'));
+        $described = $this->profiles->describe(array_map(strval(...), array_keys($standings)));
         $visible = array_flip(array_map(
             strtolower(...),
-            $this->access->visibleAmong(array_column($described, 'profile'), $viewer),
+            $this->access->visibleAmong(array_values(array_map(static fn (array $one): PublicProfileDTO => $one['profile'], $described)), $viewer),
         ));
 
         $named = [];
 
-        foreach ($standings as $row) {
-            $profile = $described[$row['userId']]['profile'] ?? null;
-            $name = $profile?->shownPublicName();
+        foreach ($described as $userId => $one) {
+            $name = $one['profile']->shownPublicName();
 
-            if ($profile !== null && $name !== null && isset($visible[$row['userId']])) {
-                $named[$row['userId']] = $row + [
+            if ($name !== null && isset($visible[$userId], $standings[$userId])) {
+                $named[$userId] = [
                     'publicName' => $name,
-                    'handle' => $profile->handle,
-                    'avatarPublicId' => $described[$row['userId']]['avatarPublicId'],
+                    'handle' => $one['profile']->handle,
+                    'avatarPublicId' => $one['avatarPublicId'],
                 ];
             }
         }
@@ -149,11 +158,21 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
             return [];
         }
 
+        $viewerHolds = $this->pointsShown->heldBy($viewerId);
         $rows = [];
 
         foreach ($this->preferences->forUsers(array_keys($named)) as $userId => $choices) {
-            if ($choices->appearsInLeaderboard() && isset($named[$userId])) {
-                $rows[] = $named[$userId];
+            if (! $choices->appearsInLeaderboard() || ! isset($named[$userId])) {
+                continue;
+            }
+
+            $points = $userId === $viewerId
+                ? $standings[$userId]->total()
+                // Featuring reveals a secret to everybody; holding it too reveals it to the viewer
+                : $standings[$userId]->visibleWith(array_fill_keys($choices->featured, true) + $viewerHolds);
+
+            if ($points > 0) {
+                $rows[] = ['userId' => $userId, 'points' => $points] + $named[$userId];
             }
         }
 
@@ -184,9 +203,10 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
     }
 
     /**
-     * Why the viewer is not listed, from their own choices, name and points only.
+     * Why the viewer is not listed, from their own choices, name and points only; null (nothing
+     * said) when any of it cannot be read, never a misleading «no points».
      */
-    private function statusOf(string $viewerId, PointsPeriod $period): LeaderboardViewerStatus
+    private function statusOf(string $viewerId, PointsPeriod $period): ?LeaderboardViewerStatus
     {
         try {
             $choices = $this->preferences->find($viewerId);
@@ -199,7 +219,7 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
                 return LeaderboardViewerStatus::OptedOut;
             }
 
-            if (($this->points->totals([$viewerId], $period)[$viewerId] ?? 0) === 0) {
+            if ($this->points->breakdowns([$viewerId], $period)[$viewerId]->total() === 0) {
                 return LeaderboardViewerStatus::NoPoints;
             }
 
@@ -209,7 +229,7 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
                 return LeaderboardViewerStatus::NoPublicName;
             }
         } catch (Throwable) {
-            return LeaderboardViewerStatus::NoPoints;
+            return null;
         }
 
         // Points not counted yet in the kept standings (a grant moments ago): they show shortly

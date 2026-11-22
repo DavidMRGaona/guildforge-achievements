@@ -94,8 +94,7 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
         // Secrets the viewer may not see are only counted: one by one, a date, a rarity or a
         // position would tie them to a secret revealed elsewhere (grants of one batch share their
         // second), and with it to the game or event behind it. The owner sees none masked.
-        $masked = array_filter($earned, static fn (ShowcaseItemDTO $item): bool => $item->achievement->masked);
-        $secrets = count($masked);
+        $secrets = count(array_filter($earned, static fn (ShowcaseItemDTO $item): bool => $item->achievement->masked));
         $earned = array_values(array_filter($earned, static fn (ShowcaseItemDTO $item): bool => ! $item->achievement->masked));
         $showsPoints = $this->settings->pointsEnabled();
 
@@ -117,10 +116,7 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
             'showsRarity' => $this->settings->rarityEnabled(),
             'catalogueUrl' => route('achievements.index', absolute: false),
             'owner' => $preferences instanceof AchievementPreferences ? $this->owner($owner, $earned, $preferences) : null,
-        ] + ($showsPoints ? ['points' => $this->points($owner, $isOwner, array_sum(array_map(
-            static fn (ShowcaseItemDTO $item): int => $item->points,
-            $masked,
-        )))] : []);
+        ] + ($showsPoints ? ['points' => $this->points($owner, $viewerId, $isOwner)] : []);
     }
 
     /**
@@ -144,14 +140,16 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
     }
 
     /**
-     * The owner's totals (#10): all time, the current season while seasons are on, the level while
-     * levels show. The points of secrets the viewer may not see come as one sum, never one by one.
+     * The owner's totals as this viewer may see them (#10): all time, the current season while
+     * seasons are on, the level while levels show. Secrets masked to the viewer are only counted
+     * (secretCount), never added: a total minus the points shown would give their points away, and
+     * with them who holds them. The owner sees every point and the next level.
      *
-     * @return array{total: int, season: int|null, seasonYear: int, secretPoints: int, level: array{number: int, name: string, threshold: int}|null, nextLevel: array{number: int, name: string, threshold: int}|null, leaderboardUrl: string|null}
+     * @return array{total: int, season: int|null, seasonYear: int, level: array{number: int, name: string, threshold: int}|null, nextLevel: array{number: int, name: string, threshold: int}|null, leaderboardUrl: string|null}
      */
-    private function points(ProfileOwnerDTO $owner, bool $isOwner, int $secretPoints): array
+    private function points(ProfileOwnerDTO $owner, ?string $viewerId, bool $isOwner): array
     {
-        $summary = $this->points->summary($owner->id);
+        $summary = $this->points->summary($owner->id, $viewerId);
         $level = static fn (?Level $level): ?array => $level instanceof Level ? [
             'number' => $level->number,
             'name' => $level->name,
@@ -162,11 +160,11 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
             'total' => $summary->total,
             'season' => $summary->season,
             'seasonYear' => $summary->seasonYear,
-            'secretPoints' => $secretPoints,
             'level' => $level($summary->level),
             // How far the next level is: the owner's own progress
             'nextLevel' => $isOwner ? $level($summary->nextLevel) : null,
-            'leaderboardUrl' => $this->settings->leaderboardShown() ? route('achievements.leaderboard', absolute: false) : null,
+            // Signed-in accounts only open it
+            'leaderboardUrl' => $viewerId !== null && $this->settings->leaderboardShown() ? route('achievements.leaderboard', absolute: false) : null,
         ];
     }
 

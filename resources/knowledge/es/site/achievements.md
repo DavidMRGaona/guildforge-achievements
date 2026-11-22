@@ -73,16 +73,18 @@ Cada persona elige si recibe estos anuncios en **Ajustes de la cuenta → Avisos
 
 ## Puntos y niveles
 
-Si la asociación los ha encendido, cada logro da unos **puntos**, que ves en su ficha en **Logros**. Tus puntos son la suma de los de todos tus logros, secretos incluidos: el total no dice cuáles son. En tu perfil salen tus puntos desde siempre y los de la **temporada** en curso, que es el año natural.
+Si la asociación los ha encendido, cada logro da unos **puntos**, que ves en su ficha en **Logros**. Tus puntos son la suma de los de todos tus logros, secretos incluidos. En tu perfil salen tus puntos desde siempre y los de la **temporada** en curso, que es el año natural.
 
 Los puntos suben de **nivel**: cada nivel empieza en un número de puntos que decide la asociación. En tu perfil ves tu nivel y, tú solo, cuánto te falta para el siguiente. Los demás ven tu nivel en la fila de datos de tu perfil.
 
-Los puntos y el nivel son totales: nunca dicen en qué mesa o en qué evento se ganaron. Quien mira tu perfil ve los puntos de cada logro que puede ver; los de tus secretos van juntos en una sola cifra.
+Los puntos y el nivel son totales: nunca dicen en qué mesa o en qué evento se ganaron. Tú ves tus puntos enteros. Los demás ven tu total sin los logros secretos que ellos no tienen, salvo los que hayas destacado: así, nadie puede adivinar qué secreto tienes restando. Por eso tu total y tu nivel pueden ser distintos según quién mire.
+
+Un límite que conviene saber: quien siga dos perfiles a la vez puede ver que los dos suben de puntos al mismo tiempo, y deducir que estuvieron en lo mismo. Si no quieres que se vea, oculta tus logros.
 
 ## La clasificación
 
 En **Logros**, con la sesión iniciada, **Ver la clasificación** enseña quién tiene más puntos, desde siempre o en una temporada. Solo pueden verla las cuentas con sesión que no tengan pendiente verificar su email.
 
-En la clasificación solo salen los perfiles que tú puedes ver, con su nombre público, y tu puesto se cuenta solo entre ellos. No salen las cuentas desactivadas o anonimizadas, las que no tienen nombre público, quien oculta sus logros ni quien ha elegido no salir.
+En la clasificación solo salen los perfiles que tú puedes ver, con su nombre público y los puntos que tú puedes ver de cada uno, y tu puesto se cuenta solo entre ellos. No salen las cuentas desactivadas o anonimizadas, las que no tienen nombre público, quien oculta sus logros ni quien ha elegido no salir.
 
 Apareces en ella salvo que no quieras. Para salir, apaga **Aparecer en la clasificación** en **Ajustes de la cuenta → Logros** o en la sección **Logros** de tu perfil público: es el mismo ajuste y se guarda al momento. Puedes volver a encenderlo cuando quieras. Si ocultas tus logros, tampoco sales en la clasificación.

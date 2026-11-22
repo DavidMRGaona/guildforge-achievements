@@ -254,7 +254,7 @@ final class AchievementsSettingsPage extends Page implements HasForms
     /**
      * The scale on the form, in the order typed; while it is hidden (levels off) the stored one
      * stays. A scale that is not one (the first level above 0, a level that needs no more points
-     * than the one before) is refused on the field.
+     * than the one before) is refused on the field. The starter scale as it is gives null.
      *
      * @throws ValidationException
      */
@@ -278,10 +278,13 @@ final class AchievementsSettingsPage extends Page implements HasForms
         }
 
         try {
-            return new LevelScale($levels);
+            $scale = new LevelScale($levels);
         } catch (InvalidArgumentException) {
             throw ValidationException::withMessages(['data.levels_scale' => __('achievements::messages.settings.levels_invalid')]);
         }
+
+        // The starter scale untouched is not stored: its names keep following the site's language
+        return $scale->toArray() === AchievementsSettings::starterLevelScale()->toArray() ? null : $scale;
     }
 
     /**

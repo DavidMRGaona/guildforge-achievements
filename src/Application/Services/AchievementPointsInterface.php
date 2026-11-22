@@ -30,7 +30,16 @@ interface AchievementPointsInterface
     public function seasons(): array;
 
     /**
-     * One account's points; the season while seasons are on, the level while levels show.
+     * One account's points as a viewer sees them (null: a guest); the season while seasons are on,
+     * the level while levels show. The owner sees every point; anybody else not those of the secret
+     * achievements masked to them, which are only ever counted.
      */
-    public function summary(string $userId): PointsSummaryDTO;
+    public function summary(string $userId, ?string $viewerId): PointsSummaryDTO;
+
+    /**
+     * The achievements an account holds (any season), as a set of ids in lower case.
+     *
+     * @return array<string, true>
+     */
+    public function heldBy(string $viewerId): array;
 }

@@ -38,7 +38,7 @@ final readonly class AccountAchievementsTab
 
         $settings = $this->settings->settings();
 
-        if (! $settings->announcements && ! $settings->leaderboard) {
+        if (! $settings->announcements && ! $settings->leaderboardShown()) {
             return null;
         }
 
@@ -49,7 +49,7 @@ final readonly class AccountAchievementsTab
             'inLeaderboard' => $preferences->inLeaderboard,
             'hidden' => $preferences->hidden,
             'offersAnnouncements' => $settings->announcements,
-            'offersLeaderboard' => $settings->leaderboard,
+            'offersLeaderboard' => $settings->leaderboardShown(),
             'threshold' => $settings->announcementsRarityThreshold,
             'updateUrl' => route('achievements.account.update', [], false),
             'noticesUrl' => route('profile.show', ['tab' => 'mail'], false),

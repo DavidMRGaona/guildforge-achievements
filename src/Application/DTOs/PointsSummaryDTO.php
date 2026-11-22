@@ -7,8 +7,8 @@ namespace Modules\Achievements\Application\DTOs;
 use Modules\Achievements\Domain\ValueObjects\Level;
 
 /**
- * One account's points (#10): all time and, while seasons are on, in the current season; with the
- * level they reach and the next one while levels show. Totals only.
+ * One account's points as one viewer sees them (#10): all time and, while seasons are on, in the
+ * current season; with the level they reach and the next one while levels show. Totals only.
  */
 final readonly class PointsSummaryDTO
 {

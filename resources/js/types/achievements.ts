@@ -49,14 +49,12 @@ export interface AchievementLevel {
     name: string;
 }
 
-/** The owner's totals on their profile (only while points are on) */
+/** The owner's totals as the viewer may see them (only while points are on): secrets masked to the viewer are not added */
 export interface PointsSummary {
     total: number;
     /** The current season's points; null while seasons are off */
     season: number | null;
     seasonYear: number;
-    /** Points of the secrets the viewer may not see, as one sum */
-    secretPoints: number;
     level: (AchievementLevel & { threshold: number }) | null;
     /** Only for the owner: the level they climb to next */
     nextLevel: (AchievementLevel & { threshold: number }) | null;
