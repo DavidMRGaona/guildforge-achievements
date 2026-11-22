@@ -113,6 +113,41 @@ final class CommunityAchievementsTest extends ModuleTestCase
         $this->assertTrue($this->holds(self::ANA, $mentor->id));
     }
 
+    public function test_losing_a_first_game_makes_whoever_ran_the_next_one_a_mentor(): void
+    {
+        $mentor = $this->achievement(['version' => 1, 'metric' => 'mentor', 'threshold' => 1]);
+        InMemoryActivitySource::put('s1', [
+            $this->activityFact(self::ANA, ActivityRole::Director, '2026-01-10 18:00:00'),
+            $this->activityFact(self::LUIS, ActivityRole::Player, '2026-01-10 18:00:00'),
+        ]);
+        InMemoryActivitySource::put('s2', [
+            $this->activityFact(self::MARTA, ActivityRole::Director, '2026-02-10 18:00:00'),
+            $this->activityFact(self::LUIS, ActivityRole::Player, '2026-02-10 18:00:00'),
+        ]);
+        event(new ActivityRecorded(self::SESSIONS, 's1'));
+        event(new ActivityRecorded(self::SESSIONS, 's2'));
+        $this->assertTrue($this->holds(self::ANA, $mentor->id));
+        $this->assertFalse($this->holds(self::MARTA, $mentor->id));
+
+        // s1 stops counting (made private, say): only Ana and Luis are in the subject that changes
+        InMemoryActivitySource::put('s1', []);
+        event(new ActivityRecorded(self::SESSIONS, 's1'));
+
+        $this->assertTrue($this->holds(self::MARTA, $mentor->id));
+        $this->assertTrue($this->holds(self::ANA, $mentor->id));
+    }
+
+    public function test_the_mentors_evaluated_for_a_change_are_counted(): void
+    {
+        $this->achievement(['version' => 1, 'metric' => 'mentor', 'threshold' => 1]);
+        $this->played('s1', [self::ANA], [self::LUIS], '2026-01-10 18:00:00');
+
+        $result = $this->evaluator()->evaluate([self::LUIS], silent: true, dryRun: true);
+
+        $this->assertSame(2, $result->users);
+        $this->assertSame([self::ANA], array_column($result->granted, 'userId'));
+    }
+
     public function test_it_grows_from_a_recorded_subject_through_the_pipeline(): void
     {
         $ranForTwo = $this->achievement($this->peopleRule(2, 'director', 'player'));

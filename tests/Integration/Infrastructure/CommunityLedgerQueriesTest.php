@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Tests\Integration\Infrastructure;
 
+use App\Application\Services\SettingsServiceInterface;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use App\Infrastructure\Time\StorageTimezoneResolver;
 use DateTimeImmutable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\RecordedFact;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
@@ -80,6 +84,71 @@ final class CommunityLedgerQueriesTest extends ModuleTestCase
         $this->assertCount(2, $meetings[self::ANA]);
     }
 
+    public function test_accounts_deleted_for_good_never_count(): void
+    {
+        $this->ledgerSession('s1', '2026-01-10 18:00:00', director: [self::ANA], players: [self::LUIS, self::MARTA]);
+        // Their facts stay without a foreign key until anything else drops them
+        UserModel::withTrashed()->findOrFail(self::MARTA)->forceDelete();
+
+        $meetings = $this->repository()->firstMeetings([self::ANA], 'game_session', 'director', 'player');
+        $this->assertCount(1, $meetings[self::ANA]);
+        $this->assertCount(1, DB::table('achievements_facts')->where('user_id', self::MARTA)->get());
+
+        $this->ledgerSession('s2', '2026-02-10 18:00:00', director: [self::LUIS], players: [self::PEPA]);
+        UserModel::withTrashed()->findOrFail(self::PEPA)->forceDelete();
+        $this->assertSame([], $this->repository()->newcomersWelcomed([self::LUIS], 'game_session', 'director', 'player'));
+    }
+
+    public function test_one_person_met_in_two_subjects_at_the_same_instant_counts_once(): void
+    {
+        $this->ledgerSession('s1', '2026-01-10 18:00:00', director: [self::ANA], players: [self::LUIS]);
+        $this->ledgerSession('s2', '2026-01-10 18:00:00', director: [self::ANA], players: [self::LUIS]);
+
+        $this->assertCount(1, $this->repository()->firstMeetings([self::LUIS], 'game_session', null, null)[self::LUIS]);
+    }
+
+    public function test_two_first_games_at_the_same_instant_count_for_both_directors_once_each(): void
+    {
+        // A sign-up mistake, say: Luis is in two tables that start at the same time
+        $this->ledgerSession('s1', '2026-01-10 18:00:00', director: [self::ANA], players: [self::LUIS]);
+        $this->ledgerSession('s2', '2026-01-10 18:00:00', director: [self::MARTA], players: [self::LUIS]);
+        $this->ledgerSession('s3', '2026-02-10 18:00:00', director: [self::PEPA], players: [self::LUIS]);
+
+        $welcomed = $this->repository()->newcomersWelcomed([self::ANA, self::MARTA, self::PEPA], 'game_session', 'director', 'player');
+
+        $this->assertSame([self::ANA, self::MARTA], array_keys($welcomed));
+        $this->assertCount(1, $welcomed[self::ANA]);
+        $this->assertCount(1, $welcomed[self::MARTA]);
+        $this->assertSame([self::ANA, self::MARTA], $this->repository()->hostsOfFirstFacts([self::LUIS], 'game_session', 'director', 'player'));
+    }
+
+    public function test_instants_come_back_as_the_same_instant_when_stored_in_madrid(): void
+    {
+        $this->storeIn('Europe/Madrid');
+        // Summer time: 18:00 UTC is 20:00 in Madrid, the wall time written to the table
+        $this->ledgerSubject(self::SESSIONS, 's1', 'game_session', [
+            $this->recordedFact(self::ANA, 'director', '2026-07-10T18:00:00+00:00'),
+            $this->recordedFact(self::LUIS, 'player', '2026-07-10T18:00:00+00:00'),
+        ]);
+
+        $this->assertSame('2026-07-10 20:00:00', (string) DB::table('achievements_facts')->where('user_id', self::LUIS)->value('occurred_at'));
+        $met = $this->repository()->firstMeetings([self::LUIS], 'game_session', null, null)[self::LUIS][0];
+        $welcomed = $this->repository()->newcomersWelcomed([self::ANA], 'game_session', 'director', 'player')[self::ANA][0];
+
+        $expected = new DateTimeImmutable('2026-07-10T18:00:00+00:00')->getTimestamp();
+        $this->assertSame($expected, $met->getTimestamp());
+        $this->assertSame($expected, $welcomed->getTimestamp());
+    }
+
+    public function test_it_lists_who_shares_any_subject_with_an_account(): void
+    {
+        $this->ledgerSession('s1', '2026-01-10 18:00:00', director: [self::ANA], players: [self::LUIS]);
+        $this->ledgerSubject('tournaments.tournament', 't1', 'tournament', [$this->recordedFact(self::LUIS), $this->recordedFact(self::MARTA)]);
+
+        $this->assertSame([self::ANA, self::MARTA], $this->repository()->userIdsSharingSubjectsWith(self::LUIS));
+        $this->assertSame([], $this->repository()->userIdsSharingSubjectsWith(self::RAUL));
+    }
+
     public function test_other_kinds_never_count(): void
     {
         $this->ledgerSubject('tournaments.tournament', 't1', 'tournament', [$this->recordedFact(self::ANA), $this->recordedFact(self::LUIS)]);
@@ -134,6 +203,17 @@ final class CommunityLedgerQueriesTest extends ModuleTestCase
         ];
 
         $this->ledgerSubject(self::SESSIONS, $id, 'game_session', $facts);
+    }
+
+    private function storeIn(string $zone): void
+    {
+        $now = now()->toDateTimeString();
+        DB::table('settings')->updateOrInsert(
+            ['key' => StorageTimezoneResolver::SETTING_KEY],
+            ['id' => (string) Str::uuid(), 'value' => $zone, 'created_at' => $now, 'updated_at' => $now],
+        );
+        (new StorageTimezoneResolver)->apply($this->app);
+        $this->app->make(SettingsServiceInterface::class)->clearCache();
     }
 
     /**

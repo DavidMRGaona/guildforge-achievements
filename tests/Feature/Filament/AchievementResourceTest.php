@@ -184,6 +184,8 @@ final class AchievementResourceTest extends ModuleTestCase
         Livewire::test(CreateAchievement::class)
             ->fillForm(['name' => 'Mesa abierta', 'icon' => 'handshake', 'colour' => 'violet', 'points' => 0, 'rule_metric' => 'people', 'rule_kind' => 'game_session', 'rule_role' => 'director', 'rule_with_role' => 'player', 'rule_threshold' => 20])
             ->assertFormFieldExists('rule_kind', static fn ($field): bool => array_diff(array_keys($field->getOptions()), ['game_session', 'campaign', 'tournament', 'event']) === [])
+            ->assertFormFieldExists('rule_role', static fn ($field): bool => array_keys($field->getOptions()) === ['player', 'director'])
+            ->assertFormFieldExists('rule_with_role', static fn ($field): bool => array_keys($field->getOptions()) === ['player', 'director'])
             ->assertFormFieldIsHidden('rule_attribute_key')
             ->assertFormFieldIsHidden('rule_placement_max')
             ->call('create')
@@ -200,7 +202,7 @@ final class AchievementResourceTest extends ModuleTestCase
         $mentor = AchievementModel::query()->where('name', 'Mentor')->firstOrFail();
         $this->assertSame(['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['role' => 'director', 'with_role' => 'player'], 'threshold' => 20, 'window' => ['type' => 'all_time']], $people->rule);
         $this->assertSame(['version' => 1, 'metric' => 'mentor', 'threshold' => 1, 'window' => ['type' => 'all_time']], $mentor->rule);
-        $this->assertSame('Personas distintas: 20 · Partidas · Dirección · con Jugador', AchievementPanelView::ruleSummary($people));
+        $this->assertSame('Personas distintas: 20 · Partidas · Dirección · con jugador', AchievementPanelView::ruleSummary($people));
         $this->assertSame('Primeras partidas dirigidas: 1', AchievementPanelView::ruleSummary($mentor));
 
         Livewire::test(EditAchievement::class, ['record' => $people->getKey()])

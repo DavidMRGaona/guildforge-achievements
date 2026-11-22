@@ -60,7 +60,8 @@ final class AchievementPanelView
         }
 
         if ($rule->withRole !== null) {
-            $parts[] = self::text('summary.with_role', ['role' => $roles[$rule->withRole] ?? $rule->withRole]);
+            // Mid-phrase: «con jugador», never «con Jugador»
+            $parts[] = self::text('summary.with_role', ['role' => mb_strtolower($roles[$rule->withRole] ?? $rule->withRole)]);
         }
 
         return self::text('summary.people', ['threshold' => (string) $rule->threshold]).' · '.implode(' · ', $parts);

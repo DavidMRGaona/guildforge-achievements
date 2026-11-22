@@ -62,6 +62,7 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
         $userIds = $this->userIds($userIds);
         $result = $this->evaluateUsers($userIds, $evaluable, $silent, $dryRun);
         $granted = $result->granted;
+        $users = $result->users;
 
         // A change to someone's games may change whose first game they played, and so who ran it:
         // those people are evaluated too, for the mentor rules only
@@ -69,10 +70,12 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
         $mentors = $mentorRules === [] || $userIds === [] ? [] : array_values(array_diff($this->community->mentorsOf($userIds), $userIds));
 
         if ($mentors !== []) {
-            array_push($granted, ...$this->evaluateUsers($mentors, $mentorRules, $silent, $dryRun)->granted);
+            $mentorResult = $this->evaluateUsers($mentors, $mentorRules, $silent, $dryRun);
+            array_push($granted, ...$mentorResult->granted);
+            $users += $mentorResult->users;
         }
 
-        return new EvaluationResultDTO(EvaluationOutcome::Evaluated, $granted, $result->users, $result->achievements, $pending);
+        return new EvaluationResultDTO(EvaluationOutcome::Evaluated, $granted, $users, $result->achievements, $pending);
     }
 
     public function evaluateEverybody(?array $achievementIds, bool $silent, bool $dryRun = false, bool $onlyAccountYears = false, ?array $onlyKinds = null): EvaluationResultDTO

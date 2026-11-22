@@ -31,7 +31,8 @@ use JsonException;
  *
  * Community metrics (`people`, `mentor`) count other people, never name them: `people` counts the
  * different accounts that took part in the same subjects (`role` is the person's own part,
- * `with_role` the others'), only for the kinds done together (COMMUNITY_KINDS); `mentor` counts the
+ * `with_role` the others', each `player`, `director` or none), only for the kinds done together
+ * (COMMUNITY_KINDS); `mentor` counts the
  * accounts whose first game session as a player was one the person ran.
  *
  * `filters.attribute.label` is only the value's name when the rule was saved, for the panel; it
@@ -52,6 +53,9 @@ final readonly class AchievementRule
 
     /** Kinds of activity done with other people: the only ones a `people` rule may count */
     public const array COMMUNITY_KINDS = ['game_session', 'campaign', 'tournament', 'event'];
+
+    /** The parts a `people` rule may name, its own and the others': playing and running */
+    public const array PEOPLE_ROLES = ['player', 'director'];
 
     /** A mentor ran the first game session somebody played */
     public const string MENTOR_KIND = 'game_session';
@@ -285,7 +289,7 @@ final readonly class AchievementRule
         $role = $filters['role'] ?? null;
         $withRole = $filters['with_role'] ?? null;
 
-        if (! self::isRoleOrNull($role) || ! self::isRoleOrNull($withRole)) {
+        if (! self::isPeopleRoleOrNull($role) || ! self::isPeopleRoleOrNull($withRole)) {
             return null;
         }
 
@@ -293,11 +297,13 @@ final readonly class AchievementRule
     }
 
     /**
+     * Any other role (even a known one) makes the rule unreadable: it would count nobody, silently.
+     *
      * @phpstan-assert-if-true string|null $value
      */
-    private static function isRoleOrNull(mixed $value): bool
+    private static function isPeopleRoleOrNull(mixed $value): bool
     {
-        return $value === null || (is_string($value) && ActivityRole::tryFrom($value) instanceof ActivityRole);
+        return $value === null || (is_string($value) && in_array($value, self::PEOPLE_ROLES, true));
     }
 
     /**

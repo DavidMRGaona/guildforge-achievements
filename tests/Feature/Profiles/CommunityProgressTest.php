@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Tests\Feature\Profiles;
 
+use App\Domain\Events\UserAnonymized;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
@@ -94,6 +95,21 @@ final class CommunityProgressTest extends ModuleTestCase
         event(new AchievementFactsChanged([$anaId]));
 
         $this->assertSame(2, $this->metrics()->progress($rule, $anaId));
+    }
+
+    public function test_anonymizing_somebody_counts_again_the_people_who_shared_a_game_with_them(): void
+    {
+        $rule = AchievementRule::people('game_session', 10, 'player', 'player');
+        $this->assertInstanceOf(AchievementRule::class, $rule);
+        $luis = $this->person('Luis');
+        $this->playedTogether('s1', [(string) $this->ana->id, (string) $luis->id]);
+        $anaId = strtolower((string) $this->ana->id);
+        $this->assertSame(1, $this->metrics()->progress($rule, $anaId));
+
+        UserModel::query()->whereKey($luis->id)->update(['anonymized_at' => now()]);
+        event(new UserAnonymized((string) $luis->id));
+
+        $this->assertSame(0, $this->metrics()->progress($rule, $anaId));
     }
 
     public function test_a_ledger_that_cannot_be_read_shows_no_progress_rather_than_zero(): void

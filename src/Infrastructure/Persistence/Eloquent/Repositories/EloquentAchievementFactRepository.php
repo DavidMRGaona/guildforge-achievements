@@ -322,6 +322,25 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
         return $this->userIds(array_keys($hosts));
     }
 
+    public function userIdsSharingSubjectsWith(string $userId): array
+    {
+        $userId = strtolower($userId);
+
+        return $this->userIds(array_map(
+            static fn (mixed $id): string => strtolower((string) $id),
+            $this->db->table(self::TABLE.' as mine')
+                ->join(self::TABLE.' as others', static function (JoinClause $join): void {
+                    $join->on('others.source_type', '=', 'mine.source_type')
+                        ->on('others.subject_id', '=', 'mine.subject_id')
+                        ->on('others.user_id', '<>', 'mine.user_id');
+                })
+                ->where('mine.user_id', $userId)
+                ->distinct()
+                ->pluck('others.user_id')
+                ->all(),
+        ));
+    }
+
     public function deleteForUser(string $userId): int
     {
         return $this->table()->where('user_id', strtolower($userId))->delete();

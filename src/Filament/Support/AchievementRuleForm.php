@@ -82,7 +82,7 @@ final class AchievementRuleForm
             Select::make(self::ROLE)
                 ->label(self::text('fields.role'))
                 ->helperText(self::text('helpers.role'))
-                ->options(self::roleOptions())
+                ->options(static fn (Get $get): array => $people($get) ? self::peopleRoleOptions() : self::roleOptions())
                 ->placeholder(self::text('placeholders.any_role'))
                 ->native(false)
                 ->visible($withKind),
@@ -90,7 +90,7 @@ final class AchievementRuleForm
             Select::make(self::WITH_ROLE)
                 ->label(self::text('fields.with_role'))
                 ->helperText(self::text('helpers.with_role'))
-                ->options(self::roleOptions())
+                ->options(self::peopleRoleOptions())
                 ->placeholder(self::text('placeholders.any_role'))
                 ->native(false)
                 ->visible($people),
@@ -315,6 +315,16 @@ final class AchievementRuleForm
         }
 
         return $options;
+    }
+
+    /**
+     * The only parts a `people` rule may name (AchievementRule::PEOPLE_ROLES).
+     *
+     * @return array<string, string>
+     */
+    public static function peopleRoleOptions(): array
+    {
+        return array_intersect_key(self::roleOptions(), array_flip(AchievementRule::PEOPLE_ROLES));
     }
 
     /**

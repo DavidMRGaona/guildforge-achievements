@@ -192,6 +192,9 @@ final class AchievementRuleTest extends TestCase
         yield 'people of a kind done alone' => [['version' => 1, 'metric' => 'people', 'kind' => 'forum_post', 'threshold' => 3]];
         yield 'people of an unknown kind' => [['version' => 1, 'metric' => 'people', 'kind' => 'dragon_slaying', 'threshold' => 3]];
         yield 'people without kind' => [['version' => 1, 'metric' => 'people', 'threshold' => 3]];
+        yield 'people as organizers' => [['version' => 1, 'metric' => 'people', 'kind' => 'tournament', 'filters' => ['role' => 'organizer'], 'threshold' => 3]];
+        yield 'people with attendees' => [['version' => 1, 'metric' => 'people', 'kind' => 'event', 'filters' => ['with_role' => 'attendee'], 'threshold' => 3]];
+        yield 'people with creators' => [['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['with_role' => 'creator'], 'threshold' => 3]];
         yield 'people with an unknown role' => [['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['with_role' => 'wizard'], 'threshold' => 3]];
         yield 'people with an attribute' => [['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['attribute' => ['key' => 'game_system', 'value' => 'pf2']], 'threshold' => 3]];
         yield 'people with a placement' => [['version' => 1, 'metric' => 'people', 'kind' => 'tournament', 'filters' => ['placement_max' => 3], 'threshold' => 3]];

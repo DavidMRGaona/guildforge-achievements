@@ -88,6 +88,11 @@ final readonly class FailingCommunityLedger implements AchievementFactRepository
         throw new RuntimeException('The ledger cannot be read.');
     }
 
+    public function userIdsSharingSubjectsWith(string $userId): array
+    {
+        return $this->inner->userIdsSharingSubjectsWith($userId);
+    }
+
     public function deleteForUser(string $userId): int
     {
         return $this->inner->deleteForUser($userId);

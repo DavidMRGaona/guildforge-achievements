@@ -96,7 +96,7 @@ return [
                 'metric' => '«Solo a mano» no se concede nunca solo. «Personas distintas» y «Mentor» son logros de comunidad: solo se conceden con los logros de comunidad encendidos.',
                 'kind' => 'Solo salen los tipos con alguna fuente activa.',
                 'role' => 'Por ejemplo, jugar o dirigir. Sin papel, cuenta cualquiera.',
-                'with_role' => 'Qué papel tenían las personas que se cuentan: jugar, para «dirigir a 20 personas». Sin papel, cuenta cualquiera.',
+                'with_role' => 'Qué papel tenían las personas que se cuentan: jugador, para «dirigir a 20 personas». Sin papel, cuenta cualquiera. En estos logros solo valen jugador y dirección.',
                 'distinct_key' => 'Por ejemplo, el sistema de juego: «3 sistemas distintos».',
                 'attribute_key' => 'Para contar solo una parte: las partidas de un sistema, por ejemplo.',
                 'placement_max' => 'Para torneos: 1 es ganar y 3, subir al podio. Vacío, cualquier puesto.',

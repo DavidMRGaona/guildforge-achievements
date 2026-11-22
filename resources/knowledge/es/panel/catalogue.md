@@ -26,8 +26,8 @@ Para crear, editar o borrar logros hace falta el permiso de gestionar el catálo
    - **Número de actividades**: cuántas partidas, campañas, torneos, eventos, mensajes… Puedes quedarte con un **Papel** (jugar, dirigir, organizar…), con un valor concreto (**Solo con** un sistema de juego, por ejemplo) o con un **Puesto máximo** (3 es subir al podio).
    - **Valores distintos**: cuántos valores distintos hay, por ejemplo «3 sistemas distintos».
    - **Años**: años desde el alta en la web, o años como socio.
-   - **Personas distintas**: con cuántas personas distintas ha coincidido alguien en partidas, campañas, torneos o eventos. **Papel** es el de la persona que consigue el logro y **Papel de las demás personas**, el de quienes se cuentan: dirección y jugador es «dirigir a 20 personas distintas».
-   - **Mentor: primeras partidas dirigidas**: a cuántas personas les dirigió su primera partida como jugadoras.
+   - **Personas distintas**: con cuántas personas distintas ha coincidido alguien en partidas, campañas, torneos o eventos. **Papel** es el de la persona que consigue el logro y **Papel de las demás personas**, el de quienes se cuentan: dirección y jugador es «dirigir a 20 personas distintas». En estos logros solo valen los papeles de jugador y de dirección.
+   - **Mentor: primeras partidas dirigidas**: a cuántas personas les dirigió su primera partida con el papel de jugador.
    - **Solo a mano**: no se concede nunca solo.
 4. Escribe **Cuántos hacen falta** y guarda.
 
@@ -56,10 +56,10 @@ Cuando vuelves a encender un tipo de actividad, los logros secretos o los de com
 Premian a quien trae y cuida gente, no solo a quien juega mucho: jugar con muchas personas distintas, dirigir a muchas personas y dirigir la primera partida de alguien. Se encienden y se apagan con **Logros de comunidad** en *Sistema → Configuración → Logros*.
 
 - Solo cuentan personas, nunca dicen quiénes: ni el logro ni el progreso («7 de 10») nombran a nadie.
-- La primera partida de alguien es la primera que jugó como jugador, de las que constan en la web. Si dos personas la dirigieron, cuenta para las dos.
+- La primera partida de alguien es la primera que jugó con el papel de jugador, de las que constan en la web. Si dos personas la dirigieron, cuenta para las dos.
 - Las cuentas anonimizadas dejan de contar. Las de quien oculta sus logros siguen contando, porque solo se da el número.
 - Un logro de comunidad conseguido no se pierde aunque luego el número baje: por ejemplo, si una partida deja de contar.
-- El progreso se guarda unos minutos y se vuelve a contar en cuanto cambian las partidas de esa persona. Si no se puede contar, no se enseña: nunca sale un 0 que no es.
+- El progreso se guarda unos minutos, así que una partida nueva puede tardar ese rato en reflejarse. Si no se puede contar, no se enseña: nunca sale un 0 que no es.
 
 ## Lo que se concede no se retira
 

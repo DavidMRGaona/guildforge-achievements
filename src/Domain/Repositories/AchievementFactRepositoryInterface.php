@@ -143,6 +143,14 @@ interface AchievementFactRepositoryInterface
     public function hostsOfFirstFacts(array $userIds, string $kind, string $hostRole, string $newcomerRole): array;
 
     /**
+     * The other accounts that share any subject with this one, sorted: whose community counts it
+     * may take part in.
+     *
+     * @return list<string>
+     */
+    public function userIdsSharingSubjectsWith(string $userId): array;
+
+    /**
      * Deletes every fact of an account (anonymization) and returns how many there were.
      */
     public function deleteForUser(string $userId): int;
