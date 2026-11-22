@@ -191,6 +191,18 @@ final class FeaturedAchievementBadgesTest extends ModuleTestCase
         $this->assertSame(['Nueva', 'Media', 'Antigua'], $this->labels($this->ana));
     }
 
+    public function test_among_equals_the_newest_month_then_the_name_never_the_instant(): void
+    {
+        // Rarity off: every share is unknown, so only month and name decide
+        $this->held('Zeta', when: '2026-11-28 18:00:00');
+        $this->held('Beta', when: '2026-11-02 18:00:00');
+        $this->held('Alfa', when: '2026-11-15 18:00:00');
+        $this->held('Octubre', when: '2026-10-31 10:00:00');
+        app(AchievementsSettingsInterface::class)->save(AchievementsSettings::fromArray(['rarity' => false]));
+
+        $this->assertSame(['Alfa', 'Beta', 'Zeta'], $this->labels($this->ana));
+    }
+
     public function test_every_account_of_a_page_is_answered_with_a_constant_number_of_queries(): void
     {
         $achievement = $this->held('Primera');
