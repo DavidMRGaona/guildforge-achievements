@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Jobs;
 
+use App\Application\Services\TimezoneServiceInterface;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -14,27 +15,28 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
 use Modules\Achievements\Application\DTOs\AchievementRarityDTO;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
+use Modules\Achievements\Application\Exceptions\AchievementSettingsUnreadableException;
 use Modules\Achievements\Application\Services\AchievementRarityInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
-use Modules\Achievements\Domain\Entities\AchievementGrant;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\PendingAchievementNoticeRepositoryInterface;
 use Modules\Achievements\Domain\Rules\AnnouncementRule;
 
 /**
- * The daily release of announcements (achievements#6): every rare or challenge achievement got since
- * the last one, told to whoever may see its owner's profile.
+ * The monthly summary of announcements (achievements#6): on the first day of each month
+ * (RELEASE_DAY at RELEASE_AT, display zone), the rare and challenge achievements got before that
+ * month, told to whoever may see each owner's profile in one notice per reader.
  *
- * Others never learn when an achievement was got, only roughly the day: grants of one evaluation
- * share their second, so telling them at once would say who played with whom. So it runs once a day
- * (RELEASE_AT in the display zone) and each owner's announcement goes out at its own random moment
- * of the next SPREAD_SECONDS, never together with the others of the same table or event.
+ * Others never learn more of when an achievement was got than its month: grants of one evaluation
+ * share their second, so telling them at once, or even on the same day, would say who played with
+ * whom. Inside the summary each person is listed by name, never by when or together with whom.
  *
- * It decides then, and fails closed: settings read strictly (unreadable: nothing is taken, tried
- * the next day), the mechanic on (off: what waited is dropped, never told later), the owner active,
- * allowing it and showing their achievements, and each grant a challenge one or rare now
- * (AnnouncementRule). The delivery asks again for each reader.
+ * It decides then, and fails closed: settings read strictly (unreadable: nothing is taken, the job
+ * is tried again and fails loudly after its last try), the mechanic on (off: what waited is dropped,
+ * never told later), the owner active, allowing it and showing their achievements, and each grant a
+ * challenge one or rare now (AnnouncementRule). The delivery asks again for each reader. What waited
+ * is forgotten only once every batch is queued (after the commit), in the same transaction.
  */
 final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, ShouldQueue
 {
@@ -42,14 +44,15 @@ final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, Should
     use InteractsWithQueue;
     use Queueable;
 
-    /** When the day's announcements start going out, in the display zone */
+    public const int RELEASE_DAY = 1;
+
+    /** When the month's summary goes out, in the display zone */
     public const string RELEASE_AT = '10:00';
 
-    /** Each owner's announcement goes out at a random moment within this */
-    public const int SPREAD_SECONDS = 8 * 3600;
+    public int $tries = 4;
 
-    /** A retry would announce nothing more: what was taken is gone */
-    public int $tries = 1;
+    /** @var list<int> */
+    public array $backoff = [600, 3600, 21600];
 
     public int $uniqueFor = 3600;
 
@@ -59,30 +62,60 @@ final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, Should
         AchievementPreferencesRepositoryInterface $preferences,
         AchievementsSettingsInterface $settingsService,
         AchievementRarityInterface $rarityService,
+        TimezoneServiceInterface $timezone,
     ): void {
         $settings = $settingsService->readStrictly();
 
         if (! $settings instanceof AchievementsSettings) {
-            Log::warning('Achievement announcements wait for the next release: the settings could not be read.');
+            $this->waitForReadableSettings();
 
             return;
         }
 
-        $waiting = $pending->claimAnnouncements();
+        $today = $timezone->today();
+        // Everything got before this month; what is left over from an earlier failed month goes too
+        $before = $timezone->displayMonthRange($today)[0];
+        $month = $today->modify('first day of last month')->format('Y-m');
 
-        if ($waiting === [] || ! $settings->announcements) {
-            return;
-        }
-
-        $rarity = $rarityService->current();
-
-        foreach ($waiting as $ownerId => $grantIds) {
-            $announced = $this->announced((string) $ownerId, $grantIds, $grants, $preferences, $settings, $rarity);
-
-            if ($announced !== []) {
-                $this->queue((string) $ownerId, $announced);
+        $pending->releaseAnnouncements($before, function (array $waiting) use ($settings, $grants, $preferences, $rarityService, $month): void {
+            // Off: what waited is dropped, never told once the mechanic comes back
+            if (! $settings->announcements) {
+                return;
             }
+
+            $rarity = $rarityService->current();
+            $entries = [];
+
+            foreach ($waiting as $ownerId => $grantIds) {
+                $announced = $this->announced((string) $ownerId, $grantIds, $grants, $preferences, $settings, $rarity);
+
+                if ($announced !== []) {
+                    $entries[(string) $ownerId] = $announced;
+                }
+            }
+
+            if ($entries !== []) {
+                $this->queue($month, $entries);
+            }
+        });
+    }
+
+    /**
+     * Nothing is taken: tried again later and, after the last try, failed so it is seen.
+     */
+    private function waitForReadableSettings(): void
+    {
+        Log::warning('The monthly achievement announcements wait: the settings could not be read.');
+
+        if ($this->job === null) {
+            return;
         }
+
+        if ($this->attempts() >= $this->tries) {
+            throw new AchievementSettingsUnreadableException('The achievement settings could not be read for the monthly announcements.');
+        }
+
+        $this->release($this->backoff[min($this->attempts() - 1, count($this->backoff) - 1)]);
     }
 
     /**
@@ -114,7 +147,12 @@ final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, Should
         $ids = [];
 
         foreach ($grants->forUser($ownerId) as $grant) {
-            if (isset($wanted[strtolower($grant->id)]) && $this->announces($grant, $settings, $rarity)) {
+            if (isset($wanted[strtolower($grant->id)]) && AnnouncementRule::announces(
+                $grant->source,
+                $grant->silent,
+                $rarity->shareOf($grant->achievementId),
+                $settings->announcementsRarityThreshold,
+            )) {
                 $ids[strtolower($grant->achievementId)] = true;
             }
         }
@@ -122,34 +160,22 @@ final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, Should
         return array_keys($ids);
     }
 
-    private function announces(AchievementGrant $grant, AchievementsSettings $settings, AchievementRarityDTO $rarity): bool
-    {
-        return AnnouncementRule::announces(
-            $grant->source,
-            $grant->silent,
-            $rarity->shareOf($grant->achievementId),
-            $settings->announcementsRarityThreshold,
-        );
-    }
-
     /**
-     * Every account but the owner and the anonymized ones, in batches, all at the owner's own moment.
+     * Every account but the anonymized ones, in batches, queued once the transaction commits.
+     * Owners are readers too: each one hears of the others.
      *
-     * @param  list<string>  $achievementIds
+     * @param  array<string, list<string>>  $entries
      */
-    private function queue(string $ownerId, array $achievementIds): void
+    private function queue(string $month, array $entries): void
     {
-        $at = now()->addSeconds(random_int(0, self::SPREAD_SECONDS));
-
         UserModel::query()
             ->whereNull('anonymized_at')
-            ->whereKeyNot($ownerId)
             ->select('id')
-            ->chunkById(DeliverAchievementAnnouncementsJob::BATCH_SIZE, static function (Collection $accounts) use ($ownerId, $achievementIds, $at): void {
+            ->chunkById(DeliverAchievementAnnouncementsJob::BATCH_SIZE, static function (Collection $accounts) use ($month, $entries): void {
                 /** @var list<string> $ids */
                 $ids = array_map(strval(...), $accounts->modelKeys());
 
-                DeliverAchievementAnnouncementsJob::dispatch($ownerId, $achievementIds, $ids)->delay($at);
+                DeliverAchievementAnnouncementsJob::dispatch($month, $entries, $ids)->afterCommit();
             });
     }
 }

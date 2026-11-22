@@ -280,9 +280,9 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
                 ->dailyAt('03:30')
                 ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
                 ->name('achievements:rarity');
-            // What others hear of goes out once a day, each owner at their own moment (#6)
+            // What others hear of goes out once a month, about the month before (#6)
             $schedule->job(new ReleaseAchievementAnnouncementsJob)
-                ->dailyAt(ReleaseAchievementAnnouncementsJob::RELEASE_AT)
+                ->monthlyOn(ReleaseAchievementAnnouncementsJob::RELEASE_DAY, ReleaseAchievementAnnouncementsJob::RELEASE_AT)
                 ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
                 ->name('achievements:announcements');
         });

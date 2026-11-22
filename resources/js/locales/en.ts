@@ -38,7 +38,7 @@ export default {
             title: 'Achievements',
             announceRare: {
                 label: 'Announce my rare achievements',
-                help: 'Whoever can see your profile gets a notice when you get an achievement held by fewer than {threshold} % of active people, or a challenge one. Only the achievement’s name is told.',
+                help: 'Once a month, whoever can see your profile gets a summary with last month’s achievements of yours held by fewer than {threshold} % of active people and your challenge ones. It only tells each achievement’s name: neither the day nor the time.',
                 hidden: 'Your achievements are hidden right now: none is announced.',
                 on: 'Your rare achievements will be announced.',
                 off: 'Your achievements are no longer announced.',
@@ -46,6 +46,8 @@ export default {
             inLeaderboard: {
                 label: 'Appear in the leaderboard',
                 help: 'Your name and points show in the achievements leaderboard, which only signed-in people who can see your profile see.',
+                helpOff:
+                    'The leaderboard is off right now. If it is switched on, you only appear if this is on.',
                 on: 'You appear in the leaderboard.',
                 off: 'You no longer appear in the leaderboard.',
             },

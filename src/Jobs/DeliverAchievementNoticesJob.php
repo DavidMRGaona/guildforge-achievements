@@ -17,13 +17,13 @@ use Modules\Achievements\Notifications\AchievementsEarnedNotification;
 
 /**
  * Tells one person, in one notice, every achievement they got since the last delivery
- * (achievements#6). What others hear goes out apart, in the daily release
+ * (achievements#6). What others hear goes out apart, in the monthly summary
  * (ReleaseAchievementAnnouncementsJob), so it never says when it was got.
  *
  * Each grant queues it a little later (DELAY_SECONDS) and only once while one is waiting for that
  * person (unique until it starts), so an evaluation that grants hundreds gives one notice. It takes
- * the waiting grants and leaves none, so running twice tells nothing twice, and a retry after a
- * failure before taking them loses nothing.
+ * the waiting grants only once the notice is stored, in one transaction: running twice tells
+ * nothing twice, and a notice that fails leaves them all for the retry.
  */
 final class DeliverAchievementNoticesJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
@@ -58,37 +58,34 @@ final class DeliverAchievementNoticesJob implements ShouldBeUniqueUntilProcessin
         PendingAchievementNoticeRepositoryInterface $pending,
         AchievementGrantRepositoryInterface $grants,
     ): void {
-        $grantIds = $pending->claim($this->userId);
+        // What waits is forgotten only once told: a notice that fails leaves it all for the retry
+        $pending->deliverEarned($this->userId, function (array $grantIds) use ($grants): void {
+            $owner = UserModel::query()->find($this->userId);
 
-        if ($grantIds === []) {
-            return;
-        }
-
-        $owner = UserModel::query()->find($this->userId);
-
-        // Deactivated (not found) or anonymized: nobody to tell
-        if (! $owner instanceof UserModel || $owner->anonymized_at !== null) {
-            return;
-        }
-
-        $byId = [];
-
-        foreach ($grants->forUser($this->userId) as $grant) {
-            $byId[strtolower($grant->id)] = $grant;
-        }
-
-        $achievementIds = [];
-
-        foreach ($grantIds as $grantId) {
-            $grant = $byId[$grantId] ?? null;
-
-            if ($grant instanceof AchievementGrant) {
-                $achievementIds[strtolower($grant->achievementId)] = true;
+            // Deactivated (not found) or anonymized: nobody to tell
+            if (! $owner instanceof UserModel || $owner->anonymized_at !== null) {
+                return;
             }
-        }
 
-        if ($achievementIds !== []) {
-            $owner->notify(new AchievementsEarnedNotification(array_keys($achievementIds)));
-        }
+            $byId = [];
+
+            foreach ($grants->forUser($this->userId) as $grant) {
+                $byId[strtolower($grant->id)] = $grant;
+            }
+
+            $achievementIds = [];
+
+            foreach ($grantIds as $grantId) {
+                $grant = $byId[$grantId] ?? null;
+
+                if ($grant instanceof AchievementGrant) {
+                    $achievementIds[strtolower($grant->achievementId)] = true;
+                }
+            }
+
+            if ($achievementIds !== []) {
+                $owner->notify(new AchievementsEarnedNotification(array_keys($achievementIds)));
+            }
+        });
     }
 }

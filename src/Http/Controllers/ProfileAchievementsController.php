@@ -17,7 +17,7 @@ final class ProfileAchievementsController extends Controller
 {
     public function update(UpdateProfileAchievementsRequest $request, AchievementPreferencesRepositoryInterface $preferences): RedirectResponse
     {
-        $preferences->save($preferences->find($request->ownerId())->with($request->hidden(), $request->featuredIds()));
+        $preferences->saveShowcase($request->ownerId(), $request->hidden(), $request->featuredIds());
 
         return back(303);
     }

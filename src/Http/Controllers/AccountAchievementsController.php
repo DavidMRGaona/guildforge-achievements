@@ -11,9 +11,10 @@ use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInt
 use Modules\Achievements\Http\Requests\UpdateAccountAchievementsRequest;
 
 /**
- * Saves the signed-in account's choices from the «Logros» tab and goes back to it. A choice whose
- * mechanic is off is not offered, so it stays as it was whatever is sent; what the profile section
- * chose (hidden, featured) is kept.
+ * Saves the signed-in account's choices from the «Logros» tab and goes back to it. Only what is sent
+ * is written, column by column: announcing is not offered while announcements are off, so it stays
+ * as it was then; the leaderboard choice is always taken, even before there is a leaderboard. What
+ * the profile section chose (hidden, featured) is never touched.
  */
 final class AccountAchievementsController extends Controller
 {
@@ -22,13 +23,11 @@ final class AccountAchievementsController extends Controller
         AchievementPreferencesRepositoryInterface $preferences,
         AchievementsSettingsInterface $settings,
     ): RedirectResponse {
-        $current = $preferences->find((string) $request->user()?->getAuthIdentifier());
-        $switches = $settings->settings();
-
-        $preferences->save($current->withChoices(
-            announceRare: $switches->announcements ? $request->announceRare($current->announceRare) : $current->announceRare,
-            inLeaderboard: $switches->leaderboard ? $request->inLeaderboard($current->inLeaderboard) : $current->inLeaderboard,
-        ));
+        $preferences->saveChoices(
+            (string) $request->user()?->getAuthIdentifier(),
+            announceRare: $settings->announcementsEnabled() ? $request->announceRare() : null,
+            inLeaderboard: $request->inLeaderboard(),
+        );
 
         return back(303);
     }

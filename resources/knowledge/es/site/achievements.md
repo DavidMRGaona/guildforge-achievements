@@ -60,17 +60,19 @@ Puedes apagar estos avisos en **Ajustes de la cuenta → Avisos**, en **Logros q
 
 ## Anunciar tus logros raros
 
-Si quieres, la gente que puede ver tu perfil recibe un aviso cuando consigues un logro raro, que tiene poca gente activa (menos del 10 %, o lo que decida la asociación), o el logro de un reto: «Ana ha conseguido «Maestro de campañas»». Viene apagado.
+Si quieres, la gente que puede ver tu perfil recibe una vez al mes un resumen con tus logros raros del mes anterior: los que tiene poca gente activa (menos del 10 %, o lo que decida la asociación) y los de retos. Por ejemplo: «Ana, Bob y 3 más consiguieron logros raros en noviembre». Viene apagado.
 
 Para encenderlo:
 
 1. Abre **Ajustes de la cuenta** y entra en la pestaña **Logros**.
 2. Enciende **Anunciar mis logros raros**. Se guarda al momento.
 
-Los anuncios no salen al momento: salen una vez al día, y los de cada persona a una hora distinta, así que no dicen cuándo lo conseguiste ni con quién estabas. El anuncio solo dice el nombre del logro: nunca en qué mesa, sesión o evento estuviste. Solo llega a quien puede ver tu perfil en ese momento. Un logro secreto solo se nombra a quien también lo tiene, o si lo has destacado; a los demás les llega «Ana ha conseguido un logro secreto». Lo que la asociación concede en lote no se anuncia nunca. Si ocultas tus logros, no se anuncia ninguno.
+El resumen sale el día 1 de cada mes y solo dice el mes y el nombre de cada logro: ni el día, ni la hora, ni en qué mesa, sesión o evento estuviste, ni con quién. Solo llega a quien puede ver tu perfil en ese momento. Un logro secreto solo se nombra a quien también lo tiene, o si lo has destacado; a los demás les llega «un logro secreto». Lo que la asociación concede en lote no se anuncia nunca. Si ocultas tus logros, no se anuncia ninguno.
 
-Cada persona elige si recibe estos anuncios en **Ajustes de la cuenta → Avisos**, en **Logros poco comunes de otras personas**.
+Puedes cambiar de idea cuando quieras: cuenta lo que tengas elegido el día del resumen. Un resumen que ya llegó se queda en la campana de quien lo recibió.
+
+Cada persona elige si recibe estos resúmenes en **Ajustes de la cuenta → Avisos**, en **Logros poco comunes de otras personas**.
 
 ## La clasificación
 
-Cuando la asociación tiene la clasificación encendida, apareces en ella salvo que no quieras. Para salir, en **Ajustes de la cuenta → Logros**, apaga **Aparecer en la clasificación**.
+Si la asociación enciende la clasificación de logros, apareces en ella salvo que no quieras. Para salir, en **Ajustes de la cuenta → Logros**, apaga **Aparecer en la clasificación**. Puedes hacerlo aunque la clasificación todavía esté apagada: si se enciende, no saldrás.

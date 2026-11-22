@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories;
 
+use Closure;
+use DateTimeInterface;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Modules\Achievements\Domain\Repositories\PendingAchievementNoticeRepositoryInterface;
@@ -45,46 +47,60 @@ final readonly class EloquentPendingAchievementNoticeRepository implements Pendi
         }
     }
 
-    public function claim(string $userId): array
+    public function deliverEarned(string $userId, Closure $work): void
     {
-        $claimed = $this->take(self::EARNED, strtolower($userId));
+        $userId = strtolower($userId);
 
-        return $claimed[strtolower($userId)] ?? [];
+        $this->deliver(
+            self::EARNED,
+            static fn (Builder $query): Builder => $query->where('user_id', $userId),
+            static function (array $byHolder) use ($work, $userId): void {
+                $work($byHolder[$userId] ?? []);
+            },
+        );
     }
 
-    public function claimAnnouncements(): array
+    public function releaseAnnouncements(DateTimeInterface $before, Closure $work): void
     {
-        return $this->take(self::ANNOUNCEMENT, null);
+        $this->deliver(
+            self::ANNOUNCEMENT,
+            static fn (Builder $query): Builder => $query->where('granted_at', '<', $before->format('Y-m-d H:i:s')),
+            $work,
+        );
     }
 
     /**
-     * @return array<string, list<string>> holder id => grant ids, oldest first
+     * @param  Closure(Builder): Builder  $scope
+     * @param  Closure(array<string, list<string>>): void  $work
      */
-    private function take(string $kind, ?string $userId): array
+    private function deliver(string $kind, Closure $scope, Closure $work): void
     {
-        return $this->db->transaction(function () use ($kind, $userId): array {
-            $rows = $this->table()
-                ->where('kind', $kind)
-                ->when($userId !== null, static fn (Builder $query): Builder => $query->where('user_id', $userId))
+        $this->db->transaction(function () use ($kind, $scope, $work): void {
+            $rows = $scope($this->table()->where('kind', $kind))
                 ->orderBy('granted_at')
                 ->orderBy('grant_id')
                 ->lockForUpdate()
                 ->get(['grant_id', 'user_id']);
 
-            $claimed = [];
+            if ($rows->isEmpty()) {
+                return;
+            }
+
+            $byHolder = [];
             $grantIds = [];
 
             foreach ($rows as $row) {
                 $grantId = strtolower((string) $row->grant_id);
-                $claimed[strtolower((string) $row->user_id)][] = $grantId;
+                $byHolder[strtolower((string) $row->user_id)][] = $grantId;
                 $grantIds[] = $grantId;
             }
+
+            // Told first: work that throws leaves them all waiting
+            $work($byHolder);
 
             foreach (array_chunk($grantIds, self::CHUNK) as $chunk) {
                 $this->table()->where('kind', $kind)->whereIn('grant_id', $chunk)->delete();
             }
-
-            return $claimed;
         });
     }
 

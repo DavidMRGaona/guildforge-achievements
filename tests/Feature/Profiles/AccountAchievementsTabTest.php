@@ -53,30 +53,35 @@ final class AccountAchievementsTabTest extends ModuleTestCase
                 ->where('achievementsAccount.inLeaderboard', true)
                 ->where('achievementsAccount.hidden', false)
                 ->where('achievementsAccount.offersAnnouncements', true)
-                ->where('achievementsAccount.offersLeaderboard', false)
+                ->where('achievementsAccount.leaderboardOn', false)
                 ->where('achievementsAccount.threshold', 10.0)
                 ->where('achievementsAccount.updateUrl', route('achievements.account.update', [], false))
                 ->where('achievementsAccount.noticesUrl', '/perfil?tab=mail'));
     }
 
-    public function test_the_leaderboard_switch_shows_with_the_leaderboard_on(): void
+    public function test_the_leaderboard_is_on_only_with_points_and_leaderboard(): void
     {
         $this->settings(new AchievementsSettings(leaderboard: true));
-
         $this->actingAs($this->ana)
             ->get('/perfil')
-            ->assertInertia(fn (Assert $page) => $page->where('achievementsAccount.offersLeaderboard', true));
+            ->assertInertia(fn (Assert $page) => $page->where('achievementsAccount.leaderboardOn', false));
+
+        $this->settings(new AchievementsSettings(points: true, leaderboard: true));
+        $this->actingAs($this->ana)
+            ->get('/perfil')
+            ->assertInertia(fn (Assert $page) => $page->where('achievementsAccount.leaderboardOn', true));
     }
 
-    public function test_the_tab_is_hidden_with_both_mechanics_off(): void
+    public function test_with_announcements_off_the_tab_still_offers_leaving_the_leaderboard(): void
     {
-        $this->settings(new AchievementsSettings(announcements: false, leaderboard: false));
+        $this->settings(new AchievementsSettings(announcements: false));
 
         $this->actingAs($this->ana)
             ->get('/perfil')
             ->assertInertia(fn (Assert $page) => $page
-                ->where('achievementsAccountVisible', false)
-                ->where('achievementsAccount', null));
+                ->where('achievementsAccountVisible', true)
+                ->where('achievementsAccount.offersAnnouncements', false)
+                ->where('achievementsAccount.inLeaderboard', true));
     }
 
     public function test_the_tab_is_hidden_while_the_email_must_be_verified(): void
@@ -132,16 +137,68 @@ final class AccountAchievementsTabTest extends ModuleTestCase
         $this->assertTrue($saved->announceRare);
     }
 
-    public function test_a_choice_whose_mechanic_is_off_is_left_as_it_was(): void
+    public function test_leaving_the_leaderboard_is_saved_before_there_is_one(): void
     {
-        // The leaderboard is off by default: its switch is not offered, so it cannot be changed
+        // Points and leaderboard are off by default: the choice is taken all the same
+        $this->actingAs($this->ana)
+            ->put('/logros/preferencias', ['inLeaderboard' => false])
+            ->assertStatus(303);
+
+        $this->assertFalse(app(AchievementPreferencesRepositoryInterface::class)->find((string) $this->ana->id)->inLeaderboard);
+    }
+
+    public function test_announcing_is_left_as_it_was_while_announcements_are_off(): void
+    {
+        $this->settings(new AchievementsSettings(announcements: false));
+
         $this->actingAs($this->ana)
             ->put('/logros/preferencias', ['announceRare' => true, 'inLeaderboard' => false])
             ->assertStatus(303);
 
         $saved = app(AchievementPreferencesRepositoryInterface::class)->find((string) $this->ana->id);
+        $this->assertFalse($saved->announceRare);
+        $this->assertFalse($saved->inLeaderboard);
+    }
+
+    public function test_each_writer_changes_only_its_own_choices(): void
+    {
+        $repository = app(AchievementPreferencesRepositoryInterface::class);
+        $repository->saveShowcase((string) $this->ana->id, true, []);
+        $repository->saveChoices((string) $this->ana->id, announceRare: true, inLeaderboard: null);
+        $repository->saveShowcase((string) $this->ana->id, true, ['01936b9e-0000-7000-8000-000000000001']);
+        $repository->saveChoices((string) $this->ana->id, announceRare: null, inLeaderboard: false);
+
+        $saved = $repository->find((string) $this->ana->id);
+        $this->assertTrue($saved->hidden);
+        $this->assertSame(['01936b9e-0000-7000-8000-000000000001'], $saved->featured);
         $this->assertTrue($saved->announceRare);
-        $this->assertTrue($saved->inLeaderboard);
+        $this->assertFalse($saved->inLeaderboard);
+    }
+
+    public function test_too_many_changes_are_refused(): void
+    {
+        $this->actingAs($this->ana);
+
+        for ($i = 0; $i < 20; $i++) {
+            $this->put('/logros/preferencias', ['inLeaderboard' => $i % 2 === 0])->assertStatus(303);
+        }
+
+        $this->put('/logros/preferencias', ['announceRare' => true])->assertStatus(429);
+        $this->assertFalse(app(AchievementPreferencesRepositoryInterface::class)->find((string) $this->ana->id)->announceRare);
+    }
+
+    public function test_an_account_that_must_verify_its_email_saves_nothing(): void
+    {
+        $policy = $this->createStub(EmailVerificationPolicyInterface::class);
+        $policy->method('mustVerify')->willReturn(true);
+        $this->app->instance(EmailVerificationPolicyInterface::class, $policy);
+
+        $this->actingAs($this->ana)
+            ->putJson('/logros/preferencias', ['announceRare' => true])
+            ->assertForbidden()
+            ->assertJsonPath('error', 'email_verification_required');
+
+        $this->assertFalse(app(AchievementPreferencesRepositoryInterface::class)->find((string) $this->ana->id)->announceRare);
     }
 
     public function test_the_choices_must_be_true_or_false(): void

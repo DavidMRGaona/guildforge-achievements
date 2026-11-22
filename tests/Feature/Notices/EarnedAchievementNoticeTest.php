@@ -5,8 +5,13 @@ declare(strict_types=1);
 namespace Modules\Achievements\Tests\Feature\Notices;
 
 use App\Application\Mail\Services\MailCategoryRegistryInterface;
+use App\Application\SiteNotifications\Contracts\HasSiteNotification;
 use App\Domain\Events\UserAnonymized;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use App\Infrastructure\SiteNotifications\SiteNotificationChannel;
+use Illuminate\Contracts\Container\Container;
+use Illuminate\Notifications\ChannelManager;
+use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -17,6 +22,7 @@ use Modules\Achievements\Notifications\AchievementNoticeCategories;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsNotices;
 use Modules\Achievements\Tests\Support\BuildsShowcase;
+use RuntimeException;
 use Tests\Support\Modules\ModuleTestCase;
 
 /**
@@ -181,6 +187,37 @@ final class EarnedAchievementNoticeTest extends ModuleTestCase
 
         $this->assertSame(0, DB::table('site_notifications')->where('user_id', $this->ana->id)->count());
         $this->assertSame(0, DB::table('achievements_pending_notices')->count());
+    }
+
+    public function test_a_notice_that_fails_leaves_everything_for_the_retry(): void
+    {
+        Bus::fake([DeliverAchievementNoticesJob::class]);
+        $this->earn($this->ana, $this->manualAchievement('Primera'));
+        $channels = app(ChannelManager::class);
+        $channels->extend(HasSiteNotification::CHANNEL, fn (): object => new class
+        {
+            public function send(object $notifiable, Notification $notification): never
+            {
+                throw new RuntimeException('The bell is down');
+            }
+        });
+        $channels->forgetDrivers();
+
+        try {
+            $this->deliver($this->ana);
+            $this->fail('The failure should reach the job, so it is tried again.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('The bell is down', $exception->getMessage());
+        }
+
+        $this->assertSame(1, DB::table('achievements_pending_notices')->where('kind', 'earned')->count());
+
+        $channels->extend(HasSiteNotification::CHANNEL, fn (Container $app): SiteNotificationChannel => $app->make(SiteNotificationChannel::class));
+        $channels->forgetDrivers();
+        $this->deliver($this->ana);
+
+        $this->assertSame('Has conseguido «Primera»', $this->bellOf($this->ana, AchievementNoticeCategories::EARNED)[0]->title);
+        $this->assertSame(0, DB::table('achievements_pending_notices')->where('kind', 'earned')->count());
     }
 
     private function deliver(UserModel $user): void

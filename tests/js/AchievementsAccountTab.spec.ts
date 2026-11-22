@@ -10,7 +10,7 @@ function account(overrides: Partial<AccountAchievements> = {}): AccountAchieveme
         inLeaderboard: true,
         hidden: false,
         offersAnnouncements: true,
-        offersLeaderboard: true,
+        leaderboardOn: true,
         threshold: 10,
         updateUrl: '/logros/preferencias',
         noticesUrl: '/perfil?tab=mail',
@@ -47,11 +47,16 @@ describe('AchievementsAccountTab', () => {
         );
     });
 
-    it('offers only the choices whose mechanic is on', () => {
-        const wrapper = mountTab(account({ offersLeaderboard: false }));
+    it('always offers leaving the leaderboard, announcing only while it is on', () => {
+        const wrapper = mountTab(account({ offersAnnouncements: false, leaderboardOn: false }));
 
-        expect(wrapper.find('[data-test="switch-announceRare"]').exists()).toBe(true);
-        expect(wrapper.find('[data-test="switch-inLeaderboard"]').exists()).toBe(false);
+        expect(wrapper.find('[data-test="switch-announceRare"]').exists()).toBe(false);
+        expect(wrapper.find('[data-test="switch-inLeaderboard"]').exists()).toBe(true);
+        expect(wrapper.text()).toContain('La clasificación está apagada ahora mismo');
+    });
+
+    it('tells that the summary is monthly and says no day', () => {
+        expect(mountTab(account()).text()).toContain('Una vez al mes');
     });
 
     it('draws nothing without the tab', () => {

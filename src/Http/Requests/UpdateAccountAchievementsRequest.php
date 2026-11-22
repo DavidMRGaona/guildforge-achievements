@@ -23,13 +23,15 @@ final class UpdateAccountAchievementsRequest extends FormRequest
         ];
     }
 
-    public function announceRare(bool $current): bool
+    /** Null when not sent: it stays as it is */
+    public function announceRare(): ?bool
     {
-        return $this->has('announceRare') ? $this->boolean('announceRare') : $current;
+        return $this->has('announceRare') ? $this->boolean('announceRare') : null;
     }
 
-    public function inLeaderboard(bool $current): bool
+    /** Null when not sent: it stays as it is */
+    public function inLeaderboard(): ?bool
     {
-        return $this->has('inLeaderboard') ? $this->boolean('inLeaderboard') : $current;
+        return $this->has('inLeaderboard') ? $this->boolean('inLeaderboard') : null;
     }
 }

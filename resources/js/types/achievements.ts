@@ -53,9 +53,10 @@ export interface AccountAchievements {
     inLeaderboard: boolean;
     /** The owner hides their achievements: nothing is announced then */
     hidden: boolean;
-    /** Each choice is offered only while its mechanic is on */
+    /** Announcing is offered only while announcements are on */
     offersAnnouncements: boolean;
-    offersLeaderboard: boolean;
+    /** Whether there is a leaderboard now; its choice is offered anyway, to leave it beforehand */
+    leaderboardOn: boolean;
     /** Percent of active people under which an achievement is rare */
     threshold: number;
     updateUrl: string;
