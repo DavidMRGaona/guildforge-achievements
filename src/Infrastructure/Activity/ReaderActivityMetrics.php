@@ -11,9 +11,6 @@ use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 
 final class ReaderActivityMetrics implements ActivityMetricsInterface
 {
-    /** A type nobody offers: the registry says it is unavailable while some class cannot even be read */
-    private const string PROBE_TYPE = 'achievements.unoffered-probe';
-
     /** @var array<string, list<string>>|null kind => source types */
     private ?array $types = null;
 
@@ -48,21 +45,7 @@ final class ReaderActivityMetrics implements ActivityMetricsInterface
             return false;
         }
 
-        // Registered and built, yet left out of the reader's list (its label failed)
-        foreach ($this->registry->all() as $registration) {
-            if ($registration->kind->value === $kind) {
-                return true;
-            }
-        }
-
-        // A type that wrote facts of this kind before and is unavailable now (failing, duplicated)
-        foreach ($this->facts->sourceTypesOfKind($kind) as $type) {
-            if ($this->registry->isUnavailable($type)) {
-                return true;
-            }
-        }
-
-        return $this->registry->isUnavailable(self::PROBE_TYPE);
+        return array_any($this->facts->sourceTypesOfKind($kind), fn ($type) => $this->registry->isUnavailable($type));
     }
 
     public function kindsOfModule(string $module): array
@@ -80,17 +63,6 @@ final class ReaderActivityMetrics implements ActivityMetricsInterface
         }
 
         return $this->modules[$module] ?? [];
-    }
-
-    public function moduleRegistersSources(string $module): bool
-    {
-        foreach ($this->registry->all() as $registration) {
-            if ($registration->module === $module) {
-                return true;
-            }
-        }
-
-        return $this->kindsOfModule($module) !== [] || $this->registry->isUnavailable(self::PROBE_TYPE);
     }
 
     public function attributes(string $kind): array

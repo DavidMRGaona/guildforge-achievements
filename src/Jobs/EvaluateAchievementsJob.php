@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Jobs;
 
+use App\Modules\ModuleLoader;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -24,12 +25,17 @@ use Modules\Achievements\Application\Services\ActivityMetricsInterface;
  * - every night for the years of account, which change with the date alone (not silent: only the
  *   anniversaries of the last days are announced, AnnouncementWindow).
  *
- * Unique while it waits (same achievements, module, silence and scope). Settings that cannot be read
- * are tried again and, after the last try, fail the job (failed_jobs). A kind whose source is
- * registered but unavailable right now is tried again later; after the last try the job ends, and
- * enabling the module again or a recalculation evaluates it.
+ * Unique only while it waits in the queue (same achievements, module, silence and scope): the lock
+ * goes when it starts, since it reads the rules and the settings then. A dispatch made while it runs
+ * or waits after a release() is queued again and reads what changed meanwhile (two edits of a rule
+ * in a row are both evaluated).
+ *
+ * Settings that cannot be read are tried again and, after the last try, fail the job (failed_jobs).
+ * A kind whose source is registered but unavailable right now is tried again later; after the last
+ * try the job ends, and enabling the module again or a recalculation evaluates it. A module this
+ * worker has not loaded yet (an old worker took the job before restarting) is waited for too.
  */
-final class EvaluateAchievementsJob implements ShouldBeUnique, ShouldQueue
+final class EvaluateAchievementsJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
     use Dispatchable;
     use InteractsWithQueue;
@@ -74,19 +80,22 @@ final class EvaluateAchievementsJob implements ShouldBeUnique, ShouldQueue
         return sha1((string) json_encode([$ids, $this->silent, $this->onlyAccountYears, $this->module]));
     }
 
-    public function handle(AchievementEvaluatorInterface $evaluator, ActivityMetricsInterface $metrics): void
+    public function handle(AchievementEvaluatorInterface $evaluator, ActivityMetricsInterface $metrics, ModuleLoader $modules): void
     {
         $kinds = null;
 
         if ($this->module !== null) {
+            // A worker that booted before the module was enabled does not know its sources yet
+            if (! $modules->isLoaded($this->module)) {
+                $this->retryLater('module_not_loaded');
+
+                return;
+            }
+
             $kinds = $metrics->kindsOfModule($this->module);
 
+            // A module without activity sources (or none offered now): nothing to evaluate
             if ($kinds === []) {
-                // Its sources are registered but not offered yet: try again later
-                if ($metrics->moduleRegistersSources($this->module)) {
-                    $this->retryLater('module_sources_unavailable');
-                }
-
                 return;
             }
         }

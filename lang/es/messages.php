@@ -73,6 +73,7 @@ return [
         'delete' => [
             'description' => 'Nadie tiene este logro todavía. Se borra para siempre y no se puede deshacer. Si solo quieres que deje de concederse, desactívalo.',
             'confirmation' => 'Entiendo que el logro se borra para siempre',
+            'held_meanwhile' => 'Alguien lo acaba de conseguir; desactívalo en su lugar.',
         ],
 
         'rule' => [

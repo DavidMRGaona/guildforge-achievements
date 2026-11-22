@@ -29,7 +29,7 @@ final class EditAchievement extends EditRecord
     protected function getHeaderActions(): array
     {
         return array_filter([
-            DeleteAction::make()
+            AchievementResource::guardDeletion(DeleteAction::make())
                 // Only offered while nobody holds it (AchievementPolicy::delete())
                 ->modalDescription(__('achievements::messages.catalogue.delete.description'))
                 ->schema([

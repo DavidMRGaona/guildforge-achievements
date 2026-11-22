@@ -17,7 +17,9 @@ use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 use Modules\Achievements\AchievementsServiceProvider;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
+use Modules\Achievements\Application\Services\ActivityMetricsInterface;
 use Modules\Achievements\Domain\Enums\GrantSource;
+use Modules\Achievements\Domain\ValueObjects\MetricKinds;
 use Modules\Achievements\Domain\ValueObjects\NewGrant;
 use Modules\Achievements\Filament\Media\AchievementBadgeImageMediaSource;
 use Modules\Achievements\Filament\Resources\AchievementResource;
@@ -181,14 +183,20 @@ final class AchievementResourceTest extends ModuleTestCase
         Bus::fake([EvaluateAchievementsJob::class]);
         $events = $this->achievement($this->countRule('event', 5));
         $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+        // The kinds of every source offered here (the core's own and the test's), in the module's order
+        $offered = array_values(array_filter(MetricKinds::ALL, fn (string $kind): bool => $this->app->make(ActivityMetricsInterface::class)->hasSource($kind)));
+        $this->assertContains('game_session', $offered);
+        $this->assertNotContains('event', $offered);
 
         Livewire::test(CreateAchievement::class)
             ->fillForm(['rule_kind' => 'event'])
-            ->assertFormFieldExists('rule_kind', static fn ($field): bool => array_keys($field->getOptions()) === ['game_session']);
+            ->assertFormFieldExists('rule_kind', static fn ($field): bool => array_keys($field->getOptions()) === $offered);
 
         Livewire::test(EditAchievement::class, ['record' => $events->getKey()])
             ->assertFormSet(['rule_metric' => 'count', 'rule_kind' => 'event', 'rule_threshold' => 5])
-            ->assertFormFieldExists('rule_kind', static fn ($field): bool => $field->getOptions() === ['game_session' => 'Partidas', 'event' => 'Eventos (sin fuente)']);
+            ->assertFormFieldExists('rule_kind', static fn ($field): bool => ($field->getOptions()['event'] ?? null) === 'Eventos (sin fuente)'
+                && ($field->getOptions()['game_session'] ?? null) === 'Partidas'
+                && count($field->getOptions()) === count($offered) + 1);
     }
 
     public function test_editing_keeps_the_rule_and_an_unreadable_one_must_be_written_again(): void
@@ -295,6 +303,24 @@ final class AchievementResourceTest extends ModuleTestCase
             ->callAction(DeleteAction::class, ['confirmation' => true]);
 
         $this->assertNull($achievement->fresh());
+    }
+
+    public function test_an_achievement_granted_while_the_dialog_is_open_is_not_deleted(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        $ana = $this->account(self::ANA);
+        $achievement = $this->achievement($this->countRule());
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+        // Granted by another process after the permission was checked, right before the DELETE
+        AchievementModel::deleting(function (AchievementModel $record) use ($ana): void {
+            $this->app->make(AchievementGranterInterface::class)->grant(new NewGrant($ana, $record->id, GrantSource::Rule, silent: true));
+        });
+
+        Livewire::test(EditAchievement::class, ['record' => $achievement->getKey()])
+            ->callAction(DeleteAction::class, ['confirmation' => true])
+            ->assertNotified('Alguien lo acaba de conseguir; desactívalo en su lugar.');
+        // The grant made here rolls back with the deletion; another process's would stay
+        $this->assertNotNull($achievement->fresh());
     }
 
     public function test_saving_again_keeps_the_label_of_a_value_the_sources_no_longer_offer(): void

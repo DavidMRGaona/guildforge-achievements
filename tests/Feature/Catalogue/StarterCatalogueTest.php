@@ -10,6 +10,7 @@ use Illuminate\Console\Command;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Testing\PendingCommand;
+use Modules\Achievements\Application\Services\ActivityMetricsInterface;
 use Modules\Achievements\Application\Services\StarterCatalogueInterface;
 use Modules\Achievements\Console\Commands\InstallStarterCatalogueCommand;
 use Modules\Achievements\Database\Seeders\StarterCatalogueSeeder;
@@ -87,11 +88,18 @@ final class StarterCatalogueTest extends ModuleTestCase
     public function test_only_achievements_whose_kind_has_a_source_start_active(): void
     {
         $this->catalogue()->install();
+        // Whatever sources the core and the test offer: the switch follows them
+        $metrics = $this->app->make(ActivityMetricsInterface::class);
+
+        foreach (AchievementModel::query()->get() as $achievement) {
+            $kind = AchievementRule::tryFrom($achievement->getRawOriginal('rule'))?->evaluatedKind();
+            $this->assertNotNull($kind);
+            $this->assertSame($metrics->hasSource($kind), $achievement->is_active, (string) $achievement->starter_key);
+        }
 
         $this->assertTrue($this->byKey('games_played_10')->is_active);
-        $this->assertTrue($this->byKey('systems_3')->is_active);
+        $this->assertFalse($metrics->hasSource('event'));
         $this->assertFalse($this->byKey('events_5')->is_active);
-        $this->assertFalse($this->byKey('years_1')->is_active);
     }
 
     public function test_installing_again_adds_only_what_is_missing_and_keeps_what_was_edited(): void

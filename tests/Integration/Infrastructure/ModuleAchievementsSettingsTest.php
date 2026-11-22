@@ -22,6 +22,14 @@ final class ModuleAchievementsSettingsTest extends ModuleTestCase
 
     protected bool $autoEnableModule = true;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Enabling the module runs its seeder, whose evaluation already read the settings in this scope
+        $this->app->forgetScopedInstances();
+    }
+
     public function test_nothing_saved_gives_every_default(): void
     {
         $service = $this->service();

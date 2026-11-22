@@ -7,13 +7,16 @@ namespace Modules\Achievements\Tests\Feature\Grants;
 use App\Domain\Activity\Events\ActivityRecorded;
 use App\Domain\Events\UserAnonymized;
 use App\Domain\Modules\Events\ModuleEnabled;
+use Illuminate\Bus\UniqueLock;
 use Illuminate\Console\Scheduling\Schedule;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Contracts\Cache\Repository;
+use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\QueryException;
 use Illuminate\Queue\Jobs\FakeJob;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Modules\Achievements\Application\Exceptions\AchievementSettingsUnreadableException;
 use Modules\Achievements\Domain\Events\AchievementFactsChanged;
@@ -146,6 +149,37 @@ final class GrantPipelineTest extends ModuleTestCase
         Bus::assertDispatched(EvaluateAchievementsJob::class, static fn (EvaluateAchievementsJob $job): bool => $job->module === 'game-tables' && $job->silent);
     }
 
+    public function test_the_job_waits_for_a_worker_that_loads_the_module(): void
+    {
+        $job = new EvaluateAchievementsJob(module: 'not-loaded-here')->withFakeQueueInteractions();
+        $this->app->call($job->handle(...));
+        $job->assertReleased(60);
+
+        $log = Log::spy();
+        $last = new EvaluateAchievementsJob(module: 'not-loaded-here')->withFakeQueueInteractions();
+        $this->assertInstanceOf(FakeJob::class, $last->job);
+        $last->job->attempts = $last->tries;
+        $this->app->call($last->handle(...));
+        $last->assertNotReleased();
+        $last->assertNotFailed();
+        $log->shouldHaveReceived('warning')->once()->withArgs(
+            static fn (string $message, array $context): bool => $context === ['reason' => 'module_not_loaded', 'module' => 'not-loaded-here'],
+        );
+    }
+
+    public function test_a_second_edit_while_the_first_evaluation_runs_is_queued_again(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        $achievement = $this->achievement($this->countRule());
+        $first = new EvaluateAchievementsJob([$achievement->id]);
+        // The worker took the first one: its lock goes before it runs
+        new UniqueLock($this->app->make(Repository::class))->release($first);
+
+        $achievement->update(['rule' => $this->countRule(threshold: 3)]);
+
+        Bus::assertDispatchedTimes(EvaluateAchievementsJob::class, 2);
+    }
+
     public function test_the_job_for_a_module_evaluates_only_what_its_sources_offer(): void
     {
         $ana = $this->account(self::ANA);
@@ -164,7 +198,8 @@ final class GrantPipelineTest extends ModuleTestCase
 
     public function test_the_job_is_unique_while_it_waits_and_has_a_timeout(): void
     {
-        $this->assertContains(ShouldBeUnique::class, class_implements(EvaluateAchievementsJob::class));
+        // Until processing: a dispatch made while it runs is queued again (it read the rules when it started)
+        $this->assertContains(ShouldBeUniqueUntilProcessing::class, class_implements(EvaluateAchievementsJob::class));
         $this->assertSame(new EvaluateAchievementsJob(['B', 'a'])->uniqueId(), new EvaluateAchievementsJob(['a', 'b'])->uniqueId());
         $this->assertNotSame(new EvaluateAchievementsJob(['a'])->uniqueId(), new EvaluateAchievementsJob(['a'], silent: false)->uniqueId());
         $this->assertNotSame(new EvaluateAchievementsJob()->uniqueId(), new EvaluateAchievementsJob(module: 'forum')->uniqueId());
@@ -194,7 +229,7 @@ final class GrantPipelineTest extends ModuleTestCase
         $achievement->update(['rule' => $this->countRule(threshold: 5)]);
         $achievement->update(['name' => 'Otro nombre']);
 
-        // The second one is the same job while the first waits (ShouldBeUnique)
+        // The second one is the same job while the first waits in the queue (unique until processing)
         Bus::assertDispatchedTimes(EvaluateAchievementsJob::class, 1);
         Bus::assertDispatched(EvaluateAchievementsJob::class, static fn (EvaluateAchievementsJob $job): bool => $job->achievementIds === [$achievement->id] && $job->silent);
     }

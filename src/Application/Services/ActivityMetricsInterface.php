@@ -21,10 +21,10 @@ interface ActivityMetricsInterface
     public function hasSource(string $kind): bool;
 
     /**
-     * Whether a kind without a source now may get one back by itself: a source of it is registered
-     * but cannot be offered (it failed to build or to give its label, two classes share its type),
-     * or a registered class fails before its type can even be read. A kind nobody registers is not
-     * pending: it waits for a module to be enabled.
+     * Whether a kind without a source now may get one back by itself: a type that wrote facts of it
+     * to the ledger is registered but unavailable (`ActivitySourceRegistryInterface::isUnavailable()`:
+     * it fails to build, or two classes share it). A kind nobody registers, or one with no facts to
+     * evaluate, is not pending: enabling a module evaluates it.
      */
     public function isPending(string $kind): bool;
 
@@ -34,11 +34,6 @@ interface ActivityMetricsInterface
      * @return list<string>
      */
     public function kindsOfModule(string $module): array;
-
-    /**
-     * Whether a module registers any activity source, offered now or not.
-     */
-    public function moduleRegistersSources(string $module): bool;
 
     /**
      * The attributes the sources of a kind offer, key => label (the first source's label wins).

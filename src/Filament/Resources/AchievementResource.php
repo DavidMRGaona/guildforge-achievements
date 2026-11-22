@@ -26,6 +26,8 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Modules\Achievements\Application\Enums\AchievementStatus;
@@ -196,7 +198,7 @@ final class AchievementResource extends BaseResource
                 ActionGroup::make([
                     RowDetailsAction::make(),
                     EditAction::make(),
-                    DeleteAction::make()
+                    self::guardDeletion(DeleteAction::make())
                         // Only offered while nobody holds it (AchievementPolicy::delete())
                         ->modalDescription(self::text('delete.description'))
                         ->schema([
@@ -249,6 +251,23 @@ final class AchievementResource extends BaseResource
         }
 
         return $options;
+    }
+
+    /**
+     * Somebody may get the achievement between opening the dialog and confirming: the database then
+     * refuses the deletion (restricting foreign key) and a notice says to switch it off instead.
+     */
+    public static function guardDeletion(DeleteAction $action): DeleteAction
+    {
+        return $action
+            ->using(static function (AchievementModel $record): bool {
+                try {
+                    return (bool) DB::transaction(static fn (): ?bool => $record->delete());
+                } catch (QueryException) {
+                    return false;
+                }
+            })
+            ->failureNotificationTitle(self::text('delete.held_meanwhile'));
     }
 
     /**
