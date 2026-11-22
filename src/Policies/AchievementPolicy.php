@@ -7,6 +7,7 @@ namespace Modules\Achievements\Policies;
 use App\Infrastructure\Authorization\Policies\AuthorizesWithPermissions;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\ChallengeModel;
 
 /**
  * The catalogue: listed with `achievements.view_any`, `manage` or `grant` (granting needs seeing what
@@ -103,7 +104,10 @@ final class AchievementPolicy
 
     public function delete(UserModel $user, AchievementModel $achievement): bool
     {
-        return $this->authorize($user, self::MANAGE) && ! $achievement->grants()->exists();
+        // The reward of a challenge stays while the challenge does (#12)
+        return $this->authorize($user, self::MANAGE)
+            && ! $achievement->grants()->exists()
+            && ! ChallengeModel::query()->where('reward_achievement_id', $achievement->id)->exists();
     }
 
     public function deleteAny(UserModel $user): bool

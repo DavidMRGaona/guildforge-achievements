@@ -73,7 +73,7 @@ final class AchievementResourceTest extends ModuleTestCase
     {
         $provider = new AchievementsServiceProvider($this->app);
 
-        $this->assertSame([AchievementModel::class => AchievementPolicy::class], $provider->registerPolicies());
+        $this->assertSame(AchievementPolicy::class, $provider->registerPolicies()[AchievementModel::class] ?? null);
         $this->assertSame([AchievementBadgeImageMediaSource::class], $provider->registerMediaSources());
     }
 

@@ -411,4 +411,134 @@ return [
         'index_title' => 'Logros',
         'index_description' => 'Los logros que se pueden conseguir en la asociación y lo raro que es cada uno.',
     ],
+
+    'challenges' => [
+        'navigation' => 'Retos',
+        'model' => [
+            'singular' => 'reto',
+            'plural' => 'retos',
+        ],
+
+        'sections' => [
+            'challenge' => 'Reto',
+            'challenge_description' => 'Un objetivo entre todas las personas, con unas fechas y un logro de recompensa para quien contribuya.',
+            'count' => 'Qué se cuenta',
+            'count_description' => 'Se cuenta solo, con lo que registran los módulos. En la web se ven solo totales, nunca qué partidas o eventos concretos.',
+        ],
+
+        'fields' => [
+            'name' => 'Nombre',
+            'description' => 'Descripción',
+            'starts_on' => 'Primer día',
+            'ends_on' => 'Último día',
+            'audience' => 'Quién participa',
+            'reward' => 'Logro de recompensa',
+            'kind' => 'Actividad',
+            'metric' => 'Cómo se suma',
+            'role' => 'Papel',
+            'placement_max' => 'Puesto máximo',
+            'attribute_key' => 'Solo con',
+            'attribute_value' => 'Valor',
+            'target' => 'Objetivo',
+            'state' => 'Estado',
+            'progress' => 'Progreso',
+            'days' => 'Fechas',
+            'what' => 'Qué cuenta',
+            'contributors' => 'Personas',
+        ],
+
+        'helpers' => [
+            'description' => 'Se ve en la web. Habla del objetivo común («40 partidas entre todos»), nunca de una partida concreta.',
+            'ends_on' => 'Los días van de 0:00 del primero a 23:59 del último, en la hora de la asociación. Lo que se registre tarde aún cuenta durante 30 días.',
+            'audience' => 'Solo con socios, cuenta solo lo que hacen las personas que son socias cuando se cuenta.',
+            'reward' => 'Un logro activo, no secreto y que se conceda a mano. Al cumplirse el reto, lo recibe cada persona que contribuyó.',
+            'kind' => 'Solo se ofrece la actividad que registra algún módulo instalado.',
+            'metric' => 'Cada partida una vez, cada persona en cada partida, o personas distintas.',
+            'role' => 'Opcional: solo cuenta quien participa con este papel.',
+            'placement_max' => 'Opcional: solo cuenta quien quedó en este puesto o mejor (torneos).',
+            'attribute_key' => 'Opcional: solo cuenta la actividad con este valor (un sistema de juego, por ejemplo).',
+            'target' => 'El total que hay que alcanzar entre todas las personas.',
+        ],
+
+        'metrics' => [
+            'subjects' => 'En total',
+            'participations' => 'Participaciones',
+            'people' => 'Personas distintas',
+        ],
+
+        'audiences' => [
+            'everybody' => 'Todas las personas',
+            'members' => 'Solo socios',
+        ],
+
+        'states' => [
+            'upcoming' => 'Próximamente',
+            'running' => 'En marcha',
+            'completed' => 'Conseguido',
+            'ended' => 'Terminado',
+            'closed' => 'Cerrado',
+        ],
+
+        'filters' => [
+            'open' => 'Cierre',
+            'options' => [
+                'open' => 'Abiertos',
+                'closed' => 'Cerrados',
+            ],
+        ],
+
+        'units' => [
+            'kinds' => [
+                'game_session' => 'partida|partidas',
+                'campaign' => 'campaña|campañas',
+                'tournament' => 'torneo|torneos',
+                'event' => 'evento|eventos',
+                'forum_post' => 'mensaje|mensajes',
+                'forum_discussion' => 'debate|debates',
+                'membership_year' => 'año como socio|años como socio',
+                'survey_response' => 'respuesta|respuestas',
+                'venue_booking' => 'reserva|reservas',
+                'account' => 'cuenta|cuentas',
+                'profile_completed' => 'perfil completado|perfiles completados',
+                'proposal' => 'propuesta|propuestas',
+            ],
+            'participations' => 'participación|participaciones',
+            'people' => 'persona|personas',
+            'fallback' => 'vez|veces',
+        ],
+
+        'days' => ':start – :end',
+        'progress' => ':progress / :target',
+        'placement_summary' => 'Puesto :max o mejor',
+        'invalid_rule' => 'Regla ilegible',
+
+        'close' => [
+            'label' => 'Cerrar',
+            'heading' => 'Cerrar el reto',
+            'description' => 'Al cerrarlo deja de contar y nadie más recibe la recompensa. Quien ya la tiene la conserva. No se puede volver a abrir.',
+            'confirmation' => 'Entiendo que el reto no se puede volver a abrir',
+            'done' => 'Reto cerrado',
+            'already' => 'El reto ya estaba cerrado',
+        ],
+
+        'delete' => [
+            'description' => 'Solo se puede borrar un reto que no se ha conseguido. Se pierde su progreso. No se puede deshacer.',
+            'confirmation' => 'Entiendo que el borrado no se puede deshacer',
+        ],
+
+        'validation' => [
+            'invalid_rule' => 'Esta combinación no forma un reto que se pueda contar.',
+        ],
+
+        'block' => [
+            'label' => 'Reto de la asociación',
+            'fields' => [
+                'challenge' => 'Reto',
+            ],
+            'helpers' => [
+                'challenge' => 'Sin elegir, el reto en marcha que antes termina (o el próximo en empezar).',
+            ],
+            'placeholder' => 'El que antes termina',
+        ],
+    ],
 ];

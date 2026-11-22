@@ -15,6 +15,8 @@ use Modules\Achievements\Application\DTOs\AchievementViewDTO;
 use Modules\Achievements\Application\Services\AchievementRarityInterface;
 use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Application\Services\ChallengeBoardInterface;
+use Modules\Achievements\Infrastructure\Challenges\ChallengePresenter;
 use Modules\Achievements\Infrastructure\Profiles\AchievementShowcase;
 use Modules\Achievements\Infrastructure\Profiles\ShowcasePresenter;
 
@@ -22,7 +24,7 @@ use Modules\Achievements\Infrastructure\Profiles\ShowcasePresenter;
  * `/logros`: what the person holds and every achievement that can still be got, with how rare it
  * is (the features follow the modules installed: an achievement without a source is not offered). A
  * secret achievement the person does not hold keeps its name, look, id and rarity to itself;
- * nothing names who holds what.
+ * nothing names who holds what. The collective challenges come first, with their totals (#12).
  */
 final class AchievementCatalogueController extends Controller
 {
@@ -32,6 +34,8 @@ final class AchievementCatalogueController extends Controller
         private readonly AchievementsSettingsInterface $settings,
         private readonly ShowcasePresenter $presenter,
         private readonly SeoMetadataFactoryInterface $seo,
+        private readonly ChallengeBoardInterface $challenges,
+        private readonly ChallengePresenter $challengePresenter,
     ) {}
 
     public function __invoke(Request $request): Response
@@ -53,6 +57,11 @@ final class AchievementCatalogueController extends Controller
             ], $this->showcase->catalogueFor($viewerId)),
             'showsRarity' => $showsRarity && $rarity instanceof AchievementRarityDTO && $rarity->activePeople > 0,
             'signedIn' => $viewer !== null,
+            // Collective challenges (#12): totals only, and who completed them as the viewer may see them
+            'challenges' => array_map(
+                $this->challengePresenter->challenge(...),
+                $this->challenges->shown($viewer),
+            ),
             'seo' => $this->seo->forPage(new SeoPageDTO(
                 title: __('achievements::messages.pages.index_title'),
                 description: __('achievements::messages.pages.index_description'),

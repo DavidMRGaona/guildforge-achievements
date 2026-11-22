@@ -44,3 +44,38 @@ export interface CatalogueAchievement extends AchievementSummary {
     held: boolean;
     rarity: number | null;
 }
+
+/** Where a collective challenge is */
+export type ChallengeState = 'upcoming' | 'running' | 'completed' | 'ended' | 'closed';
+
+/** Somebody who completed a challenge, as the viewer may see them: public name and profile only */
+export interface ChallengeCompleter {
+    name: string;
+    url: string;
+    avatarUrl: string | null;
+}
+
+/** A collective challenge: totals only, never which tables or events anybody took part in */
+export interface Challenge {
+    id: string;
+    name: string;
+    description: string;
+    state: ChallengeState;
+    progress: number;
+    target: number;
+    /** What the total counts, agreed with the target («partidas») */
+    unit: string;
+    /** Calendar days of the association (`AAAA-MM-DD`), both included */
+    startsOn: string;
+    endsOn: string;
+    membersOnly: boolean;
+    reward: AchievementSummary;
+    /** People who added to it */
+    contributors: number;
+    /** People who got the reward */
+    completers: number;
+    /** Those of them whose profile the viewer may see (only on `/logros`) */
+    people: ChallengeCompleter[];
+    /** The viewer's own contribution; null for a guest */
+    contribution: number | null;
+}

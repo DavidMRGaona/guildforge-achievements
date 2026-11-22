@@ -22,6 +22,7 @@ use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\ValueObjects\MetricKinds;
 use Modules\Achievements\Filament\Pages\AchievementsSettingsPage;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
+use Modules\Achievements\Jobs\EvaluateChallengesJob;
 use Tests\Support\Modules\ModuleTestCase;
 
 final class AchievementsSettingsPageTest extends ModuleTestCase
@@ -281,6 +282,19 @@ final class AchievementsSettingsPageTest extends ModuleTestCase
         $this->app->forgetScopedInstances();
         Livewire::test(AchievementsSettingsPage::class)->fillForm(['secrets' => true])->call('save');
         Bus::assertDispatchedTimes(EvaluateAchievementsJob::class, 2);
+    }
+
+    public function test_switching_the_challenges_on_counts_them(): void
+    {
+        Bus::fake([EvaluateChallengesJob::class]);
+        $this->actingAs($this->userWith(AchievementsSettingsPage::PERMISSION));
+
+        Livewire::test(AchievementsSettingsPage::class)->fillForm(['points' => true])->call('save');
+        Bus::assertNotDispatched(EvaluateChallengesJob::class);
+
+        $this->app->forgetScopedInstances();
+        Livewire::test(AchievementsSettingsPage::class)->fillForm(['challenges' => true])->call('save');
+        Bus::assertDispatched(EvaluateChallengesJob::class, static fn (EvaluateChallengesJob $job): bool => $job->challengeIds === null && ! $job->silent);
     }
 
     private function userWith(string $permissionKey): UserModel

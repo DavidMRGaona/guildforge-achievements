@@ -11,7 +11,7 @@ El core rechaza el módulo si no se cumplen (`module.json` → `requires`).
 
 ## Qué hace
 
-Un catálogo de logros que se conceden solos con lo que cada persona hace en la asociación, a partir del registro de actividad, o a mano y en lote desde el panel, con su historial, y que se ven en el perfil público, junto al nombre (perfil, tarjeta y foro) y en la página `/logros`. Cada mecánica restante (avisos, temporadas, retos…) llega con su propia issue.
+Un catálogo de logros que se conceden solos con lo que cada persona hace en la asociación, a partir del registro de actividad, o a mano y en lote desde el panel, con su historial, y que se ven en el perfil público, junto al nombre (perfil, tarjeta y foro) y en la página `/logros`. También retos de la asociación: objetivos entre todas las personas con un logro de recompensa. Cada mecánica restante (avisos, temporadas…) llega con su propia issue.
 
 ## Registro de actividad
 
@@ -139,6 +139,52 @@ La parte de la gente activa que tiene cada logro. Gente activa: cuentas con al m
 
 `achievements.index`, para todo el mundo: los logros que se pueden conseguir ahora (estado *Activo* o *Solo a mano*, con `AchievementStatusRule`), con la rareza de cada uno y los secretos ocultos, más los que la persona ya tiene, aunque ya no se puedan conseguir. Las funciones siguen a los módulos instalados: un logro sin fuente no se ofrece. Al habilitar el módulo por primera vez, `AchievementsMenuLinkSeeder` añade «Logros» al final del menú de la cabecera, como enlace del módulo: se mueve o se borra en *Sitio web → Navegación* y no vuelve.
 
+## Retos de la asociación
+
+Objetivos entre todas las personas («entre todos, 40 partidas en diciembre») con un logro de recompensa para quien contribuya. Solo con el interruptor **Retos** encendido; apagado, desaparecen del panel y de la web, no se cuentan y las recompensas concedidas se quedan.
+
+### Panel
+
+*Personas → Logros → Retos* (entrada hija de «Logros», `ChallengeResource`, slug `retos`), con la política `ChallengePolicy`: `achievements.view_any` o `manage` para ver la tabla, `achievements.manage` para crear, editar, cerrar y borrar. Un reto cerrado no se edita ni se vuelve a abrir; solo se borra uno que nunca se consiguió (diálogo y casilla obligatoria en los dos casos). La tabla cabe en todos los anchos: acciones en el menú **⋯** con «Ver detalles» primero y columnas secundarias con `visibleFrom()`. En una impersonación de solo lectura se rechaza todo, como en el resto del panel.
+
+Cada reto tiene nombre (80 caracteres), descripción (300), primer y último día (días de calendario de la zona de visualización, los dos incluidos), quién participa (todas las personas o solo socios), la recompensa (un logro activo, no secreto y que solo se concede a mano; mientras un reto lo use, el logro no se puede borrar) y una regla. Tabla `achievements_challenges`.
+
+### Regla
+
+JSON con versión, como la de los logros (`ChallengeRule`):
+
+```json
+{"version":1,"metric":"subjects","kind":"game_session","filters":{"role":"player","attribute":{"key":"game_system","value":"<id>","label":"…"},"placement_max":3},"target":40}
+```
+
+`metric` es `subjects` (cada partida o evento una vez), `participations` (cada persona en cada uno) o `people` (personas distintas). La actividad y los filtros los lee `AchievementRule`, así que significan lo mismo que en un logro. Una regla que no se entiende entera es ilegible: el reto no se cuenta ni concede nada.
+
+### Cómo se cuenta
+
+`ChallengeEvaluatorInterface` (`ChallengeEvaluator`) lee del registro de actividad los hechos de la actividad entre las 0:00 del primer día y las 23:59 del último en la zona de visualización (`TimezoneServiceInterface::displayDayRange()`), aplica los filtros (`ChallengeCalculator`, puro) y guarda el total, cuántas personas contribuyeron y la aportación de cada una (`achievements_challenge_contributors`). Un reto *solo socios* pregunta al core quién es socio (`AssociationMembersAmongInterface`), nunca compara nombres de rol; si no se puede leer, el reto se deja como estaba y se reintenta.
+
+Se cuenta en `EvaluateChallengesJob` (único mientras espera en la cola):
+
+- tras cada cambio del registro (`AchievementFactsChanged`), en silencio si viene de un recálculo;
+- al crear un reto o cambiar su regla, sus fechas, quién participa o la recompensa;
+- al encender **Retos** o volver a encender un tipo de actividad;
+- cada noche (`achievements:challenges`, a las 04:10 de la zona de visualización), porque quién es socio cambia sin que cambie ningún hecho.
+
+Un reto se cuenta desde su primer día hasta 30 días después del último (`Challenge::LATE_FACTS_DAYS`), porque hay actividad que se registra tarde. No se cuenta si está cerrado, si su tipo de actividad está apagado o no tiene fuente (se queda el último total), si su regla es ilegible o si los ajustes no se pueden leer.
+
+### Recompensa
+
+En cuanto el total llega al objetivo, el reto queda *Conseguido* para siempre (`completed_at`, el instante del hecho que lo alcanzó), aunque el total baje después. Cada persona que contribuyó recibe la recompensa con origen `challenge` a través de `AchievementGranterInterface`, y también quien contribuya después mientras se siga contando. No se concede a quien ya la tiene ni a quien se la retiraron a mano. Se anuncia (`AchievementGranted` con `silent` falso) solo si el reto se consiguió, o la persona contribuyó, en los últimos 14 días y la cuenta no venía de un recálculo. Con la recompensa desactivada no se concede nada hasta que vuelva.
+
+### En la web
+
+- **`/logros`**: antes del catálogo, los retos en marcha, los que empiezan en los próximos 30 días y los que terminaron hace menos de 30 (`ChallengeBoardInterface`), con barra de progreso, fechas, recompensa y cuántas personas contribuyeron. Con la sesión iniciada, cuántas veces participó esa persona. De un reto conseguido, cuántas personas tienen la recompensa y hasta doce de ellas, con la tarjeta del perfil del core (`ProfileCardServiceInterface::card()`): solo perfiles que quien mira puede ver, solo con su nombre público y nunca quien oculta sus logros.
+- **Bloque `achievements.challenge`** («Reto de la asociación»), para el pie de página, las ventanas emergentes y la página de enlaces: el reto elegido en sus ajustes o, sin elegir, el reto en marcha que antes termina (si no hay, el siguiente en empezar). Sin reto que enseñar no se dibuja. Solo da totales; la lista de personas solo está en `/logros`.
+
+Nada de esto nombra una mesa, una sesión o un evento: solo totales.
+
+Al anonimizar una cuenta se borran sus aportaciones; el total se recalcula en la siguiente cuenta.
+
 ## Catálogo inicial
 
 Al habilitar el módulo por primera vez, su seeder crea un catálogo que cada sitio puede editar y borrar: bienvenida (primera partida, perfil completo, primer mensaje en el foro), partidas jugadas (1, 10, 50 y 100), dirigidas (1 y 10), primera mesa creada que llega a jugarse, sistemas distintos (3 y 10), campaña completada, primer torneo, podio, 5 eventos, 1, 3 y 5 años de cuenta y primera propuesta aceptada. Solo empiezan activos los que tienen fuente; los demás salen como *Sin fuente*.
@@ -154,7 +200,7 @@ Es idempotente: crea solo los que faltan (por su `starter_key`) y deja como est�
 | Permiso | Para qué |
 |---|---|
 | `achievements.view_any` | Ver los logros en el panel |
-| `achievements.manage` | Catálogo, retos y tipos de reconocimiento (sugerido para el rol `editor`). Ve quién tiene cada logro, también tras un lote, es decir, quién participó: dalo solo a quien ya ve esas participaciones en su módulo |
+| `achievements.manage` | Catálogo, retos (crear, editar, cerrar y borrar) y tipos de reconocimiento (sugerido para el rol `editor`). Ve quién tiene cada logro, también tras un lote, es decir, quién participó: dalo solo a quien ya ve esas participaciones en su módulo |
 | `achievements.grant` | Conceder, conceder en lote y retirar logros (sin rol por defecto). Ve a quién se concede en lote, es decir, quién participó: dalo solo a quien ya ve esas participaciones en su módulo |
 | `achievements.configure` | La página de ajustes (sin rol por defecto) |
 

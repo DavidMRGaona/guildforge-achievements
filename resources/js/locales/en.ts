@@ -33,6 +33,34 @@ export default {
             tooMany: 'Too many changes in a row. Wait a moment and try again.',
             seeAll: 'See every achievement',
         },
+        challenges: {
+            title: 'Association challenges',
+            subtitle:
+                'Goals for everybody together. Whoever adds to one gets its reward achievement once it is reached.',
+            progress: '{progress} of {target} {unit}',
+            days: 'From {start} to {end}',
+            membersOnly: 'Members only',
+            states: {
+                upcoming: 'Coming soon',
+                running: 'Under way',
+                completed: 'Reached',
+                ended: 'Ended',
+                closed: 'Closed',
+            },
+            contributors:
+                'Nobody has added to it yet | {count} person has added to it | {count} people have added to it',
+            yourContribution: 'You took part {count} time | You took part {count} times',
+            noContribution: 'You have not added to it yet',
+            reward: 'Reward',
+            completers:
+                'Nobody holds the reward | {count} person holds the reward | {count} people hold the reward',
+            others: 'and {count} more person | and {count} more people',
+            block: {
+                until: 'Until {day}',
+                startsOn: 'Starts on {day}',
+                seeAll: 'See the challenges',
+            },
+        },
         catalogue: {
             title: 'Achievements',
             subtitle: 'Badges earned by playing, running games and taking part in the association.',

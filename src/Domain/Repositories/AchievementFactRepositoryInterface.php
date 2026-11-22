@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Achievements\Domain\Repositories;
 
 use Closure;
+use DateTimeImmutable;
 use Modules\Achievements\Domain\Entities\AchievementFact;
 use Modules\Achievements\Domain\ValueObjects\FactsReplacement;
 use Modules\Achievements\Domain\ValueObjects\RecordedFact;
@@ -86,6 +87,14 @@ interface AchievementFactRepositoryInterface
      * @return array<string, list<AchievementFact>>
      */
     public function forUsers(array $userIds, array $kinds = []): array;
+
+    /**
+     * Every fact of a kind that happened in `[$from, $until)`, oldest first (collective challenges).
+     *
+     * @param  string  $kind  a MetricKinds value
+     * @return list<AchievementFact>
+     */
+    public function forKindBetween(string $kind, DateTimeImmutable $from, DateTimeImmutable $until): array;
 
     /**
      * Accounts with at least one fact of these kinds, sorted, after `$afterUserId` (keyset pages).

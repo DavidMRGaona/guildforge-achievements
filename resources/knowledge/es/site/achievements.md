@@ -1,11 +1,11 @@
 ---
 id: achievements.site.achievements
 title: Tus logros
-summary: Qué son los logros, cómo se consiguen, qué es la rareza, cómo destacar tres junto a tu nombre y cómo ocultarlos.
+summary: Qué son los logros, cómo se consiguen, qué es la rareza, cómo funcionan los retos de la asociación, cómo destacar tres junto a tu nombre y cómo ocultarlos.
 category: community
 audience: site
 order: 40
-keywords: [logros, insignias, medallas, trofeos, conseguir, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, destacar, destacados, estrella, junto a mi nombre, foro, tarjeta, perfil, ocultar, privacidad, catálogo]
+keywords: [logros, insignias, medallas, trofeos, conseguir, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, destacar, destacados, estrella, junto a mi nombre, foro, tarjeta, perfil, ocultar, privacidad, catálogo, retos, reto, objetivo común, entre todos, recompensa, barra de progreso]
 related: [core.site.public-profile]
 ---
 Un logro es una insignia que se consigue con lo que haces en {{site_name}}: jugar o dirigir partidas, probar sistemas distintos, ir a eventos, participar en torneos, cumplir años en la web… Se concede solo, en cuanto cumples lo que pide, y no se pierde nunca: aunque una partida deje de contar, lo conseguido se queda.
@@ -15,6 +15,14 @@ Un logro es una insignia que se consigue con lo que haces en {{site_name}}: juga
 En el menú, abre **Logros**. Ahí están los que se pueden conseguir ahora, con su descripción y su **rareza**. Con la sesión iniciada, también ves cuáles tienes, aunque ya no se puedan conseguir.
 
 Algunos son **secretos**: salen como «Logro secreto», sin nombre ni descripción, hasta que los consigues.
+
+## Retos de la asociación
+
+A veces hay retos entre todas las personas, como «entre todos, 40 partidas en diciembre». Salen al principio de la página **Logros**, con una barra que dice cuánto se lleva, sus fechas y el logro de recompensa. También pueden salir en el pie de página, en una ventana o en la página de enlaces.
+
+No se compite: todo lo que haces dentro de las fechas suma al total. Algunos retos son solo para socios, y entonces solo suma lo que hacen los socios. Con la sesión iniciada ves cuántas veces has participado tú.
+
+Cuando se llega al objetivo, cada persona que contribuyó recibe el logro de recompensa, y quien contribuye después, mientras sigan las fechas, también. Los retos solo enseñan totales: nunca dicen qué partidas o eventos han contado. De un reto conseguido se nombra a algunas de las personas que lo tienen, solo si puedes ver su perfil y con su nombre público. Si ocultas tus logros, no se te nombra.
 
 ## Tus logros en tu perfil
 

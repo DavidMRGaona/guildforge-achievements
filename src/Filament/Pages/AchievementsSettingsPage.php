@@ -20,6 +20,7 @@ use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\ValueObjects\MetricKinds;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
+use Modules\Achievements\Jobs\EvaluateChallengesJob;
 
 /**
  * «Sistema → Configuración → Logros»: the switch of every mechanic of the module.
@@ -192,6 +193,11 @@ final class AchievementsSettingsPage extends Page implements HasForms
         // everybody again (silently) grants what was met while it was off
         if ($this->switchedBackOn($current, $saved)) {
             EvaluateAchievementsJob::dispatch();
+        }
+
+        // Challenges were not counted while off (#12): counted now, with what the ledger holds
+        if ($saved->challenges && (! $current->challenges || $this->switchedBackOn($current, $saved))) {
+            EvaluateChallengesJob::dispatch();
         }
 
         Notification::make()

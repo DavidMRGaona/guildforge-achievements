@@ -32,6 +32,34 @@ export default {
             tooMany: 'Demasiados cambios seguidos. Espera un momento y vuelve a probar.',
             seeAll: 'Ver todos los logros',
         },
+        challenges: {
+            title: 'Retos de la asociación',
+            subtitle:
+                'Objetivos entre todas las personas. Quien contribuye recibe el logro de recompensa cuando se consigue.',
+            progress: '{progress} de {target} {unit}',
+            days: 'Del {start} al {end}',
+            membersOnly: 'Solo socios',
+            states: {
+                upcoming: 'Próximamente',
+                running: 'En marcha',
+                completed: 'Conseguido',
+                ended: 'Terminado',
+                closed: 'Cerrado',
+            },
+            contributors:
+                'Nadie ha contribuido todavía | {count} persona ha contribuido | {count} personas han contribuido',
+            yourContribution: 'Has participado {count} vez | Has participado {count} veces',
+            noContribution: 'Todavía no has contribuido',
+            reward: 'Recompensa',
+            completers:
+                'Nadie tiene la recompensa | {count} persona tiene la recompensa | {count} personas tienen la recompensa',
+            others: 'y {count} persona más | y {count} personas más',
+            block: {
+                until: 'Hasta el {day}',
+                startsOn: 'Empieza el {day}',
+                seeAll: 'Ver los retos',
+            },
+        },
         catalogue: {
             title: 'Logros',
             subtitle:
