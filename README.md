@@ -4,14 +4,40 @@ Logros, niveles y reconocimientos entre las personas de la asociación.
 
 ## Requisitos
 
-- GuildForge core `^3.85`
+- GuildForge core `^3.86`
 - PHP >= 8.5, Laravel >= 13, Filament 5
 
 El core rechaza el módulo si no se cumplen (`module.json` → `requires`).
 
 ## Qué hace
 
-Esta versión es solo la base del módulo: permisos y ajustes. Cada mecánica llega con su propia issue.
+Por ahora, la base del módulo (permisos y ajustes) y el registro de actividad del que saldrán los logros. Cada mecánica llega con su propia issue.
+
+## Registro de actividad
+
+Los logros se calculan con lo que cuentan las fuentes de actividad del core (`docs/modules/activity-sources.md`): quién jugó o dirigió una partida, quién organizó un torneo, quién fue a un evento… El módulo guarda una copia, cosa por cosa, en la tabla `achievements_facts`: una fila por fuente, cosa, persona y papel, con el tipo de actividad, cuándo fue (en la zona de almacenamiento), sus atributos (`{"game_system": {"id": "pf2", "label": "Pathfinder 2"}}`) y el puesto si lo hay.
+
+- **Al momento.** Cuando una fuente avisa de un cambio (`ActivityRecorded`), un listener en cola vuelve a leer esa cosa con `ActivityReaderInterface::facts()` y sustituye sus filas. Si la fuente falta o falla, no se toca nada: solo una respuesta leída cambia el registro, y el lector del core ya avisa una vez al día. Si falla, el listener lo vuelve a intentar más tarde (3 intentos en total); si falta, no.
+- **Una cosa cada vez.** La lectura y la escritura de cada cosa se hacen con su bloqueo (tabla `achievements_subject_locks`, una fila por cosa), así que un aviso y un recálculo de la misma cosa nunca se mezclan, aunque la cosa aún no tenga hechos.
+- **Aviso al evaluador.** Tras cada lectura correcta de una cosa, y tras cada página del recálculo, se lanza `AchievementFactsChanged` (evento interno del módulo) con las personas de antes y de ahora, haya cambiado algo o no: el evaluador las vuelve a mirar, y conceder dos veces no concede nada.
+- **Tipos apagados.** Un tipo de actividad apagado en los ajustes se sigue registrando; solo deja de evaluarse. Al volver a encenderlo, el registro no necesita nada. Pero los hechos que ya tenía de ese tipo solo se evaluarán tras un recálculo (cuando el módulo evalúe reglas).
+- **Cuentas.** Al anonimizar una cuenta (`UserAnonymized`) se borran todos sus hechos, en cola, y el lector del core ya no los devuelve. Al escribir, además, se descartan los hechos de cuentas ya anonimizadas. Las cuentas desactivadas conservan sus hechos: la rareza y la clasificación las dejarán fuera.
+
+### Recalcular el historial
+
+Hay que ejecutarlo **una vez después de instalar el módulo**, para registrar lo que pasó antes, y siempre que una fuente haya faltado o fallado durante un tiempo:
+
+```bash
+php artisan achievements:recalculate
+```
+
+- Recorre `history()` de cada fuente activa, página a página. `--source=game-tables.session` recorre solo esa fuente.
+- La página solo indica qué cosas han cambiado: si una no coincide con lo guardado, se vuelve a leer con `facts()` con su bloqueo, y se guarda lo que diga.
+- Al terminar un historial leído entero, cada cosa guardada que no aparecía se vuelve a leer con `facts()`. Solo se retira si su fuente responde que ya no tiene hechos; una cosa que terminó durante el recorrido se queda.
+- Una fuente se para sin retirar nada si una página o una de esas lecturas falla, si el historial vuelve a una página ya leída o si pasa de 5000 páginas. Lo ya leído se guarda.
+- Se puede repetir: una segunda pasada no cambia nada. No envía avisos: lo que conceda más adelante será en silencio.
+- `--dry-run` cuenta lo que cambiaría sin escribir nada.
+- Al terminar muestra, por fuente, cuántas cosas ha leído, cuántas ha actualizado y cuántas ha retirado. Sale con error si alguna fuente no se ha podido leer entera.
 
 ## Permisos
 
@@ -43,6 +69,7 @@ El resto del módulo lee los ajustes a través de `AchievementsSettingsInterface
 3. En **Módulos**, pulsa **Instalar / actualizar** y sube el ZIP.
 4. Pulsa **Habilitar** en el módulo: la primera vez ejecuta sus migraciones.
 5. Desactiva el modo mantenimiento.
+6. Ejecuta `php artisan achievements:recalculate` una vez, para registrar la actividad anterior a la instalación.
 
 Las versiones nuevas se aplican desde **Actualizaciones de módulos** (también con el modo mantenimiento activo) o con `php artisan module:update achievements`.
 
