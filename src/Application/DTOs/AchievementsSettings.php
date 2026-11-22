@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Application\DTOs;
 
+use Modules\Achievements\Domain\ValueObjects\LevelScale;
 use Modules\Achievements\Domain\ValueObjects\MetricKinds;
 
 /**
@@ -14,7 +15,10 @@ use Modules\Achievements\Domain\ValueObjects\MetricKinds;
  * that adds a switch never needs a data change. A value of the wrong type is listed in
  * `invalidKeys` and takes its default, except where the default would grant more than asked: a
  * malformed `secrets` or `bulk_grants` is off, a malformed `metric_kinds` turns every kind off, and a kind whose
- * switch is not a boolean is off.
+ * switch is not a boolean is off. A malformed level scale reads as the starter one.
+ *
+ * Levels and the leaderboard are built on points: they only show while points are on too
+ * (levelsShown(), leaderboardShown()).
  */
 final readonly class AchievementsSettings
 {
@@ -46,6 +50,7 @@ final readonly class AchievementsSettings
         public bool $points = false,
         public bool $levels = false,
         public bool $leaderboard = false,
+        public ?LevelScale $levelScale = null,
         public bool $recognitions = false,
         public int $recognitionsWindowDays = self::DEFAULT_RECOGNITION_WINDOW_DAYS,
         public bool $challenges = false,
@@ -73,6 +78,13 @@ final readonly class AchievementsSettings
             $invalid[] = 'metric_kinds';
         }
 
+        // Missing: the starter scale; anything that is not a scale: the starter scale, warned
+        $levelScale = LevelScale::tryFrom($raw['levels_scale'] ?? null);
+
+        if (! $levelScale instanceof LevelScale && array_key_exists('levels_scale', $raw) && $raw['levels_scale'] !== null) {
+            $invalid[] = 'levels_scale';
+        }
+
         return new self(
             progress: self::bool($raw, 'progress', $defaults->progress),
             rarity: self::bool($raw, 'rarity', $defaults->rarity),
@@ -87,6 +99,7 @@ final readonly class AchievementsSettings
             points: self::bool($raw, 'points', $defaults->points),
             levels: self::bool($raw, 'levels', $defaults->levels),
             leaderboard: self::bool($raw, 'leaderboard', $defaults->leaderboard),
+            levelScale: $levelScale,
             recognitions: self::bool($raw, 'recognitions', $defaults->recognitions),
             recognitionsWindowDays: self::windowDays($raw['recognitions_window_days'] ?? null),
             challenges: self::bool($raw, 'challenges', $defaults->challenges),
@@ -114,11 +127,47 @@ final readonly class AchievementsSettings
             'points' => $this->points,
             'levels' => $this->levels,
             'leaderboard' => $this->leaderboard,
+            // Null while nobody changed it: the starter scale follows the site's language
+            'levels_scale' => $this->levelScale?->toArray(),
             'recognitions' => $this->recognitions,
             'recognitions_window_days' => $this->recognitionsWindowDays,
             'challenges' => $this->challenges,
             'metric_kinds' => $this->metricKinds,
         ];
+    }
+
+    /**
+     * The levels points climb: the stored scale, or the starter one.
+     */
+    public function levelScale(): LevelScale
+    {
+        return $this->levelScale ?? self::starterLevelScale();
+    }
+
+    /**
+     * The starter scale with its names in the site's language.
+     */
+    public static function starterLevelScale(): LevelScale
+    {
+        return new LevelScale(array_map(
+            static fn (array $level): array => [
+                'threshold' => $level[0],
+                'name' => __('achievements::messages.levels.starter.'.$level[1]),
+            ],
+            LevelScale::STARTER,
+        ));
+    }
+
+    /** Levels are points climbed: none without points */
+    public function levelsShown(): bool
+    {
+        return $this->points && $this->levels;
+    }
+
+    /** The leaderboard ranks points: none without points */
+    public function leaderboardShown(): bool
+    {
+        return $this->points && $this->leaderboard;
     }
 
     /**

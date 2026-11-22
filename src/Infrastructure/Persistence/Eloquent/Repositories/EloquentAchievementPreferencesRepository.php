@@ -26,9 +26,9 @@ final readonly class EloquentAchievementPreferencesRepository implements Achieve
         $found = [];
 
         foreach (array_chunk($userIds, self::CHUNK) as $chunk) {
-            foreach ($this->table()->whereIn('user_id', $chunk)->get(['user_id', 'hidden', 'featured']) as $row) {
+            foreach ($this->table()->whereIn('user_id', $chunk)->get(['user_id', 'hidden', 'featured', 'leaderboard']) as $row) {
                 $userId = strtolower((string) $row->user_id);
-                $found[$userId] = new AchievementPreferences($userId, (bool) $row->hidden, $this->featured($row->featured));
+                $found[$userId] = new AchievementPreferences($userId, (bool) $row->hidden, $this->featured($row->featured), (bool) $row->leaderboard);
             }
         }
 
@@ -57,11 +57,12 @@ final readonly class EloquentAchievementPreferencesRepository implements Achieve
                 'user_id' => strtolower($preferences->userId),
                 'hidden' => $preferences->hidden,
                 'featured' => json_encode($preferences->featured, JSON_THROW_ON_ERROR),
+                'leaderboard' => $preferences->leaderboard,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]],
             ['user_id'],
-            ['hidden', 'featured', 'updated_at'],
+            ['hidden', 'featured', 'leaderboard', 'updated_at'],
         );
     }
 

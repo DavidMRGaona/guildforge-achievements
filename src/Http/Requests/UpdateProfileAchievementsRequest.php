@@ -28,6 +28,8 @@ final class UpdateProfileAchievementsRequest extends FormRequest
             'hidden' => ['required', 'boolean'],
             'featured' => ['present', 'array', 'list', 'max:'.AchievementPreferences::MAX_FEATURED],
             'featured.*' => ['required', 'string', 'distinct', 'max:36'],
+            // «Aparecer en la clasificación» (#10): left out, the stored choice stays
+            'leaderboard' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -73,6 +75,14 @@ final class UpdateProfileAchievementsRequest extends FormRequest
     public function hidden(): bool
     {
         return $this->boolean('hidden');
+    }
+
+    /**
+     * The leaderboard choice sent, or null when it was not (it stays as it was).
+     */
+    public function leaderboard(): ?bool
+    {
+        return $this->has('leaderboard') ? $this->boolean('leaderboard') : null;
     }
 
     /**

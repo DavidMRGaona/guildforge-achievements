@@ -7,6 +7,7 @@ namespace Modules\Achievements\Filament\Pages;
 use App\Filament\Clusters\SettingsCluster;
 use App\Filament\Concerns\ChecksPermissions;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -16,8 +17,11 @@ use Filament\Pages\Page;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Domain\ValueObjects\LevelScale;
 use Modules\Achievements\Domain\ValueObjects\MetricKinds;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 
@@ -81,7 +85,11 @@ final class AchievementsSettingsPage extends Page implements HasForms
             $kinds[$kind] = $service->metricKindEnabled($kind);
         }
 
-        $this->form->fill(['metric_kinds' => $kinds] + $service->settings()->toArray());
+        // The scale in use, the starter one too, so it can be edited from its names
+        $this->form->fill([
+            'metric_kinds' => $kinds,
+            'levels_scale' => $service->levelScale()->toArray(),
+        ] + $service->settings()->toArray());
     }
 
     public function form(Schema $schema): Schema
@@ -122,8 +130,31 @@ final class AchievementsSettingsPage extends Page implements HasForms
                     ->description(__('achievements::messages.settings.sections.gamification_description'))
                     ->schema([
                         $this->toggle('points'),
-                        $this->toggle('levels'),
+                        $this->toggle('levels')->live(),
                         $this->toggle('leaderboard'),
+                        Repeater::make('levels_scale')
+                            ->label(__('achievements::messages.settings.fields.levels_scale'))
+                            ->helperText(__('achievements::messages.settings.helpers.levels_scale'))
+                            ->schema([
+                                TextInput::make('threshold')
+                                    ->label(__('achievements::messages.settings.fields.level_threshold'))
+                                    ->integer()
+                                    ->minValue(0)
+                                    ->maxValue(LevelScale::MAX_THRESHOLD)
+                                    ->suffix(__('achievements::messages.settings.points_suffix'))
+                                    ->required(),
+                                TextInput::make('name')
+                                    ->label(__('achievements::messages.settings.fields.level_name'))
+                                    ->maxLength(LevelScale::NAME_MAX_LENGTH)
+                                    ->required(),
+                            ])
+                            ->columns(2)
+                            ->minItems(LevelScale::MIN_LEVELS)
+                            ->maxItems(LevelScale::MAX_LEVELS)
+                            ->reorderable(false)
+                            ->addActionLabel(__('achievements::messages.settings.add_level'))
+                            ->columnSpanFull()
+                            ->visible(fn (Get $get): bool => (bool) $get('levels')),
                     ])
                     ->columns(2),
 
@@ -178,6 +209,7 @@ final class AchievementsSettingsPage extends Page implements HasForms
             points: (bool) ($state['points'] ?? $current->points),
             levels: (bool) ($state['levels'] ?? $current->levels),
             leaderboard: (bool) ($state['leaderboard'] ?? $current->leaderboard),
+            levelScale: $this->submittedScale($state['levels_scale'] ?? null, $current),
             recognitions: (bool) ($state['recognitions'] ?? $current->recognitions),
             recognitionsWindowDays: is_numeric($state['recognitions_window_days'] ?? null)
                 ? (int) $state['recognitions_window_days']
@@ -217,6 +249,39 @@ final class AchievementsSettingsPage extends Page implements HasForms
         return Toggle::make($name)
             ->label(__('achievements::messages.settings.fields.'.$name))
             ->helperText(__('achievements::messages.settings.helpers.'.$name));
+    }
+
+    /**
+     * The scale on the form, in the order typed; while it is hidden (levels off) the stored one
+     * stays. A scale that is not one (the first level above 0, a level that needs no more points
+     * than the one before) is refused on the field.
+     *
+     * @throws ValidationException
+     */
+    private function submittedScale(mixed $submitted, AchievementsSettings $current): ?LevelScale
+    {
+        if (! is_array($submitted)) {
+            return $current->levelScale;
+        }
+
+        $levels = [];
+
+        foreach (array_values($submitted) as $level) {
+            $threshold = is_array($level) ? ($level['threshold'] ?? null) : null;
+            $name = is_array($level) ? ($level['name'] ?? null) : null;
+
+            if (! is_numeric($threshold) || ! is_string($name)) {
+                throw ValidationException::withMessages(['data.levels_scale' => __('achievements::messages.settings.levels_invalid')]);
+            }
+
+            $levels[] = ['threshold' => (int) $threshold, 'name' => $name];
+        }
+
+        try {
+            return new LevelScale($levels);
+        } catch (InvalidArgumentException) {
+            throw ValidationException::withMessages(['data.levels_scale' => __('achievements::messages.settings.levels_invalid')]);
+        }
     }
 
     /**

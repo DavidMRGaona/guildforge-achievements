@@ -30,6 +30,13 @@ export default {
             saveFailed: 'No se ha podido guardar. Inténtalo de nuevo.',
             readOnly: 'Mientras se mira la web como otra persona no se guarda nada.',
             tooMany: 'Demasiados cambios seguidos. Espera un momento y vuelve a probar.',
+            leaderboard: 'Aparecer en la clasificación',
+            leaderboardHelp:
+                'Quien puede ver tu perfil te ve en la clasificación con tus puntos y tu nivel.',
+            leaderboardHiddenHelp:
+                'Mientras tus logros solo los veas tú, tampoco sales en la clasificación.',
+            leaderboardIn: 'Vuelves a aparecer en la clasificación.',
+            leaderboardOut: 'Ya no apareces en la clasificación.',
             seeAll: 'Ver todos los logros',
         },
         catalogue: {
@@ -40,7 +47,48 @@ export default {
             empty: 'Todavía no hay logros.',
             rarityExplained:
                 'La rareza es la parte de la gente activa (quien ha participado en algo en los últimos doce meses) que tiene cada logro.',
+            seeLeaderboard: 'Ver la clasificación',
             youHoldIt: 'Lo tienes',
+        },
+        points: {
+            count: '{points} punto | {points} puntos',
+            season: '{points} en la temporada {season}',
+            level: 'Nivel {number} · {name}',
+            toNext: 'Hacia el nivel «{name}»',
+            missing: 'Te faltan {points} para «{name}».',
+            secret: 'Suman {points}.',
+            seeLeaderboard: 'Ver la clasificación',
+        },
+        leaderboard: {
+            title: 'Clasificación',
+            subtitle:
+                'Quién tiene más puntos de logros. Solo salen los perfiles que puedes ver y quienes quieren aparecer.',
+            periodLabel: 'Periodo',
+            allTime: 'Desde siempre',
+            season: 'Temporada {season}',
+            pastSeasons: 'Otra temporada',
+            points: '{points} punto | {points} puntos',
+            level: 'Nivel {number} · {name}',
+            rank: 'Puesto {rank}',
+            yourRank: 'Vas en el puesto {rank}, con {points}.',
+            offPage: 'Tu fila está en otra página.',
+            status: {
+                no_points: 'Todavía no tienes puntos en este periodo.',
+                hidden: 'No apareces porque tus logros solo los ves tú.',
+                opted_out: 'No apareces porque has elegido no salir en la clasificación.',
+                no_public_name: 'No apareces porque no tienes un nombre público.',
+                pending: 'Tus últimos puntos aparecerán en unos minutos.',
+            },
+            changeOnProfile: 'Cambiarlo en tu perfil',
+            empty: 'Todavía no hay nadie en la clasificación.',
+            unavailable: 'La clasificación no está disponible ahora mismo. Inténtalo más tarde.',
+            explained:
+                'Los puntos salen de los logros que tiene cada persona; los secretos también suman, sin decir cuáles son.',
+            pagesLabel: 'Páginas de la clasificación',
+            previous: 'Anterior',
+            next: 'Siguiente',
+            pageOf: 'Página {page} de {last}',
+            seeCatalogue: 'Ver todos los logros',
         },
     },
 };

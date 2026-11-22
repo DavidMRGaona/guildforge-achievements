@@ -32,6 +32,8 @@ use Livewire\Livewire;
 use Modules\Achievements\Application\Services\AchievementCatalogueInterface;
 use Modules\Achievements\Application\Services\AchievementEvaluatorInterface;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
+use Modules\Achievements\Application\Services\AchievementLeaderboardInterface;
+use Modules\Achievements\Application\Services\AchievementPointsInterface;
 use Modules\Achievements\Application\Services\AchievementRarityInterface;
 use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
@@ -46,6 +48,7 @@ use Modules\Achievements\Domain\Events\AchievementGranted;
 use Modules\Achievements\Domain\Events\AchievementRevoked;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
 use Modules\Achievements\Filament\Livewire\AccountAchievements;
@@ -59,15 +62,19 @@ use Modules\Achievements\Infrastructure\Catalogue\StarterCatalogue;
 use Modules\Achievements\Infrastructure\Grants\AchievementEvaluator;
 use Modules\Achievements\Infrastructure\Grants\AchievementGranter;
 use Modules\Achievements\Infrastructure\Grants\BulkGranter;
+use Modules\Achievements\Infrastructure\Leaderboard\Leaderboard;
 use Modules\Achievements\Infrastructure\Observers\EvaluateChangedAchievements;
 use Modules\Achievements\Infrastructure\Observers\ForgetFeaturedWhenMadeSecret;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementFactRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementGrantRepository;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementPointsRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementPreferencesRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementRepository;
+use Modules\Achievements\Infrastructure\Points\AchievementPoints;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsCountProfileStat;
 use Modules\Achievements\Infrastructure\Profiles\AchievementShowcase;
+use Modules\Achievements\Infrastructure\Profiles\AchievementsLevelProfileStat;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsProfileSection;
 use Modules\Achievements\Infrastructure\Profiles\FeaturedAchievementBadges;
 use Modules\Achievements\Infrastructure\Rarity\CachedAchievementRarity;
@@ -81,6 +88,7 @@ use Modules\Achievements\Listeners\EvaluateAchievementsOfEnabledModule;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountFacts;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountGrants;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountPreferences;
+use Modules\Achievements\Listeners\ForgetLeaderboardStandings;
 use Modules\Achievements\Listeners\RecordActivityFacts;
 use Modules\Achievements\Listeners\RefreshRarityAfterGrant;
 use Modules\Achievements\Policies\AchievementPolicy;
@@ -130,6 +138,11 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         $this->app->bind(AchievementPreferencesRepositoryInterface::class, EloquentAchievementPreferencesRepository::class);
         $this->app->scoped(AchievementRarityInterface::class, CachedAchievementRarity::class);
         $this->app->scoped(AchievementShowcaseInterface::class, AchievementShowcase::class);
+
+        // Points, levels and the leaderboard (#10): each account's points once per request or job
+        $this->app->bind(AchievementPointsRepositoryInterface::class, EloquentAchievementPointsRepository::class);
+        $this->app->scoped(AchievementPointsInterface::class, AchievementPoints::class);
+        $this->app->bind(AchievementLeaderboardInterface::class, Leaderboard::class);
     }
 
     public function boot(): void
@@ -142,11 +155,19 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountPreferences::class);
         Event::listen(AchievementGranted::class, RefreshRarityAfterGrant::class);
         Event::listen(AchievementRevoked::class, RefreshRarityAfterGrant::class);
+        Event::listen(AchievementGranted::class, ForgetLeaderboardStandings::class);
+        Event::listen(AchievementRevoked::class, ForgetLeaderboardStandings::class);
         Event::listen(AchievementFactsChanged::class, EvaluateAchievementsForChangedFacts::class);
         Event::listen(ModuleEnabled::class, EvaluateAchievementsOfEnabledModule::class);
 
         AchievementModel::observe(EvaluateChangedAchievements::class);
         AchievementModel::observe(ForgetFeaturedWhenMadeSecret::class);
+        // An achievement's points count for everybody who holds it
+        AchievementModel::updated(static function (AchievementModel $achievement): void {
+            if ($achievement->wasChanged('points')) {
+                app(AchievementLeaderboardInterface::class)->forget();
+            }
+        });
         RateLimiter::for(self::PROFILE_CHOICES_LIMITER, static fn (Request $request): array => [
             Limit::perMinute(self::PROFILE_CHOICES_PER_MINUTE)->by('achievements-choices:'.self::requesterKey($request)),
             Limit::perHour(self::PROFILE_CHOICES_PER_HOUR)->by('achievements-choices-hour:'.self::requesterKey($request)),
@@ -252,7 +273,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
      */
     public function registerProfileStats(): array
     {
-        return [AchievementsCountProfileStat::class];
+        return [AchievementsCountProfileStat::class, AchievementsLevelProfileStat::class];
     }
 
     /**
@@ -275,6 +296,11 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
             new ModuleRouteDTO(
                 routeName: 'achievements.index',
                 label: __('achievements::messages.title'),
+                module: $this->moduleName(),
+            ),
+            new ModuleRouteDTO(
+                routeName: 'achievements.leaderboard',
+                label: __('achievements::messages.leaderboard.title'),
                 module: $this->moduleName(),
             ),
         ];

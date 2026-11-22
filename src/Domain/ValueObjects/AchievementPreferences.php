@@ -11,6 +11,7 @@ namespace Modules\Achievements\Domain\ValueObjects;
  * - `featured`: ids of up to three achievements, in the owner's order. Only held ones are ever
  *   shown, so an id that stopped being held (revoked, deleted) is skipped where it is read; an empty
  *   list means «not chosen», and the rarest held ones are featured instead.
+ * - `leaderboard`: whether they appear in the leaderboard (#10); on unless they opt out.
  */
 final readonly class AchievementPreferences
 {
@@ -26,6 +27,7 @@ final readonly class AchievementPreferences
         public string $userId,
         public bool $hidden = false,
         array $featured = [],
+        public bool $leaderboard = true,
     ) {
         $this->featured = self::normalise($featured);
     }
@@ -74,6 +76,20 @@ final readonly class AchievementPreferences
      */
     public function with(bool $hidden, array $featured): self
     {
-        return new self($this->userId, $hidden, $featured);
+        return new self($this->userId, $hidden, $featured, $this->leaderboard);
+    }
+
+    public function withLeaderboard(bool $leaderboard): self
+    {
+        return new self($this->userId, $this->hidden, $this->featured, $leaderboard);
+    }
+
+    /**
+     * Whether the person may appear in the leaderboard by their own choice: not while their
+     * achievements are hidden, nor once they opted out.
+     */
+    public function appearsInLeaderboard(): bool
+    {
+        return ! $this->hidden && $this->leaderboard;
     }
 }

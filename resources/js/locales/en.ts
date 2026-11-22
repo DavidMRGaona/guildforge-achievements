@@ -31,6 +31,13 @@ export default {
             saveFailed: 'It could not be saved. Try again.',
             readOnly: 'Nothing is saved while the site is viewed as another person.',
             tooMany: 'Too many changes in a row. Wait a moment and try again.',
+            leaderboard: 'Appear in the leaderboard',
+            leaderboardHelp:
+                'Whoever may see your profile sees you in the leaderboard with your points and level.',
+            leaderboardHiddenHelp:
+                'While only you see your achievements, you are not in the leaderboard either.',
+            leaderboardIn: 'You appear in the leaderboard again.',
+            leaderboardOut: 'You no longer appear in the leaderboard.',
             seeAll: 'See every achievement',
         },
         catalogue: {
@@ -40,7 +47,48 @@ export default {
             empty: 'There are no achievements yet.',
             rarityExplained:
                 'Rarity is the share of active people (who took part in something in the last twelve months) holding each achievement.',
+            seeLeaderboard: 'See the leaderboard',
             youHoldIt: 'You hold it',
+        },
+        points: {
+            count: '{points} point | {points} points',
+            season: '{points} in the {season} season',
+            level: 'Level {number} · {name}',
+            toNext: 'Towards level «{name}»',
+            missing: '{points} to go for «{name}».',
+            secret: 'Worth {points}.',
+            seeLeaderboard: 'See the leaderboard',
+        },
+        leaderboard: {
+            title: 'Leaderboard',
+            subtitle:
+                'Who has the most achievement points. Only profiles you may see and people who want to appear are listed.',
+            periodLabel: 'Period',
+            allTime: 'All time',
+            season: '{season} season',
+            pastSeasons: 'Another season',
+            points: '{points} point | {points} points',
+            level: 'Level {number} · {name}',
+            rank: 'Rank {rank}',
+            yourRank: 'You are at rank {rank}, with {points}.',
+            offPage: 'Your row is on another page.',
+            status: {
+                no_points: 'You have no points in this period yet.',
+                hidden: 'You are not listed because only you see your achievements.',
+                opted_out: 'You are not listed because you chose not to appear.',
+                no_public_name: 'You are not listed because you have no public name.',
+                pending: 'Your latest points will show in a few minutes.',
+            },
+            changeOnProfile: 'Change it on your profile',
+            empty: 'Nobody is in the leaderboard yet.',
+            unavailable: 'The leaderboard is not available right now. Try again later.',
+            explained:
+                'Points come from each person’s achievements; secret ones count too, without saying which.',
+            pagesLabel: 'Leaderboard pages',
+            previous: 'Previous',
+            next: 'Next',
+            pageOf: 'Page {page} of {last}',
+            seeCatalogue: 'See every achievement',
         },
     },
 };

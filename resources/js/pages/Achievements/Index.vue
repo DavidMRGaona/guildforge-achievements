@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { Link } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import { Check } from '@lucide/vue';
 import HelpLink from '@/components/knowledge/HelpLink.vue';
@@ -16,9 +17,17 @@ interface Props {
     achievements: CatalogueAchievement[];
     showsRarity?: boolean;
     signedIn?: boolean;
+    showsPoints?: boolean;
+    /** Only for signed-in people while there is a leaderboard */
+    leaderboardUrl?: string | null;
 }
 
-const props = withDefaults(defineProps<Props>(), { showsRarity: false, signedIn: false });
+const props = withDefaults(defineProps<Props>(), {
+    showsRarity: false,
+    signedIn: false,
+    showsPoints: false,
+    leaderboardUrl: null,
+});
 
 const { t, locale } = useI18n();
 
@@ -43,6 +52,14 @@ const heldCount = computed(() => props.achievements.filter((item) => item.held).
                     })
                 }}
             </p>
+            <Link
+                v-if="leaderboardUrl"
+                :href="leaderboardUrl"
+                class="mt-2 inline-flex min-h-[44px] items-center text-sm font-medium text-[var(--color-primary-link)] underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                data-test="leaderboard-link"
+            >
+                {{ t('achievements.catalogue.seeLeaderboard') }}
+            </Link>
         </div>
     </div>
 
@@ -91,6 +108,15 @@ const heldCount = computed(() => props.achievements.filter((item) => item.held).
                                 </span>
                                 <span v-else>{{ t('achievements.rarity.nobody') }}</span>
                             </template>
+                            <span v-if="showsPoints && item.points != null && item.points > 0">
+                                {{
+                                    t(
+                                        'achievements.points.count',
+                                        { points: item.points.toLocaleString(locale) },
+                                        item.points
+                                    )
+                                }}
+                            </span>
                             <span
                                 v-if="item.held"
                                 class="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2 py-0.5 font-medium text-primary-800 dark:bg-primary-900 dark:text-primary-100"

@@ -21,7 +21,7 @@ Los logros se calculan con lo que cuentan las fuentes de actividad del core (`do
 - **Una cosa cada vez.** La lectura y la escritura de cada cosa se hacen con su bloqueo (tabla `achievements_subject_locks`, una fila por cosa), así que un aviso y un recálculo de la misma cosa nunca se mezclan, aunque la cosa aún no tenga hechos.
 - **Aviso al evaluador.** Tras cada lectura correcta de una cosa, y tras cada página del recálculo, se lanza `AchievementFactsChanged` (evento interno del módulo) con las personas de antes y de ahora, haya cambiado algo o no: el evaluador las vuelve a mirar, y conceder dos veces no concede nada.
 - **Tipos apagados.** Un tipo de actividad apagado en los ajustes se sigue registrando; solo deja de evaluarse. Al volver a encenderlo desde la página de ajustes, los logros se evalúan otra vez para todo el mundo con el registro, en cola y sin avisos.
-- **Cuentas.** Al anonimizar una cuenta (`UserAnonymized`) se borran todos sus hechos, en cola, y el lector del core ya no los devuelve. Al escribir, además, se descartan los hechos de cuentas ya anonimizadas. Las cuentas desactivadas conservan sus hechos: la rareza y la clasificación las dejarán fuera.
+- **Cuentas.** Al anonimizar una cuenta (`UserAnonymized`) se borran todos sus hechos, en cola, y el lector del core ya no los devuelve. Al escribir, además, se descartan los hechos de cuentas ya anonimizadas. Las cuentas desactivadas conservan sus hechos: la rareza y la clasificación las dejan fuera.
 
 ## Catálogo de logros
 
@@ -121,13 +121,27 @@ El perfil lo dibuja el core, y solo después de que su regla de acceso (`Profile
 - **Sección `achievements.badges`** (columna principal, orden 20, encendida por defecto). Los logros conseguidos, del más reciente al más antiguo, con su fecha y su rareza. El dueño ve además los que le faltan y aún puede conseguir (con fuente y encendidos, o solo a mano), con su progreso («7 de 10», `RuleEvaluator::value()` frente al umbral) mientras **Progreso visible** esté encendido; los secretos salen como «Logro secreto», sin progreso, y al final.
 - **Secretos.** Un logro secreto se ve como «Logro secreto», sin rareza y sin id, a quien no lo tiene, salvo que su dueño lo destaque: destacarlo es enseñarlo a todo el mundo. Sin id, porque uno revelado en otro sitio diría quién más tiene el mismo secreto; lo enmascarado no se puede destacar.
 - **Rareza 0.** En un logro conseguido, una rareza de 0 solo dice que su dueño no está activo: no se enseña, y en el orden de las destacadas cuenta como desconocida (al final). En el navegador, menos de 0,1 % se escribe «< 0,1 %».
-- **Solo totales.** Nada nombra la mesa, la sesión o el evento que concedió un logro; las props nunca llevan la regla ni los puntos.
+- **Solo totales.** Nada nombra la mesa, la sesión o el evento que concedió un logro; las props nunca llevan la regla. Los puntos de cada logro solo viajan mientras **Puntos** está encendido, y los de un secreto enmascarado nunca uno a uno.
 - **Contador `achievements.count`** («Logros», orden 50): cuántos logros tiene, secretos incluidos; nada con cero.
+- **Contador `achievements.level`** («Nivel», orden 55, #10): el número del nivel al que llegan sus puntos; nada con los niveles o los puntos apagados, sin puntos o con los logros ocultos. Enlaza la clasificación, o `/logros` si no la hay.
+- **Puntos en la sección** (#10, con **Puntos** encendido): `points` con el total, el de la temporada en curso (con **Temporadas y rachas**), el nivel y, solo para el dueño, el siguiente. Cada logro visible lleva sus puntos; los de los secretos que quien mira no puede ver van en una sola suma (`secretPoints`), junto a `secretCount`. Con los puntos apagados, ninguna prop dice «points».
 - **Ocultar mis logros.** El dueño los oculta desde la propia sección (`achievements_preferences.hidden`): nadie más ve la sección, el contador ni las insignias destacadas.
 - **Insignias destacadas** (`FeaturedAchievementBadges`, fuente de insignias del perfil del core): hasta tres, las que el dueño marca con la estrella en su sección (`achievements_preferences.featured`, en su orden), o, si no elige, sus tres logros no secretos más raros (los más recientes con la rareza apagada). Solo logros que tiene: uno retirado o borrado se salta. El core las enseña bajo el nombre del perfil, en su tarjeta y junto al autor en el foro, y solo si quien mira puede ver ese perfil. Una lectura por página para todas las cuentas.
 - **Correo sin verificar.** Un dueño que debe verificar su correo (`EmailVerificationPolicyInterface::mustVerify()`) ve sus logros sin los controles, como el editor del perfil del core.
 - **La ruta del dueño.** `PUT /logros/miembros/{handle}` (`achievements.profile.update`, `auth`, límite `achievements-profile-choices`: 20 por minuto y 200 por hora por cuenta) con `hidden` y `featured`. Solo pasa el dueño del perfil en esa dirección, con la regla del editor del perfil del core (`OwnsProfile`, `ProfileEditorInterface::ownerId()`), antes de validar nada; cualquier otra persona, administración incluida, recibe el 404 de una dirección desconocida. Una impersonación de solo lectura no guarda nada. Si el guardado falla por cualquier motivo (validación, 403, 429, 404, red), la estrella o el interruptor vuelven a lo guardado y la sección dice por qué.
 - **Anonimizar** una cuenta borra sus elecciones (en cola).
+
+### Puntos, niveles y clasificación (#10)
+
+- **Puntos.** Cada concesión da los puntos que su logro tiene ahora, secretos incluidos (el total no dice cuáles), también de logros desactivados. `AchievementPointsRepositoryInterface` suma con una consulta agregada sobre `achievements_grants` y el catálogo. Una temporada es el año natural en la zona de visualización: cuentan las concesiones guardadas para esa temporada (`season_key` = «2027», un logro repetible) y las que no tienen temporada concedidas durante ese año. `AchievementPointsInterface` (`scoped`) da el resumen de cada cuenta.
+- **Niveles.** `LevelScale`: entre 2 y 20 niveles con nombre (40 caracteres, una línea de texto) y los puntos desde los que empiezan; el primero en 0 y cada uno por encima del anterior. Se guardan en los ajustes (`levels_scale`); sin guardar, o mal guardados, son los seis de partida (`lang/es/messages.php` → `levels.starter`), que siguen el idioma del sitio.
+- **Clasificación.** `GET /logros/clasificacion` (`achievements.leaderboard`, `auth`, así que aplica la verificación de email del core). Responde 404 con los puntos o la clasificación apagados, y para una temporada que no se ofrece (`?temporada=<año>`, entre la primera concesión y la temporada en curso, solo con **Temporadas y rachas**). `AchievementLeaderboardInterface` (`Infrastructure\Leaderboard\Leaderboard`):
+  1. Lee las posiciones (id de cuenta y puntos, nada más) de la caché (`CachedLeaderboardStandings`, 10 minutos, bajo una versión que cambian cada concesión, retirada, cambio de puntos de un logro o de elecciones). La consulta agregada ya deja fuera las cuentas borradas, desactivadas, anonimizadas, con logros ocultos o que no quieren salir. Una caché que no se lee o trae otra cosa que una lista de id y puntos se ignora y se lee la base de datos.
+  2. El core describe el perfil de cada candidato (`PublicProfileService::describe()`, lo mismo que usan sus insignias y su tarjeta) y su `ProfileAccessRule::visibleAmong()` deja solo los que quien mira puede ver. Nunca un filtro propio.
+  3. Fuera quien no tiene nombre público, también para sí: nadie sale con el nombre de la cuenta. Las elecciones se leen de nuevo en cada petición, así que ocultar los logros o salir de la clasificación se nota al momento.
+  4. Los puestos se cuentan entre lo que queda, con empates («1, 2, 2, 4»): un hueco nunca delata a alguien que quien mira no puede ver. 25 por página; la fila de quien mira se envía aparte si está en otra página, y si no sale se le dice por qué (solo de sí).
+  Si algo falla, la página no enseña a nadie (`available: false`) y se avisa una vez al día.
+- **Salir de la clasificación.** `achievements_preferences.leaderboard` (por defecto, salir). El dueño lo cambia desde su sección, en la misma ruta de sus elecciones (`leaderboard`, opcional); la pestaña «Logros» de la cuenta (#6) guarda la misma columna.
 
 ### Rareza
 
@@ -137,7 +151,7 @@ La parte de la gente activa que tiene cada logro. Gente activa: cuentas con al m
 
 ### Página `/logros`
 
-`achievements.index`, para todo el mundo: los logros que se pueden conseguir ahora (estado *Activo* o *Solo a mano*, con `AchievementStatusRule`), con la rareza de cada uno y los secretos ocultos, más los que la persona ya tiene, aunque ya no se puedan conseguir. Las funciones siguen a los módulos instalados: un logro sin fuente no se ofrece. Al habilitar el módulo por primera vez, `AchievementsMenuLinkSeeder` añade «Logros» al final del menú de la cabecera, como enlace del módulo: se mueve o se borra en *Sitio web → Navegación* y no vuelve.
+`achievements.index`, para todo el mundo: los logros que se pueden conseguir ahora (estado *Activo* o *Solo a mano*, con `AchievementStatusRule`), con la rareza de cada uno y los secretos ocultos, más los que la persona ya tiene, aunque ya no se puedan conseguir. Con **Puntos** encendido, cada logro lleva sus puntos (un secreto enmascarado, no); con la clasificación encendida, quien tiene sesión ve el enlace a ella. Las funciones siguen a los módulos instalados: un logro sin fuente no se ofrece. Al habilitar el módulo por primera vez, `AchievementsMenuLinkSeeder` añade «Logros» al final del menú de la cabecera, como enlace del módulo: se mueve o se borra en *Sitio web → Navegación* y no vuelve.
 
 ## Catálogo inicial
 
@@ -167,7 +181,8 @@ Es idempotente: crea solo los que faltan (por su `starter_key`) y deja como est�
 | Progreso visible, rareza, logros secretos, temporadas y rachas, logros de comunidad | Encendidos |
 | Concesión en lote | Apagada (también si el valor guardado está mal formado) |
 | Anuncios de logros raros | Encendido, con umbral de rareza del 10 % |
-| Puntos, niveles, clasificación, retos | Apagados |
+| Puntos, niveles, clasificación, retos | Apagados; los niveles y la clasificación necesitan los puntos |
+| Escala de niveles | Seis niveles de partida: Primeros pasos (0), Aprendiz (20), Habitual (50), Pilar del grupo (100), Referente (175), Leyenda (275) |
 | Reconocimientos | Apagados, con un plazo de 14 días |
 | Un interruptor por tipo de actividad | Encendidos (un tipo sin interruptor cuenta) |
 

@@ -1,11 +1,11 @@
 ---
 id: achievements.site.achievements
 title: Tus logros
-summary: Qué son los logros, cómo se consiguen, qué es la rareza, cómo destacar tres junto a tu nombre y cómo ocultarlos.
+summary: Qué son los logros, cómo se consiguen, qué es la rareza, los puntos, los niveles y la clasificación, cómo destacar tres junto a tu nombre y cómo ocultarlos.
 category: community
 audience: site
 order: 40
-keywords: [logros, insignias, medallas, trofeos, conseguir, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, destacar, destacados, estrella, junto a mi nombre, foro, tarjeta, perfil, ocultar, privacidad, catálogo]
+keywords: [logros, insignias, medallas, trofeos, conseguir, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, destacar, destacados, estrella, junto a mi nombre, foro, tarjeta, perfil, ocultar, privacidad, catálogo, puntos, nivel, niveles, clasificación, ranking, puesto, temporada, salir de la clasificación]
 related: [core.site.public-profile]
 ---
 Un logro es una insignia que se consigue con lo que haces en {{site_name}}: jugar o dirigir partidas, probar sistemas distintos, ir a eventos, participar en torneos, cumplir años en la web… Se concede solo, en cuanto cumples lo que pide, y no se pierde nunca: aunque una partida deje de contar, lo conseguido se queda.
@@ -45,3 +45,24 @@ Si destacas un logro secreto, lo enseñas a todo el mundo con su nombre. Si un l
 En la sección **Logros** de tu perfil, apaga **Mostrar mis logros a los demás**. Desde ese momento solo los ves tú: desaparecen de tu perfil para los demás, junto con su número y los destacados junto a tu nombre. Puedes volver a encenderlo cuando quieras. Aunque los ocultes, tus logros siguen contando en la rareza, que solo da totales.
 
 Si no quieres la sección en tu perfil pero sí los destacados junto a tu nombre, quítala en **Editar perfil**: allí eliges qué secciones salen.
+
+## Puntos y niveles
+
+Si la asociación los ha encendido, cada logro da unos **puntos**, que ves en su ficha en **Logros**. Tus puntos son la suma de los de todos tus logros, secretos incluidos: el total no dice cuáles son. En tu perfil salen tus puntos desde siempre y los de la **temporada** en curso, que es el año natural.
+
+Los puntos suben de **nivel**: cada nivel empieza en un número de puntos que decide la asociación. En tu perfil ves tu nivel y, tú solo, cuánto te falta para el siguiente. Los demás ven tu nivel en la fila de datos de tu perfil.
+
+Los puntos y el nivel son totales: nunca dicen en qué mesa o en qué evento se ganaron. Quien mira tu perfil ve los puntos de cada logro que puede ver; los de tus secretos van juntos en una sola cifra.
+
+## La clasificación
+
+En **Logros**, con la sesión iniciada, **Ver la clasificación** enseña quién tiene más puntos, desde siempre o en una temporada. Solo pueden verla las cuentas con sesión que no tengan pendiente verificar su email.
+
+En la clasificación solo salen los perfiles que tú puedes ver, con su nombre público, y tu puesto se cuenta solo entre ellos. No salen las cuentas desactivadas o anonimizadas, las que no tienen nombre público, quien oculta sus logros ni quien ha elegido no salir.
+
+Para no salir:
+
+1. Abre tu perfil público.
+2. En la sección **Logros**, apaga **Aparecer en la clasificación**. Se guarda al momento.
+
+Puedes volver a encenderlo cuando quieras. Si ocultas tus logros, tampoco sales en la clasificación.

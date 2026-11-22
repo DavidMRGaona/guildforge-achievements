@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Achievements\Application\Services;
 
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
+use Modules\Achievements\Domain\ValueObjects\LevelScale;
 
 /**
  * The module's switches, as the settings page saved them (with their defaults where nothing is
@@ -52,6 +53,21 @@ interface AchievementsSettingsInterface
     public function levelsEnabled(): bool;
 
     public function leaderboardEnabled(): bool;
+
+    /**
+     * The levels points climb (the stored scale, or the starter one).
+     */
+    public function levelScale(): LevelScale;
+
+    /**
+     * Levels on and points on: levels are points climbed.
+     */
+    public function levelsShown(): bool;
+
+    /**
+     * Leaderboard on and points on: it ranks points.
+     */
+    public function leaderboardShown(): bool;
 
     public function recognitionsEnabled(): bool;
 

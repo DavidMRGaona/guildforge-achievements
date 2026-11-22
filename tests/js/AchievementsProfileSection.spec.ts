@@ -225,3 +225,72 @@ describe('AchievementsProfileSection', () => {
         expect(toggle.attributes('aria-checked')).toBe('false');
     });
 });
+
+describe('AchievementsProfileSection points', () => {
+    beforeEach(() => {
+        vi.mocked(router.put).mockReset();
+    });
+
+    const points = {
+        total: 35,
+        season: 20,
+        seasonYear: 2026,
+        secretPoints: 15,
+        level: { number: 2, name: 'Aprendiz', threshold: 20 },
+        nextLevel: null,
+        leaderboardUrl: '/logros/clasificacion',
+    };
+
+    it('shows the totals, the level and the secrets as one sum', () => {
+        const wrapper = mount(AchievementsProfileSection, {
+            props: {
+                earned: [earned({ points: 20 })],
+                secretCount: 1,
+                catalogueUrl: '/logros',
+                points,
+            },
+        });
+
+        const summary = wrapper.find('[data-test="points"]').text();
+        expect(summary).toContain('35 puntos');
+        expect(summary).toContain('20 puntos en la temporada 2026');
+        expect(summary).toContain('Nivel 2 · Aprendiz');
+        expect(wrapper.find('[data-test="secret-count"]').text()).toContain('Suman 15 puntos.');
+        expect(wrapper.find('[data-test="earned"]').text()).toContain('20 puntos');
+    });
+
+    it('lets the owner leave the leaderboard and sends the choice', () => {
+        const wrapper = mount(AchievementsProfileSection, {
+            props: {
+                earned: [earned()],
+                catalogueUrl: '/logros',
+                owner: { ...owner, leaderboard: true },
+                points: { ...points, nextLevel: { number: 3, name: 'Habitual', threshold: 50 } },
+            },
+        });
+
+        expect(wrapper.text()).toContain('Te faltan 15 puntos para «Habitual».');
+        void wrapper.find('[data-test="leaderboard-switch"]').trigger('click');
+
+        expect(router.put).toHaveBeenCalledWith(
+            '/logros/miembros/ana',
+            { hidden: false, featured: [], leaderboard: false },
+            expect.anything()
+        );
+    });
+
+    it('sends no leaderboard choice while there is no leaderboard', () => {
+        const wrapper = mount(AchievementsProfileSection, {
+            props: { earned: [earned()], catalogueUrl: '/logros', owner },
+        });
+
+        expect(wrapper.find('[data-test="leaderboard-switch"]').exists()).toBe(false);
+        void wrapper.find('[data-test="visibility-switch"]').trigger('click');
+
+        expect(router.put).toHaveBeenCalledWith(
+            '/logros/miembros/ana',
+            { hidden: true, featured: [] },
+            expect.anything()
+        );
+    });
+});

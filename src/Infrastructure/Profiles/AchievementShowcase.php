@@ -102,6 +102,7 @@ final class AchievementShowcase implements AchievementShowcaseInterface
                 // Held by the owner, so a share of 0 only says they are not active: not shown
                 rarity: $revealed ? self::knownShare($rarity?->shareOf($achievementId)) : null,
                 featured: $revealed && in_array($achievementId, $featured, true),
+                points: $achievement->points,
             );
         }
 

@@ -1,4 +1,4 @@
-/** An achievement as the server sends it: never its rule, points or holders */
+/** An achievement as the server sends it: never its rule or holders */
 export interface AchievementSummary {
     /** Null for a masked secret: its id would tell who else holds it */
     id: string | null;
@@ -21,6 +21,8 @@ export interface EarnedAchievement extends AchievementSummary {
     /** Share of active people holding it, in percent; null when not shown */
     rarity: number | null;
     featured: boolean;
+    /** What it gives; absent while points are off */
+    points?: number;
 }
 
 /** What the owner does not hold yet (only ever sent to them) */
@@ -37,10 +39,55 @@ export interface ShowcaseOwner {
     chosen: string[];
     maxFeatured: number;
     updateUrl: string;
+    /** «Aparecer en la clasificación»; absent while there is no leaderboard */
+    leaderboard?: boolean;
+}
+
+/** A level of the scale */
+export interface AchievementLevel {
+    number: number;
+    name: string;
+}
+
+/** The owner's totals on their profile (only while points are on) */
+export interface PointsSummary {
+    total: number;
+    /** The current season's points; null while seasons are off */
+    season: number | null;
+    seasonYear: number;
+    /** Points of the secrets the viewer may not see, as one sum */
+    secretPoints: number;
+    level: (AchievementLevel & { threshold: number }) | null;
+    /** Only for the owner: the level they climb to next */
+    nextLevel: (AchievementLevel & { threshold: number }) | null;
+    leaderboardUrl: string | null;
+}
+
+/** A row of the leaderboard: somebody the viewer may see, by their public name */
+export interface LeaderboardEntry {
+    rank: number;
+    points: number;
+    publicName: string;
+    profileUrl: string;
+    avatarUrl: string | null;
+    level: AchievementLevel | null;
+    isViewer: boolean;
+}
+
+export type LeaderboardViewerStatus =
+    'listed' | 'no_points' | 'hidden' | 'opted_out' | 'no_public_name' | 'pending';
+
+export interface LeaderboardPagination {
+    page: number;
+    lastPage: number;
+    total: number;
+    perPage: number;
 }
 
 /** An achievement of the `/logros` page */
 export interface CatalogueAchievement extends AchievementSummary {
     held: boolean;
     rarity: number | null;
+    /** What it gives; null while points are off or for a masked secret */
+    points?: number | null;
 }
