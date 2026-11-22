@@ -15,8 +15,9 @@ use Modules\Achievements\Domain\Entities\Achievement;
 interface AchievementCatalogueInterface
 {
     /**
-     * Active achievements, plus the ones the viewer holds that were switched off since; by name, with
-     * the secret ones the viewer does not hold masked (a guest holds none).
+     * Active achievements, plus the ones the viewer holds that were switched off since, with the
+     * secret ones the viewer does not hold masked (a guest holds none); sorted by the name shown,
+     * then id, so a masked one never sits where its real name would.
      *
      * @return list<AchievementViewDTO>
      */

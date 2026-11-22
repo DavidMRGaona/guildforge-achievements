@@ -246,6 +246,22 @@ final class AchievementResourceTest extends ModuleTestCase
             ->assertCanNotSeeTableRecords([$plain]);
     }
 
+    public function test_sorting_never_shows_where_a_secret_name_falls(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        // «Logro secreto» sorts before both visible ones; its real name, after them
+        $secret = $this->achievement($this->countRule(), ['name' => 'Zzz secreto', 'is_secret' => true]);
+        $middle = $this->achievement($this->countRule(), ['name' => 'Mmm visible']);
+        $last = $this->achievement($this->countRule(), ['name' => 'Ppp visible']);
+
+        $this->actingAs($this->userWith(AchievementPolicy::VIEW_ANY));
+        Livewire::test(ListAchievements::class)->assertCanSeeTableRecords([$secret, $middle, $last], inOrder: true);
+        Livewire::test(ListAchievements::class)->sortTable('name', 'desc')->assertCanSeeTableRecords([$last, $middle, $secret], inOrder: true);
+
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+        Livewire::test(ListAchievements::class)->assertCanSeeTableRecords([$middle, $last, $secret], inOrder: true);
+    }
+
     public function test_deleting_asks_for_the_box_and_deletes_the_grants(): void
     {
         Bus::fake([EvaluateAchievementsJob::class]);

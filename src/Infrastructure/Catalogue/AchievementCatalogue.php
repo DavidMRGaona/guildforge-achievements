@@ -36,6 +36,10 @@ final readonly class AchievementCatalogue implements AchievementCatalogueInterfa
             }
         }
 
+        // By the name shown, then id: the repository's order (by the real name) would tell where a
+        // masked one falls
+        usort($views, static fn (AchievementViewDTO $a, AchievementViewDTO $b): int => [mb_strtolower($a->name), $a->id] <=> [mb_strtolower($b->name), $b->id]);
+
         return $views;
     }
 

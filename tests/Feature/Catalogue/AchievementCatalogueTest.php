@@ -70,6 +70,16 @@ final class AchievementCatalogueTest extends ModuleTestCase
         $this->assertSame($off->id, $this->only($ana)->id);
     }
 
+    public function test_masked_achievements_sort_by_the_name_shown(): void
+    {
+        $secret = $this->achievement($this->countRule(), ['name' => 'Zzz secreto', 'is_secret' => true]);
+        $visible = $this->achievement($this->countRule(), ['name' => 'Mmm visible']);
+
+        $ids = array_map(static fn (AchievementViewDTO $view): string => $view->id, $this->catalogue()->forViewer(null));
+
+        $this->assertSame([$secret->id, $visible->id], $ids);
+    }
+
     private function only(?string $viewer): AchievementViewDTO
     {
         $views = $this->catalogue()->forViewer($viewer);

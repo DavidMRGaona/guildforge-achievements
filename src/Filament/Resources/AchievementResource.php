@@ -152,7 +152,7 @@ final class AchievementResource extends BaseResource
                     ->label(self::text('fields.name'))
                     ->formatStateUsing(static fn (AchievementModel $record): string => self::shownName($record))
                     ->searchable(query: static fn (Builder $query, string $search): Builder => self::search($query, $search))
-                    ->sortable()
+                    ->sortable(query: static fn (Builder $query, string $direction): Builder => self::sortByShownName($query, $direction))
                     ->wrap(),
 
                 TextColumn::make('status')
@@ -208,7 +208,7 @@ final class AchievementResource extends BaseResource
                         ]),
                 ]),
             ])
-            ->defaultSort('name');
+            ->defaultSort(static fn (Builder $query): Builder => self::sortByShownName($query, 'asc'));
     }
 
     public static function getPages(): array
@@ -281,6 +281,26 @@ final class AchievementResource extends BaseResource
                 $inner->where('is_secret', false);
             }
         });
+    }
+
+    /**
+     * By the name each person sees: for whoever sees «Logro secreto», every secret achievement sorts
+     * under that name (then by id), so where a secret name would fall never shows.
+     *
+     * @param  Builder<AchievementModel>  $query
+     * @return Builder<AchievementModel>
+     */
+    private static function sortByShownName(Builder $query, string $direction): Builder
+    {
+        $direction = strtolower($direction) === 'desc' ? 'desc' : 'asc';
+
+        if (self::canCreate()) {
+            return $query->orderBy('name', $direction)->orderBy('id', $direction);
+        }
+
+        return $query
+            ->orderByRaw('CASE WHEN is_secret THEN ? ELSE name END '.$direction, [(string) __('achievements::messages.secret.name')])
+            ->orderBy('id', $direction);
     }
 
     /**
