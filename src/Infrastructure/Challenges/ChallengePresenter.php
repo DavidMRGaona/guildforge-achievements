@@ -29,6 +29,7 @@ final readonly class ChallengePresenter
             'name' => $view->name,
             'description' => $view->description,
             'state' => $view->state->value,
+            'counted' => $view->counted,
             'progress' => $view->progress,
             'target' => $view->target,
             'unit' => $view->unit,
@@ -37,7 +38,6 @@ final readonly class ChallengePresenter
             'membersOnly' => $view->membersOnly,
             'reward' => $this->achievements->achievement($view->reward),
             'contributors' => $view->contributors,
-            'completers' => $view->completers,
             'people' => array_map(static fn (ChallengeCompleterDTO $person): array => [
                 'name' => $person->publicName,
                 'url' => $person->url,

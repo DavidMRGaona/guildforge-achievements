@@ -8,10 +8,12 @@ use Modules\Achievements\Domain\Challenges\ChallengeState;
 
 /**
  * A challenge as one person may see it: totals only, never which subjects anybody took part in.
- * `contribution` is the viewer's own (null for a guest); `completers` counts whoever got the reward,
- * and `people` lists those of them whose profile the viewer may see and who show their
- * achievements, by public name only (at most ChallengeBoardInterface::MAX_LISTED; empty for blocks).
- * Days are `Y-m-d` of the display zone.
+ * `counted` is false while it was never counted (its 0 means nothing yet). `contribution` is the
+ * viewer's own (null for a guest, and for whoever is not a member in a challenge of members);
+ * `people` lists some of whoever got the reward, those whose profile the viewer may see and who
+ * show their achievements (and their membership, in a challenge of members), by public name only
+ * (at most ChallengeBoardInterface::MAX_LISTED; empty for blocks). How many got the reward is not
+ * told. Days are `Y-m-d` of the display zone.
  */
 final readonly class ChallengeViewDTO
 {
@@ -23,6 +25,7 @@ final readonly class ChallengeViewDTO
         public string $name,
         public string $description,
         public ChallengeState $state,
+        public bool $counted,
         public int $progress,
         public int $target,
         public string $unit,
@@ -31,7 +34,6 @@ final readonly class ChallengeViewDTO
         public bool $membersOnly,
         public AchievementViewDTO $reward,
         public int $contributors,
-        public int $completers,
         public array $people,
         public ?int $contribution,
     ) {}

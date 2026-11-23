@@ -196,6 +196,9 @@ final class ChallengeResource extends BaseResource
     public static function deleteAction(DeleteAction $action): DeleteAction
     {
         return $action
+            // Decided again under the row lock: a count may have completed it since the dialog opened
+            ->using(static fn (ChallengeModel $record): bool => app(ChallengeRepositoryInterface::class)->deleteUnlessCompleted($record->id))
+            ->failureNotificationTitle(self::text('delete.completed_meanwhile'))
             ->modalDescription(self::text('delete.description'))
             ->schema([
                 Checkbox::make('confirmation')

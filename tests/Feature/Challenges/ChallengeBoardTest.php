@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Tests\Feature\Challenges;
 
+use App\Application\Authorization\Services\AssociationMembershipServiceInterface;
 use App\Application\Exceptions\NothingToDrawException;
+use App\Application\Profiles\Services\ProfileCardServiceInterface;
 use App\Application\SiteBlocks\Services\SiteBlockRegistryInterface;
 use App\Domain\SiteBlocks\SiteBlockPlacement;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
@@ -19,6 +21,7 @@ use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsActivityFacts;
 use Modules\Achievements\Tests\Support\BuildsChallenges;
 use Modules\Achievements\Tests\Support\BuildsShowcase;
+use Modules\Achievements\Tests\Support\FakeProfileCards;
 use Tests\Support\Modules\ModuleTestCase;
 use Tests\Support\Time\UsesUtcStorage;
 
@@ -64,6 +67,7 @@ final class ChallengeBoardTest extends ModuleTestCase
                 ->has('challenges', 1)
                 ->where('challenges.0.name', '40 partidas en diciembre')
                 ->where('challenges.0.state', 'running')
+                ->where('challenges.0.counted', true)
                 ->where('challenges.0.progress', 12)
                 ->where('challenges.0.target', 40)
                 ->where('challenges.0.unit', 'partidas')
@@ -126,7 +130,7 @@ final class ChallengeBoardTest extends ModuleTestCase
 
         $response->assertInertia(fn (Assert $page): Assert => $page
             ->where('challenges.0.state', 'completed')
-            ->where('challenges.0.completers', 4)
+            ->missing('challenges.0.completers')
             ->has('challenges.0.people', 2)
             ->where('challenges.0.people.0.name', 'Ana')
             ->where('challenges.0.people.1.name', 'Pablo')
@@ -147,7 +151,6 @@ final class ChallengeBoardTest extends ModuleTestCase
 
         $this->get(route('achievements.index'))
             ->assertInertia(fn (Assert $page): Assert => $page
-                ->where('challenges.0.completers', 2)
                 ->has('challenges.0.people', 1)
                 ->where('challenges.0.people.0.name', 'Ana'));
     }
@@ -192,6 +195,54 @@ final class ChallengeBoardTest extends ModuleTestCase
         $this->assertInstanceOf(ChallengeSiteBlock::class, $this->app->make(SiteBlockRegistryInterface::class)->find(ChallengeSiteBlock::KEY));
     }
 
+    public function test_a_challenge_never_counted_says_so_and_hidden_ones_are_left_out(): void
+    {
+        $this->challenge([], ['name' => 'Sin contar']);
+        // No source of venue bookings here, and a reward made secret
+        $this->challenge(['kind' => 'venue_booking'], ['name' => 'Sin fuente']);
+        $this->challenge([], ['name' => 'Recompensa secreta', 'reward_achievement_id' => $this->reward(['is_secret' => true])->id]);
+
+        $this->get(route('achievements.index'))
+            ->assertInertia(fn (Assert $page): Assert => $page
+                ->has('challenges', 1)
+                ->where('challenges.0.name', 'Sin contar')
+                ->where('challenges.0.counted', false));
+    }
+
+    public function test_a_challenge_of_members_names_only_who_shows_the_membership_and_the_viewer(): void
+    {
+        $challenge = $this->challenge(['target' => 1], ['audience' => 'members']);
+        $viewer = $this->person('Quien mira');
+        $people = [$this->person('Ana'), $this->person('Luis'), $viewer];
+        foreach ($people as $person) {
+            $this->grantAt($person, $challenge->reward_achievement_id);
+        }
+        $this->counted($challenge, progress: 3, contributors: 3, contributions: array_fill_keys(array_map(static fn (UserModel $user): string => (string) $user->id, $people), 1), completed: true);
+        // Ana shows «Socio» on her profile, Luis does not; the viewer sees their own card
+        $this->app->instance(ProfileCardServiceInterface::class, new FakeProfileCards([
+            strtolower((string) $people[0]->id) => ['Ana', true, false],
+            strtolower((string) $people[1]->id) => ['Luis', false, false],
+            strtolower((string) $viewer->id) => ['Quien mira', false, true],
+        ]));
+
+        $this->actingAs($viewer)->get(route('achievements.index'))
+            ->assertInertia(fn (Assert $page): Assert => $page
+                ->has('challenges.0.people', 2)
+                ->where('challenges.0.people.0.name', 'Ana')
+                ->where('challenges.0.people.1.name', 'Quien mira'));
+    }
+
+    public function test_whoever_is_not_a_member_is_not_told_their_part_in_a_challenge_of_members(): void
+    {
+        $this->challenge([], ['audience' => 'members']);
+        $member = $this->createStub(AssociationMembershipServiceInterface::class);
+        $member->method('isAssociationMember')->willReturn(false);
+        $this->app->instance(AssociationMembershipServiceInterface::class, $member);
+
+        $this->actingAs($this->person('Ana'))->get(route('achievements.index'))
+            ->assertInertia(fn (Assert $page): Assert => $page->where('challenges.0.contribution', null));
+    }
+
     /**
      * @param  array<string, int>  $contributions
      */
@@ -201,6 +252,7 @@ final class ChallengeBoardTest extends ModuleTestCase
             'progress' => $progress,
             'contributors' => $contributors,
             'completed_at' => $completed ? '2026-12-10 18:00:00' : null,
+            'progress_at' => '2026-12-15 10:00:00',
         ]);
 
         foreach ($contributions as $userId => $contribution) {

@@ -7,17 +7,24 @@ namespace Modules\Achievements\Tests\Feature\Challenges;
 use App\Application\Authorization\Services\AssociationMembersAmongInterface;
 use App\Application\Services\SettingsServiceInterface;
 use App\Domain\Events\UserAnonymized;
+use App\Infrastructure\Time\StorageTimezoneResolver;
 use DateTimeImmutable;
 use Illuminate\Bus\UniqueLock;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Str;
 use Modules\Achievements\Application\Enums\ChallengeEvaluationOutcome;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
+use Modules\Achievements\Domain\Challenges\ChallengeCalculator;
+use Modules\Achievements\Domain\Challenges\ChallengeMetric;
+use Modules\Achievements\Domain\Challenges\ChallengeRule;
 use Modules\Achievements\Domain\Enums\GrantSource;
 use Modules\Achievements\Domain\Events\AchievementFactsChanged;
 use Modules\Achievements\Domain\Events\AchievementGranted;
+use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\ChallengeRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\NewGrant;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\ChallengeModel;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
@@ -105,19 +112,24 @@ final class ChallengeEvaluatorTest extends ModuleTestCase
         Event::assertDispatched(AchievementGranted::class, static fn (AchievementGranted $event): bool => $event->source === GrantSource::Challenge->value && ! $event->silent);
     }
 
-    public function test_a_silent_count_grants_silently(): void
+    public function test_a_silent_count_grants_nothing_and_the_next_count_announces(): void
     {
         $ana = $this->account();
         $this->ledgerSubject(self::SESSIONS, 't1', 'game_session', [$this->recordedFact($ana, when: '2026-12-10 18:00:00')]);
-        $this->challenge(['target' => 1]);
+        $challenge = $this->challenge(['target' => 1]);
 
-        $this->challenges()->evaluate(null, silent: true);
+        $silent = $this->challenges()->evaluate(null, silent: true);
 
-        Event::assertDispatched(AchievementGranted::class, static fn (AchievementGranted $event): bool => $event->silent);
-        Event::assertNotDispatched(AchievementGranted::class, static fn (AchievementGranted $event): bool => ! $event->silent);
+        $this->assertSame([$challenge->id], $silent->completed);
+        $this->assertSame(0, $silent->granted);
+        $this->assertNotNull($challenge->refresh()->completed_at);
+        Event::assertNotDispatched(AchievementGranted::class);
+
+        $this->assertSame(1, $this->challenges()->evaluate(null, silent: false)->granted);
+        Event::assertDispatched(AchievementGranted::class, static fn (AchievementGranted $event): bool => ! $event->silent);
     }
 
-    public function test_a_challenge_completed_long_ago_grants_silently(): void
+    public function test_a_completion_is_announced_when_it_is_found_however_long_ago_it_was_reached(): void
     {
         $ana = $this->account();
         $this->ledgerSubject(self::SESSIONS, 't1', 'game_session', [$this->recordedFact($ana, when: '2026-12-02 18:00:00')]);
@@ -126,7 +138,103 @@ final class ChallengeEvaluatorTest extends ModuleTestCase
 
         $this->challenges()->evaluate(null, silent: false);
 
-        Event::assertDispatched(AchievementGranted::class, static fn (AchievementGranted $event): bool => $event->silent);
+        Event::assertDispatched(AchievementGranted::class, static fn (AchievementGranted $event): bool => ! $event->silent);
+    }
+
+    public function test_a_count_of_a_challenge_saved_meanwhile_is_discarded(): void
+    {
+        $ana = $this->account();
+        $this->ledgerSubject(self::SESSIONS, 't1', 'game_session', [$this->recordedFact($ana, when: '2026-12-02 18:00:00')]);
+        $model = $this->challenge(['target' => 1]);
+        $repository = $this->app->make(ChallengeRepositoryInterface::class);
+        $loaded = $repository->find($model->id);
+        $this->assertNotNull($loaded);
+        // Saved from the panel after the count loaded it
+        ChallengeModel::query()->whereKey($model->id)->update(['updated_at' => '2026-12-20 12:00:05']);
+
+        $progress = new ChallengeCalculator()->progress(ChallengeRule::make(ChallengeMetric::Subjects, 'game_session', 1) ?? $this->fail('rule'), $this->app->make(AchievementFactRepositoryInterface::class)->forKindBetween('game_session', new DateTimeImmutable('2026-12-01'), new DateTimeImmutable('2027-01-01')));
+
+        $this->assertNull($repository->saveProgress($model->id, $progress, new DateTimeImmutable('2026-12-20 12:00:10'), $loaded->updatedAt));
+        $this->assertNull($model->refresh()->completed_at);
+        $this->assertNotNull($repository->saveProgress($model->id, $progress, new DateTimeImmutable('2026-12-20 12:00:10'), $repository->find($model->id)?->updatedAt));
+        // A count is not an edit
+        $this->assertSame('2026-12-20 12:00:05', $model->refresh()->updated_at?->toDateTimeString());
+    }
+
+    public function test_an_anonymized_account_never_counts(): void
+    {
+        $ana = $this->account();
+        $gone = $this->account(anonymized: true);
+        $this->ledgerSubject(self::SESSIONS, 't1', 'game_session', [$this->recordedFact($ana, when: '2026-12-02 18:00:00')]);
+        // Straight to the table: the ledger itself already drops anonymized accounts
+        DB::table('achievements_facts')->insert([
+            'id' => (string) Str::uuid7(), 'source_type' => self::SESSIONS, 'subject_id' => 't2', 'user_id' => $gone,
+            'role' => 'player', 'kind' => 'game_session', 'occurred_at' => '2026-12-03 18:00:00', 'attributes' => '{}',
+            'placement' => null, 'created_at' => '2026-12-03 18:00:00', 'updated_at' => '2026-12-03 18:00:00',
+        ]);
+        $challenge = $this->challenge();
+
+        $this->challenges()->evaluate(null, silent: false);
+
+        $this->assertSame(1, $challenge->refresh()->progress);
+        $this->assertSame([$ana], DB::table('achievements_challenge_contributors')->pluck('user_id')->all());
+    }
+
+    public function test_a_reward_that_stopped_being_one_is_not_granted(): void
+    {
+        $ana = $this->account();
+        $this->ledgerSubject(self::SESSIONS, 't1', 'game_session', [$this->recordedFact($ana, when: '2026-12-02 18:00:00')]);
+        $secret = $this->reward(['is_secret' => true]);
+        $byRule = $this->achievement($this->countRule('event'));
+        $this->challenge(['target' => 1], ['reward_achievement_id' => $secret->id]);
+        $this->challenge(['target' => 1], ['reward_achievement_id' => $byRule->id]);
+
+        $result = $this->challenges()->evaluate(null, silent: false);
+
+        $this->assertCount(2, $result->completed);
+        $this->assertSame(0, $result->granted);
+        Event::assertNotDispatched(AchievementGranted::class);
+    }
+
+    public function test_once_its_days_are_over_who_is_a_member_is_frozen(): void
+    {
+        [$ana, $luis, $marta] = [$this->account(), $this->account(), $this->account()];
+        $this->ledgerSubject(self::SESSIONS, 't1', 'game_session', [$this->recordedFact($ana, when: '2026-12-02 18:00:00')]);
+        $this->ledgerSubject(self::SESSIONS, 't2', 'game_session', [$this->recordedFact($luis, when: '2026-12-03 18:00:00')]);
+        $challenge = $this->challenge(['target' => 10], ['audience' => 'members']);
+        $members = new MutableMembers([$ana]);
+        $this->app->instance(AssociationMembersAmongInterface::class, $members);
+        $this->challenges()->evaluate(null, silent: false);
+        $this->assertSame(1, $challenge->refresh()->progress);
+
+        // After the last day: Ana left, Luis joined, Marta (a late fact) is a member now
+        $this->travelTo(new DateTimeImmutable('2027-01-05 12:00:00'));
+        $members->members = [$luis, $marta];
+        $this->ledgerSubject(self::SESSIONS, 't3', 'game_session', [$this->recordedFact($marta, when: '2026-12-30 18:00:00')]);
+        $this->challenges()->evaluate(null, silent: false);
+
+        $this->assertSame(2, $challenge->refresh()->progress);
+        $this->assertEqualsCanonicalizing([$ana, $marta], DB::table('achievements_challenge_contributors')->pluck('user_id')->all());
+        // Only Marta, never seen before, was asked after the last day
+        $this->assertSame([[$marta]], $members->askedAfter);
+    }
+
+    public function test_the_days_are_the_display_zone_s_with_madrid_storage(): void
+    {
+        $now = now()->toDateTimeString();
+        DB::table('settings')->updateOrInsert(['key' => StorageTimezoneResolver::SETTING_KEY], ['id' => (string) Str::uuid(), 'value' => 'Europe/Madrid', 'created_at' => $now, 'updated_at' => $now]);
+        (new StorageTimezoneResolver)->apply($this->app);
+        $this->app->make(SettingsServiceInterface::class)->clearCache();
+        [$ana, $luis, $marta] = [$this->account(), $this->account(), $this->account()];
+        // Stored in Madrid now: the wall times are the display zone's
+        $this->ledgerSubject(self::SESSIONS, 'first', 'game_session', [$this->recordedFact($ana, when: '2026-12-01 00:30:00')]);
+        $this->ledgerSubject(self::SESSIONS, 'last', 'game_session', [$this->recordedFact($luis, when: '2026-12-31 23:30:00')]);
+        $this->ledgerSubject(self::SESSIONS, 'after', 'game_session', [$this->recordedFact($marta, when: '2027-01-01 00:30:00')]);
+        $challenge = $this->challenge();
+
+        $this->challenges()->evaluate(null, silent: false);
+
+        $this->assertSame(2, $challenge->refresh()->progress);
     }
 
     public function test_whoever_adds_after_it_is_complete_gets_the_reward_too(): void
@@ -320,12 +428,18 @@ final class ChallengeEvaluatorTest extends ModuleTestCase
     {
         [$ana, $luis] = [$this->account(), $this->account()];
         $this->ledgerSubject(self::SESSIONS, 't1', 'game_session', [$this->recordedFact($ana, when: '2026-12-02 18:00:00'), $this->recordedFact($luis, when: '2026-12-02 18:00:00')]);
-        $this->challenge();
+        $challenge = $this->challenge([], ['audience' => 'members']);
+        ChallengeModel::query()->whereKey($challenge->id)->update(['created_by' => $ana, 'closed_by' => $ana]);
+        $this->app->instance(AssociationMembersAmongInterface::class, new MutableMembers([$ana, $luis]));
         $this->challenges()->evaluate(null, silent: false);
 
         $this->app->make(ForgetAnonymizedAccountContributions::class)->handle(new UserAnonymized($ana));
 
         $this->assertSame([$luis], DB::table('achievements_challenge_contributors')->pluck('user_id')->all());
+        $this->assertSame([$luis], DB::table('achievements_challenge_audience')->pluck('user_id')->all());
+        $challenge->refresh();
+        $this->assertNull($challenge->created_by);
+        $this->assertNull($challenge->closed_by);
     }
 
     public function test_the_job_asks_to_try_again_while_members_cannot_be_read(): void
@@ -345,5 +459,28 @@ final class ChallengeEvaluatorTest extends ModuleTestCase
         $job->handle($this->challenges());
 
         $job->assertReleased(60);
+    }
+}
+
+/**
+ * The association members a test says there are, and who it was asked about once the days were over.
+ */
+final class MutableMembers implements AssociationMembersAmongInterface
+{
+    /** @var list<list<string>> */
+    public array $askedAfter = [];
+
+    /**
+     * @param  list<string>  $members
+     */
+    public function __construct(public array $members) {}
+
+    public function among(array $userIds): array
+    {
+        if (now()->format('Y') === '2027') {
+            $this->askedAfter[] = $userIds;
+        }
+
+        return array_fill_keys(array_values(array_intersect($this->members, $userIds)), true);
     }
 }

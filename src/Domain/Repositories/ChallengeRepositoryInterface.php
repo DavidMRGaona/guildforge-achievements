@@ -44,9 +44,39 @@ interface ChallengeRepositoryInterface
      * Stores a new count, under the challenge's row lock: the total, the number of people and each
      * person's contribution (rows of people who no longer add are removed). The completion is only
      * ever set, never cleared: a total that later drops keeps the challenge complete. Null (nothing
-     * written) when the challenge is gone or was closed meanwhile.
+     * written) when the challenge is gone, was closed meanwhile, or was saved from the panel since
+     * it was loaded (`$loadedUpdatedAt` differs: the count is of a rule that no longer exists). A
+     * count never changes `updated_at`.
      */
-    public function saveProgress(string $id, ChallengeProgress $progress, DateTimeImmutable $countedAt): ?Challenge;
+    public function saveProgress(string $id, ChallengeProgress $progress, DateTimeImmutable $countedAt, ?DateTimeImmutable $loadedUpdatedAt): ?Challenge;
+
+    /**
+     * Deletes a challenge that never completed, deciding under its row lock; false otherwise.
+     */
+    public function deleteUnlessCompleted(string $id): bool;
+
+    /**
+     * The challenges still counted on `$today` (not closed, not past the late facts' days) whose
+     * reward is this achievement.
+     *
+     * @return list<string>
+     */
+    public function rewardingCounted(string $achievementId, string $today): array;
+
+    /**
+     * Who counted as an association member for a challenge of members, as remembered.
+     *
+     * @return array<string, bool> account id (lower case) => member
+     */
+    public function audienceOf(string $challengeId): array;
+
+    /**
+     * Remembers who counts as a member. `$replace` forgets what was remembered first (within the
+     * days); without it, people already known keep their answer (frozen once the days are over).
+     *
+     * @param  array<string, bool>  $audience
+     */
+    public function rememberAudience(string $challengeId, array $audience, bool $replace, DateTimeImmutable $at): void;
 
     /**
      * Closes it by hand; false when it was already closed or is gone.
@@ -76,7 +106,8 @@ interface ChallengeRepositoryInterface
     public function rewarding(string $achievementId): array;
 
     /**
-     * Deletes every contribution of an account (anonymization) and returns how many there were.
+     * Deletes every contribution and remembered membership of an account (anonymization), forgets
+     * it as the one who created or closed a challenge, and returns how many contributions there were.
      */
     public function forgetUser(string $userId): int;
 }

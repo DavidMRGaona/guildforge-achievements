@@ -14,6 +14,7 @@ function challenge(overrides: Partial<Challenge> = {}): Challenge {
         name: '40 partidas en diciembre',
         description: 'Entre todos',
         state: 'running',
+        counted: true,
         progress: 12,
         target: 40,
         unit: 'partidas',
@@ -30,7 +31,6 @@ function challenge(overrides: Partial<Challenge> = {}): Challenge {
             masked: false,
         },
         contributors: 5,
-        completers: 0,
         people: [],
         contribution: null,
         ...overrides,
@@ -40,6 +40,7 @@ function challenge(overrides: Partial<Challenge> = {}): Challenge {
 describe('challenge days', () => {
     it('draws the calendar day as it is, whatever the browser zone', () => {
         expect(formatChallengeDay('2026-12-01', 'es')).toBe('1 de diciembre');
+        expect(formatChallengeDay('2027-01-15', 'es', true)).toBe('15 de enero de 2027');
         expect(formatChallengeDay('not a day', 'es')).toBe('not a day');
     });
 
@@ -66,6 +67,25 @@ describe('ChallengeCard', () => {
         expect(wrapper.find('[data-test="challenge-completers"]').exists()).toBe(false);
     });
 
+    it('says a challenge never counted is not counted yet, without a 0', () => {
+        const wrapper = mount(ChallengeCard, {
+            props: { challenge: challenge({ counted: false, progress: 0 }) },
+        });
+
+        expect(wrapper.get('[data-test="challenge-not-counted"]').text()).toBe(
+            'Aún no se ha contado. Objetivo: 40 partidas.'
+        );
+        expect(wrapper.find('[role="progressbar"]').exists()).toBe(false);
+    });
+
+    it('gives the year of each day when it crosses New Year', () => {
+        const wrapper = mount(ChallengeCard, {
+            props: { challenge: challenge({ startsOn: '2026-12-15', endsOn: '2027-01-15' }) },
+        });
+
+        expect(wrapper.text()).toContain('Del 15 de diciembre de 2026 al 15 de enero de 2027');
+    });
+
     it('tells a signed-in person their own part', () => {
         const mine = mount(ChallengeCard, { props: { challenge: challenge({ contribution: 3 }) } });
         const none = mount(ChallengeCard, { props: { challenge: challenge({ contribution: 0 }) } });
@@ -84,7 +104,6 @@ describe('ChallengeCard', () => {
                 challenge: challenge({
                     state: 'completed',
                     progress: 41,
-                    completers: 4,
                     people: [
                         { name: 'Ana', url: 'https://example.test/miembros/ana', avatarUrl: null },
                         {
@@ -98,9 +117,10 @@ describe('ChallengeCard', () => {
         });
 
         const completers = wrapper.get('[data-test="challenge-completers"]');
-        expect(completers.text()).toContain('4 personas tienen la recompensa');
+        expect(completers.text()).toContain('Algunas de las personas que lo han conseguido');
         expect(completers.findAll('a').map((link) => link.text())).toEqual(['AAna', 'PPablo']);
-        expect(completers.text()).toContain('y 2 personas más');
+        // How many got it is never told next to how many added
+        expect(wrapper.text()).not.toContain('tienen la recompensa');
         expect(wrapper.text()).toContain('Conseguido');
     });
 });

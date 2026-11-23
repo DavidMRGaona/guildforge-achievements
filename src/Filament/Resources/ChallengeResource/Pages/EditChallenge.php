@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Achievements\Filament\Resources\ChallengeResource\Pages;
 
 use App\Filament\Concerns\HasKnowledgeGuideAction;
+use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
@@ -14,7 +15,8 @@ use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\ChallengeMod
 
 /**
  * Changing what it counts, its days, who takes part or the reward counts it again (the model's
- * observer). Rewards already granted stay. A closed challenge is never edited (ChallengePolicy).
+ * observer). Rewards already granted stay. A closed challenge is never edited, and a complete one
+ * only changes its name and description (ChallengePolicy).
  */
 final class EditChallenge extends EditRecord
 {
@@ -50,6 +52,13 @@ final class EditChallenge extends EditRecord
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        $user = auth()->user();
+
+        // Complete: only the name and the description change, whatever the form sent
+        if (! $user instanceof UserModel || ! $user->can('changeWhatCounts', $this->challenge())) {
+            return array_diff_key($data, array_flip(ChallengeForm::lockedFields()));
+        }
+
         return ChallengeForm::intoRule($data, $this->challenge());
     }
 

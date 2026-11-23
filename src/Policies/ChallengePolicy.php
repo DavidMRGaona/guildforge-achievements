@@ -11,7 +11,8 @@ use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\ChallengeMod
 /**
  * Collective challenges (#12): listed with `achievements.view_any` or `achievements.manage`, created,
  * edited and closed with `achievements.manage` (content, like the catalogue). A closed challenge is
- * never edited nor opened again. Only a challenge that never completed is deleted: once complete,
+ * never edited nor opened again; a complete one keeps what it counts, its days, who takes part and
+ * its reward. Only a challenge that never completed is deleted: once complete,
  * its reward is permanent and the challenge is the record of why.
  */
 final class ChallengePolicy
@@ -36,6 +37,15 @@ final class ChallengePolicy
     public function update(UserModel $user, ChallengeModel $challenge): bool
     {
         return $challenge->closed_at === null && $this->authorize($user, AchievementPolicy::MANAGE);
+    }
+
+    /**
+     * What it counts, its days, who takes part and its reward: only while it is not complete (its
+     * rewards were granted for exactly that). Its name and description stay editable.
+     */
+    public function changeWhatCounts(UserModel $user, ChallengeModel $challenge): bool
+    {
+        return $challenge->completed_at === null && $this->update($user, $challenge);
     }
 
     public function close(UserModel $user, ChallengeModel $challenge): bool

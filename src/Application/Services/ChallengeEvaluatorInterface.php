@@ -13,8 +13,10 @@ use Modules\Achievements\Application\DTOs\ChallengeEvaluationResultDTO;
  * Nothing is counted with the «Retos» switch off, settings that cannot be read, a kind switched off
  * or without a source, or a rule that cannot be read; the last total stays as it was. A challenge
  * for association members whose membership cannot be read is left as it was too, and the result
- * says to try again. A grant is announced only when the challenge was completed (or the person
- * added to it) within the last days and the evaluation was not silent; a recalculation never is.
+ * says to try again. Who is a member is frozen once its days are over. Rewards are granted only by
+ * counts that are not silent, and announced: a silent count (a recalculation) stores the total and
+ * the completion, and the next count with notices grants. A count of a challenge saved from the
+ * panel meanwhile is discarded.
  *
  * @phpstan-impure
  */

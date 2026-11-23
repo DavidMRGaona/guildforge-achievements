@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Filament\Support;
 
+use App\Application\Services\TimezoneServiceInterface;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -15,8 +16,8 @@ use Illuminate\Validation\ValidationException;
 use Modules\Achievements\Application\Services\ActivityMetricsInterface;
 use Modules\Achievements\Domain\Challenges\ChallengeAudience;
 use Modules\Achievements\Domain\Challenges\ChallengeMetric;
+use Modules\Achievements\Domain\Challenges\ChallengeRewardRule;
 use Modules\Achievements\Domain\Challenges\ChallengeRule;
-use Modules\Achievements\Domain\Rules\AchievementRule;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\ChallengeModel;
 
@@ -52,6 +53,9 @@ final class ChallengeForm
      */
     public static function sections(): array
     {
+        // Once complete, what it counts, its days, who takes part and its reward stay as they were
+        $locked = static fn (?Model $record): bool => self::locksWhatCounts($record);
+
         return [
             Section::make(self::text('sections.challenge'))
                 ->description(self::text('sections.challenge_description'))
@@ -69,12 +73,14 @@ final class ChallengeForm
                         ->dehydrateStateUsing(static fn (mixed $state): string => is_string($state) ? trim($state) : ''),
 
                     DatePicker::make('starts_on')
+                        ->disabled($locked)
                         ->label(self::text('fields.starts_on'))
                         ->native(false)
                         ->displayFormat('d/m/Y')
                         ->required(),
 
                     DatePicker::make('ends_on')
+                        ->disabled($locked)
                         ->label(self::text('fields.ends_on'))
                         ->helperText(self::text('helpers.ends_on'))
                         ->native(false)
@@ -83,6 +89,7 @@ final class ChallengeForm
                         ->required(),
 
                     Select::make('audience')
+                        ->disabled($locked)
                         ->label(self::text('fields.audience'))
                         ->helperText(self::text('helpers.audience'))
                         ->options(self::audienceOptions())
@@ -92,6 +99,7 @@ final class ChallengeForm
                         ->required(),
 
                     Select::make('reward_achievement_id')
+                        ->disabled($locked)
                         ->label(self::text('fields.reward'))
                         ->helperText(self::text('helpers.reward'))
                         ->options(static fn (?Model $record): array => self::rewardOptions($record))
@@ -103,9 +111,14 @@ final class ChallengeForm
                 ->columns(2),
 
             Section::make(self::text('sections.count'))
-                ->description(self::text('sections.count_description'))
+                ->description(static fn (?Model $record): string => match (true) {
+                    self::locksWhatCounts($record) => self::text('sections.count_locked'),
+                    self::hasStarted($record) => self::text('sections.count_started'),
+                    default => self::text('sections.count_description'),
+                })
                 ->schema([
                     Select::make(self::KIND)
+                        ->disabled($locked)
                         ->label(self::text('fields.kind'))
                         ->helperText(self::text('helpers.kind'))
                         ->options(static fn (?Model $record): array => AchievementRuleForm::kindOptions(self::stored($record)?->kind))
@@ -114,6 +127,7 @@ final class ChallengeForm
                         ->live(),
 
                     Select::make(self::METRIC)
+                        ->disabled($locked)
                         ->label(self::text('fields.metric'))
                         ->helperText(self::text('helpers.metric'))
                         ->options(self::metricOptions())
@@ -122,6 +136,7 @@ final class ChallengeForm
                         ->required(),
 
                     Select::make(self::ROLE)
+                        ->disabled($locked)
                         ->label(self::text('fields.role'))
                         ->helperText(self::text('helpers.role'))
                         ->options(AchievementRuleForm::roleOptions())
@@ -129,6 +144,7 @@ final class ChallengeForm
                         ->native(false),
 
                     TextInput::make(self::PLACEMENT_MAX)
+                        ->disabled($locked)
                         ->label(self::text('fields.placement_max'))
                         ->helperText(self::text('helpers.placement_max'))
                         ->integer()
@@ -136,6 +152,7 @@ final class ChallengeForm
                         ->maxValue(1000),
 
                     Select::make(self::ATTRIBUTE_KEY)
+                        ->disabled($locked)
                         ->label(self::text('fields.attribute_key'))
                         ->helperText(self::text('helpers.attribute_key'))
                         ->options(static fn (Get $get, ?Model $record): array => self::attributeOptions(self::string($get(self::KIND)), self::stored($record)?->attributeKey))
@@ -144,6 +161,7 @@ final class ChallengeForm
                         ->live(),
 
                     Select::make(self::ATTRIBUTE_VALUE)
+                        ->disabled($locked)
                         ->label(self::text('fields.attribute_value'))
                         ->options(static fn (Get $get, ?Model $record): array => self::valueOptions(self::string($get(self::KIND)), self::string($get(self::ATTRIBUTE_KEY)), self::stored($record)?->attributeValue))
                         ->searchable()
@@ -152,6 +170,7 @@ final class ChallengeForm
                         ->visible(static fn (Get $get): bool => self::string($get(self::ATTRIBUTE_KEY)) !== null),
 
                     TextInput::make(self::TARGET)
+                        ->disabled($locked)
                         ->label(self::text('fields.target'))
                         ->helperText(self::text('helpers.target'))
                         ->integer()
@@ -161,6 +180,31 @@ final class ChallengeForm
                 ])
                 ->columns(2),
         ];
+    }
+
+    /**
+     * Whether what the challenge counts, its days, who takes part and its reward are fixed: once it
+     * is complete, its rewards were granted for exactly that (ChallengePolicy::changeWhatCounts()).
+     */
+    public static function locksWhatCounts(?Model $record): bool
+    {
+        return $record instanceof ChallengeModel && $record->completed_at !== null;
+    }
+
+    /**
+     * The fields only a challenge that is not complete may change.
+     *
+     * @return list<string>
+     */
+    public static function lockedFields(): array
+    {
+        return [...self::FIELDS, 'rule', 'starts_on', 'ends_on', 'audience', 'reward_achievement_id'];
+    }
+
+    private static function hasStarted(?Model $record): bool
+    {
+        return $record instanceof ChallengeModel
+            && $record->starts_on->format('Y-m-d') <= app(TimezoneServiceInterface::class)->today()->format('Y-m-d');
     }
 
     /**
@@ -281,7 +325,7 @@ final class ChallengeForm
         $options = [];
 
         foreach (AchievementModel::query()->where('is_active', true)->where('is_secret', false)->orderBy('name')->orderBy('id')->get() as $achievement) {
-            if (AchievementRule::tryFrom($achievement->getRawOriginal('rule'))?->isManual() === true) {
+            if (ChallengeRewardRule::allows($achievement->is_active, $achievement->is_secret, $achievement->getRawOriginal('rule'))) {
                 $options[$achievement->id] = $achievement->name;
             }
         }

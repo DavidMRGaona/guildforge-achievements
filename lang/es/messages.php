@@ -430,6 +430,8 @@ return [
             'challenge_description' => 'Un objetivo entre todas las personas, con unas fechas y un logro de recompensa para quien contribuya.',
             'count' => 'Qué se cuenta',
             'count_description' => 'Se cuenta solo, con lo que registran los módulos. En la web se ven solo totales, nunca qué partidas o eventos concretos.',
+            'count_started' => 'El reto ya ha empezado: si cambias lo que se cuenta, sus fechas o quién participa, su progreso se vuelve a contar y puede bajar. Lo ya concedido se queda.',
+            'count_locked' => 'El reto ya se ha conseguido: lo que cuenta, sus fechas, quién participa y la recompensa no cambian, porque las recompensas se concedieron por eso. Puedes cambiar el nombre y la descripción.',
         ],
 
         'fields' => [
@@ -457,7 +459,7 @@ return [
             'description' => 'Se ve en la web. Habla del objetivo común («40 partidas entre todos»), nunca de una partida concreta.',
             'ends_on' => 'Los días van de 0:00 del primero a 23:59 del último, en la hora de la asociación. Lo que se registre tarde aún cuenta durante 30 días.',
             'audience' => 'Solo con socios, cuenta solo lo que hacen las personas que son socias cuando se cuenta.',
-            'reward' => 'Un logro activo, no secreto y que se conceda a mano. Al cumplirse el reto, lo recibe cada persona que contribuyó.',
+            'reward' => 'Un logro activo, no secreto y que se conceda a mano. Al cumplirse el reto, lo recibe cada persona que contribuyó. En un reto para socios, verlo en un perfil ya insinúa que esa persona es socia.',
             'kind' => 'Solo se ofrece la actividad que registra algún módulo instalado.',
             'metric' => 'Cada partida una vez, cada persona en cada partida, o personas distintas.',
             'role' => 'Opcional: solo cuenta quien participa con este papel.',
@@ -530,11 +532,14 @@ return [
         'delete' => [
             'description' => 'Solo se puede borrar un reto que no se ha conseguido. Se pierde su progreso. No se puede deshacer.',
             'confirmation' => 'Entiendo que el borrado no se puede deshacer',
+            'completed_meanwhile' => 'El reto se ha conseguido mientras tanto: ya no se puede borrar, solo cerrar',
         ],
 
         'validation' => [
             'invalid_rule' => 'Esta combinación no forma un reto que se pueda contar.',
         ],
+
+        'reward_in_use' => 'Es la recompensa de un reto que aún se cuenta: tiene que seguir activo, no secreto y concediéndose a mano.',
 
         'block' => [
             'label' => 'Reto de la asociación',

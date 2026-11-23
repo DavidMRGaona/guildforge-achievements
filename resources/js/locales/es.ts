@@ -51,9 +51,8 @@ export default {
             yourContribution: 'Has participado {count} vez | Has participado {count} veces',
             noContribution: 'Todavía no has contribuido',
             reward: 'Recompensa',
-            completers:
-                'Nadie tiene la recompensa | {count} persona tiene la recompensa | {count} personas tienen la recompensa',
-            others: 'y {count} persona más | y {count} personas más',
+            peopleTitle: 'Algunas de las personas que lo han conseguido:',
+            notCounted: 'Aún no se ha contado. Objetivo: {target} {unit}.',
             block: {
                 until: 'Hasta el {day}',
                 startsOn: 'Empieza el {day}',

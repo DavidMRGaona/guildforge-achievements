@@ -63,6 +63,8 @@ export interface Challenge {
     name: string;
     description: string;
     state: ChallengeState;
+    /** False while it was never counted: its 0 means nothing yet */
+    counted: boolean;
     progress: number;
     target: number;
     /** What the total counts, agreed with the target («partidas») */
@@ -74,10 +76,8 @@ export interface Challenge {
     reward: AchievementSummary;
     /** People who added to it */
     contributors: number;
-    /** People who got the reward */
-    completers: number;
-    /** Those of them whose profile the viewer may see (only on `/logros`) */
+    /** Some of whoever got the reward, whose profile the viewer may see (only on `/logros`); how many got it is never told */
     people: ChallengeCompleter[];
-    /** The viewer's own contribution; null for a guest */
+    /** The viewer's own contribution; null for a guest, and for whoever is not a member in a challenge of members */
     contribution: number | null;
 }

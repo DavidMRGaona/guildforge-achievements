@@ -12,7 +12,9 @@ use Modules\Achievements\Domain\Challenges\ChallengeState;
 /**
  * A collective challenge. `startsOn` and `endsOn` are calendar days of the display zone (`Y-m-d`),
  * both included; `rule` is null when the stored one cannot be read (never evaluated). `progress`
- * and `contributors` are the last count; instants are in the storage zone.
+ * and `contributors` are the last count (`progressAt`, null while never counted); `updatedAt`
+ * changes only when the panel saves it, so a count can tell its rule changed meanwhile. Instants
+ * are in the storage zone.
  */
 final readonly class Challenge
 {
@@ -35,6 +37,8 @@ final readonly class Challenge
         public int $contributors,
         public ?DateTimeImmutable $completedAt,
         public ?DateTimeImmutable $closedAt,
+        public ?DateTimeImmutable $progressAt = null,
+        public ?DateTimeImmutable $updatedAt = null,
     ) {}
 
     /**
@@ -66,6 +70,16 @@ final readonly class Challenge
         $lastDay = new DateTimeImmutable($this->endsOn)->modify('+'.self::LATE_FACTS_DAYS.' days')->format('Y-m-d');
 
         return $today <= $lastDay;
+    }
+
+    /**
+     * Whether its days are over: who takes part is frozen from then on (late facts still count).
+     *
+     * @param  string  $today  the display day (`Y-m-d`)
+     */
+    public function hasEnded(string $today): bool
+    {
+        return $today > $this->endsOn;
     }
 
     public function isComplete(): bool

@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useSiteBlockPlacement } from '@/composables/useSiteBlockPlacement';
 import ChallengeProgressBar from './ChallengeProgressBar.vue';
-import { formatChallengeDay } from '../utils/challengeDays';
+import { crossesYear, formatChallengeDay } from '../utils/challengeDays';
 import type { Challenge } from '../types/achievements';
 
 /**
@@ -29,7 +29,11 @@ const when = computed(() => {
         props.challenge.state === 'upcoming' ? props.challenge.startsOn : props.challenge.endsOn;
 
     return t(`achievements.challenges.block.${key}`, {
-        day: formatChallengeDay(day, locale.value),
+        day: formatChallengeDay(
+            day,
+            locale.value,
+            crossesYear(props.challenge.startsOn, props.challenge.endsOn)
+        ),
     });
 });
 </script>
@@ -46,6 +50,7 @@ const when = computed(() => {
             {{ when }}
         </p>
         <ChallengeProgressBar
+            v-if="challenge.counted"
             :progress="challenge.progress"
             :target="challenge.target"
             :unit="challenge.unit"

@@ -18,6 +18,7 @@ use Modules\Achievements\Application\Services\ChallengeEvaluatorInterface;
 use Modules\Achievements\Domain\Challenges\ChallengeAudience;
 use Modules\Achievements\Domain\Challenges\ChallengeCalculator;
 use Modules\Achievements\Domain\Challenges\ChallengeProgress;
+use Modules\Achievements\Domain\Challenges\ChallengeRewardRule;
 use Modules\Achievements\Domain\Challenges\ChallengeRule;
 use Modules\Achievements\Domain\Entities\Achievement;
 use Modules\Achievements\Domain\Entities\AchievementFact;
@@ -28,7 +29,6 @@ use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\ChallengeRepositoryInterface;
-use Modules\Achievements\Domain\Rules\AnnouncementWindow;
 use Modules\Achievements\Domain\ValueObjects\NewGrant;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Throwable;
@@ -37,7 +37,12 @@ use Throwable;
  * The dates are calendar days of the display zone: a challenge «del 1 al 31 de diciembre» counts
  * the facts from the first minute of the 1st to the last of the 31st there, whatever the storage
  * zone. Who is an association member is asked to the core (AssociationMembersAmongInterface), never
- * worked out from role names here.
+ * worked out from role names here, and is frozen once the days are over: the late facts' days are
+ * for facts recorded late, not for people who join or leave meanwhile.
+ *
+ * Rewards are granted only by counts that are not silent, and always announced: the moment that
+ * counts is when the completion (or a person's contribution) is found. A silent count (a
+ * recalculation) still stores the total and the completion, and the next count with notices grants.
  */
 final readonly class ChallengeEvaluator implements ChallengeEvaluatorInterface
 {
@@ -99,7 +104,7 @@ final readonly class ChallengeEvaluator implements ChallengeEvaluatorInterface
             }
 
             $facts = $this->factsOf($challenge, $rule);
-            $members = $this->membersAmong($challenge, $facts);
+            $members = $this->membersAmong($challenge, $facts, $today, $now);
 
             if ($members === false) {
                 $retry[] = $challenge->id;
@@ -108,7 +113,8 @@ final readonly class ChallengeEvaluator implements ChallengeEvaluatorInterface
             }
 
             $progress = $this->calculator->progress($rule, $facts, $members);
-            $saved = $this->challenges->saveProgress($challenge->id, $progress, $now);
+            // Discarded when the challenge was saved from the panel meanwhile: it is counted again
+            $saved = $this->challenges->saveProgress($challenge->id, $progress, $now, $challenge->updatedAt);
 
             if (! $saved instanceof Challenge) {
                 continue;
@@ -118,7 +124,10 @@ final readonly class ChallengeEvaluator implements ChallengeEvaluatorInterface
 
             if ($saved->completedAt instanceof DateTimeImmutable) {
                 $completed[] = $saved->id;
-                $granted += $this->reward($saved, $saved->completedAt, $progress, $silent, $now);
+
+                if (! $silent) {
+                    $granted += $this->reward($saved, $progress);
+                }
             }
         }
 
@@ -140,21 +149,31 @@ final readonly class ChallengeEvaluator implements ChallengeEvaluatorInterface
      * The association members among the people of the facts, null when everybody counts, false when
      * they cannot be read now (the challenge is left as it was: never counted as if nobody were one).
      *
+     * Within the days, everybody is asked again and remembered. Once they are over, what was
+     * remembered stays as it was; only people never asked before (a late fact) are asked, once.
+     *
      * @param  list<AchievementFact>  $facts
      * @return array<string, true>|false|null
      */
-    private function membersAmong(Challenge $challenge, array $facts): array|false|null
+    private function membersAmong(Challenge $challenge, array $facts, string $today, DateTimeImmutable $now): array|false|null
     {
         if ($challenge->audience !== ChallengeAudience::Members) {
             return null;
         }
 
         $userIds = array_values(array_unique(array_map(static fn (AchievementFact $fact): string => strtolower($fact->userId), $facts)));
-        $members = [];
+        $ended = $challenge->hasEnded($today);
+        $known = $ended ? $this->challenges->audienceOf($challenge->id) : [];
+        $ask = $ended ? array_values(array_filter($userIds, static fn (string $id): bool => ! array_key_exists($id, $known))) : $userIds;
+        $answers = [];
 
         try {
-            foreach (array_chunk($userIds, self::CHUNK) as $chunk) {
-                $members += $this->members->among($chunk);
+            foreach (array_chunk($ask, self::CHUNK) as $chunk) {
+                $members = $this->members->among($chunk);
+
+                foreach ($chunk as $userId) {
+                    $answers[$userId] = isset($members[$userId]);
+                }
             }
         } catch (Throwable $exception) {
             $this->warnings->warn('challenge_members_unavailable', '[Achievements] The association members could not be read: a challenge for members was not counted.', [
@@ -166,19 +185,32 @@ final readonly class ChallengeEvaluator implements ChallengeEvaluatorInterface
             return false;
         }
 
+        if ($answers !== [] || ! $ended) {
+            $this->challenges->rememberAudience($challenge->id, $answers, replace: ! $ended, at: $now);
+        }
+
+        $members = [];
+
+        foreach ($known + $answers as $userId => $isMember) {
+            if ($isMember) {
+                $members[(string) $userId] = true;
+            }
+        }
+
         return $members;
     }
 
     /**
      * Grants the reward to whoever added to a complete challenge and does not hold it yet (nor had it
-     * taken away by hand). Announced only for a recent completion or contribution.
+     * taken away by hand), while the reward is still one (ChallengeRewardRule). Each new grant is
+     * announced: it was just found.
      */
-    private function reward(Challenge $challenge, DateTimeImmutable $completedAt, ChallengeProgress $progress, bool $silent, DateTimeImmutable $now): int
+    private function reward(Challenge $challenge, ChallengeProgress $progress): int
     {
         $reward = $this->achievements->find($challenge->rewardAchievementId);
 
-        if (! $reward instanceof Achievement || ! $reward->active) {
-            $this->warnings->warn('challenge_reward_unavailable:'.$challenge->id, '[Achievements] The reward of a complete challenge is gone or switched off: nobody gets it until it is back.', [
+        if (! $reward instanceof Achievement || ! ChallengeRewardRule::isUsable($reward)) {
+            $this->warnings->warn('challenge_reward_unavailable:'.$challenge->id, '[Achievements] The reward of a complete challenge is gone, switched off, secret or granted by a rule: nobody gets it until it is a reward again.', [
                 'challenge_id' => $challenge->id,
                 'reason' => 'reward_unavailable',
             ]);
@@ -186,7 +218,6 @@ final readonly class ChallengeEvaluator implements ChallengeEvaluatorInterface
             return 0;
         }
 
-        $recentSince = $now->modify('-'.AnnouncementWindow::ACTIVITY_DAYS.' days');
         $granted = 0;
 
         foreach (array_chunk($progress->contributors(), self::CHUNK) as $chunk) {
@@ -198,11 +229,7 @@ final readonly class ChallengeEvaluator implements ChallengeEvaluatorInterface
                     continue;
                 }
 
-                // The moment that made it theirs: the completion, or their own later contribution
-                $moment = max($completedAt, $progress->lastContributionOf($userId) ?? $completedAt);
-                $quiet = $silent || $moment < $recentSince;
-
-                if ($this->granter->grant(new NewGrant($userId, $reward->id, GrantSource::Challenge, $quiet)) instanceof AchievementGrant) {
+                if ($this->granter->grant(new NewGrant($userId, $reward->id, GrantSource::Challenge, false)) instanceof AchievementGrant) {
                     $granted++;
                 }
             }

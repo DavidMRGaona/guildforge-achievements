@@ -22,7 +22,7 @@ A veces hay retos entre todas las personas, como «entre todos, 40 partidas en d
 
 No se compite: todo lo que haces dentro de las fechas suma al total. Algunos retos son solo para socios, y entonces solo suma lo que hacen los socios. Con la sesión iniciada ves cuántas veces has participado tú.
 
-Cuando se llega al objetivo, cada persona que contribuyó recibe el logro de recompensa, y quien contribuye después, mientras sigan las fechas, también. Los retos solo enseñan totales: nunca dicen qué partidas o eventos han contado. De un reto conseguido se nombra a algunas de las personas que lo tienen, solo si puedes ver su perfil y con su nombre público. Si ocultas tus logros, no se te nombra.
+Cuando se llega al objetivo, cada persona que contribuyó recibe el logro de recompensa. Quien contribuye después, con algo que ocurrió dentro de las fechas, también lo recibe. Los retos solo enseñan totales: nunca dicen qué partidas o eventos han contado. De un reto conseguido se nombra a algunas de las personas que lo tienen, solo si puedes ver su perfil y con su nombre público. Si ocultas tus logros, no se te nombra. En un reto para socios, solo se nombra a quien ya enseña en su perfil que es socio.
 
 ## Tus logros en tu perfil
 

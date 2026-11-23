@@ -27,6 +27,8 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
 {
     public const string CONTRIBUTORS_TABLE = 'achievements_challenge_contributors';
 
+    public const string AUDIENCE_TABLE = 'achievements_challenge_audience';
+
     private const string STORAGE_FORMAT = 'Y-m-d H:i:s';
 
     private const int CHUNK = 500;
@@ -89,16 +91,21 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
             ->all());
     }
 
-    public function saveProgress(string $id, ChallengeProgress $progress, DateTimeImmutable $countedAt): ?Challenge
+    public function saveProgress(string $id, ChallengeProgress $progress, DateTimeImmutable $countedAt, ?DateTimeImmutable $loadedUpdatedAt): ?Challenge
     {
         if (! AchievementIds::isWellFormed($id)) {
             return null;
         }
 
-        return $this->db->transaction(function () use ($id, $progress, $countedAt): ?Challenge {
+        return $this->db->transaction(function () use ($id, $progress, $countedAt, $loadedUpdatedAt): ?Challenge {
             $model = ChallengeModel::query()->whereKey(strtolower($id))->lockForUpdate()->first();
 
             if (! $model instanceof ChallengeModel || $model->closed_at !== null) {
+                return null;
+            }
+
+            // Saved from the panel since it was loaded: this count is of a rule that no longer exists
+            if ($this->second(self::instant($model->updated_at)) !== $this->second($loadedUpdatedAt)) {
                 return null;
             }
 
@@ -110,7 +117,10 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
                 $model->completed_at = Carbon::instance($progress->completedAt);
             }
 
+            // A count is not an edit: `updated_at` keeps telling when the panel last changed it
+            $model->timestamps = false;
             $model->save();
+            $model->timestamps = true;
             $this->replaceContributions($model->id, $progress, $countedAt);
 
             return self::toEntity($model);
@@ -174,13 +184,104 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
         ));
     }
 
+    public function deleteUnlessCompleted(string $id): bool
+    {
+        if (! AchievementIds::isWellFormed($id)) {
+            return false;
+        }
+
+        return (bool) $this->db->transaction(static function () use ($id): bool {
+            // Under the row lock, so a count that completes it meanwhile wins
+            $model = ChallengeModel::query()->whereKey(strtolower($id))->lockForUpdate()->first();
+
+            return $model instanceof ChallengeModel && $model->completed_at === null && $model->delete() === true;
+        });
+    }
+
+    public function rewardingCounted(string $achievementId, string $today): array
+    {
+        if (! AchievementIds::isWellFormed($achievementId)) {
+            return [];
+        }
+
+        $lastEnd = new DateTimeImmutable($today)->modify('-'.Challenge::LATE_FACTS_DAYS.' days')->format('Y-m-d');
+
+        return array_values(array_map(
+            strval(...),
+            ChallengeModel::query()
+                ->where('reward_achievement_id', strtolower($achievementId))
+                ->whereNull('closed_at')
+                ->whereDate('ends_on', '>=', $lastEnd)
+                ->orderBy('id')
+                ->pluck('id')
+                ->all(),
+        ));
+    }
+
+    public function audienceOf(string $challengeId): array
+    {
+        if (! AchievementIds::isWellFormed($challengeId)) {
+            return [];
+        }
+
+        $audience = [];
+
+        foreach ($this->db->table(self::AUDIENCE_TABLE)->where('challenge_id', strtolower($challengeId))->get(['user_id', 'is_member']) as $row) {
+            $audience[strtolower((string) $row->user_id)] = (bool) $row->is_member;
+        }
+
+        return $audience;
+    }
+
+    public function rememberAudience(string $challengeId, array $audience, bool $replace, DateTimeImmutable $at): void
+    {
+        if (! AchievementIds::isWellFormed($challengeId)) {
+            return;
+        }
+
+        $challengeId = strtolower($challengeId);
+
+        $this->db->transaction(function () use ($challengeId, $audience, $replace, $at): void {
+            $table = $this->db->table(self::AUDIENCE_TABLE);
+
+            if ($replace) {
+                $table->clone()->where('challenge_id', $challengeId)->delete();
+            }
+
+            $rows = [];
+
+            foreach ($audience as $userId => $isMember) {
+                $rows[] = [
+                    'challenge_id' => $challengeId,
+                    'user_id' => strtolower((string) $userId),
+                    'is_member' => $isMember,
+                    'created_at' => $this->stored($at),
+                    'updated_at' => $this->stored($at),
+                ];
+            }
+
+            foreach (array_chunk($rows, self::CHUNK) as $chunk) {
+                // Never changes who was already known: frozen once the days are over
+                $table->clone()->insertOrIgnore($chunk);
+            }
+        });
+    }
+
     public function forgetUser(string $userId): int
     {
         if (! AchievementIds::isWellFormed($userId)) {
             return 0;
         }
 
-        return $this->db->table(self::CONTRIBUTORS_TABLE)->where('user_id', strtolower($userId))->delete();
+        $userId = strtolower($userId);
+
+        return $this->db->transaction(function () use ($userId): int {
+            $this->db->table(self::AUDIENCE_TABLE)->where('user_id', $userId)->delete();
+            ChallengeModel::query()->where('closed_by', $userId)->update(['closed_by' => null]);
+            ChallengeModel::query()->where('created_by', $userId)->update(['created_by' => null]);
+
+            return $this->db->table(self::CONTRIBUTORS_TABLE)->where('user_id', $userId)->delete();
+        });
     }
 
     public static function toEntity(ChallengeModel $model): Challenge
@@ -198,6 +299,8 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
             contributors: $model->contributors,
             completedAt: self::instant($model->completed_at),
             closedAt: self::instant($model->closed_at),
+            progressAt: self::instant($model->progress_at),
+            updatedAt: self::instant($model->updated_at),
         );
     }
 
@@ -242,6 +345,14 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
         return DateTimeImmutable::createFromInterface($instant)
             ->setTimezone(new DateTimeZone(date_default_timezone_get()))
             ->format(self::STORAGE_FORMAT);
+    }
+
+    /**
+     * An instant to the second, in UTC, for comparing two reads of one column.
+     */
+    private function second(?DateTimeImmutable $instant): ?string
+    {
+        return $instant?->setTimezone(new DateTimeZone('UTC'))->format(self::STORAGE_FORMAT);
     }
 
     private static function instant(?Carbon $value): ?DateTimeImmutable

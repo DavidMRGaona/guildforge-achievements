@@ -90,6 +90,7 @@ interface AchievementFactRepositoryInterface
 
     /**
      * Every fact of a kind that happened in `[$from, $until)`, oldest first (collective challenges).
+     * Facts of anonymized accounts, or of accounts deleted for good, are left out.
      *
      * @param  string  $kind  a MetricKinds value
      * @return list<AchievementFact>

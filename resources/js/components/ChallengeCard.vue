@@ -4,13 +4,14 @@ import { useI18n } from 'vue-i18n';
 import { Users } from '@lucide/vue';
 import AchievementBadge from './AchievementBadge.vue';
 import ChallengeProgressBar from './ChallengeProgressBar.vue';
-import { formatChallengeDay } from '../utils/challengeDays';
+import { crossesYear, formatChallengeDay } from '../utils/challengeDays';
 import type { Challenge } from '../types/achievements';
 
 /**
  * A collective challenge on `/logros`: the goal between everybody, how far it is, its days and its
- * reward. Only totals; the people who completed it are those whose profile the viewer may see, by
- * public name, and the rest are only counted.
+ * reward. Only totals; the people who completed it are some of those whose profile the viewer may
+ * see, by public name. How many got the reward is never told next to how many added: together they
+ * would tell a reward was taken away.
  */
 interface Props {
     challenge: Challenge;
@@ -20,12 +21,15 @@ const props = defineProps<Props>();
 
 const { t, n, locale } = useI18n();
 
-const days = computed(() =>
-    t('achievements.challenges.days', {
-        start: formatChallengeDay(props.challenge.startsOn, locale.value),
-        end: formatChallengeDay(props.challenge.endsOn, locale.value),
-    })
-);
+const days = computed(() => {
+    // A challenge across New Year says which year each day is
+    const withYear = crossesYear(props.challenge.startsOn, props.challenge.endsOn);
+
+    return t('achievements.challenges.days', {
+        start: formatChallengeDay(props.challenge.startsOn, locale.value, withYear),
+        end: formatChallengeDay(props.challenge.endsOn, locale.value, withYear),
+    });
+});
 
 const stateClass = computed(() => {
     switch (props.challenge.state) {
@@ -37,10 +41,6 @@ const stateClass = computed(() => {
             return 'bg-muted text-base-secondary';
     }
 });
-
-const othersCount = computed(() =>
-    Math.max(0, props.challenge.completers - props.challenge.people.length)
-);
 </script>
 
 <template>
@@ -77,12 +77,24 @@ const othersCount = computed(() =>
         </p>
 
         <ChallengeProgressBar
+            v-if="challenge.counted"
             :progress="challenge.progress"
             :target="challenge.target"
             :unit="challenge.unit"
         />
+        <p v-else class="text-sm text-base-muted" data-test="challenge-not-counted">
+            {{
+                t('achievements.challenges.notCounted', {
+                    target: n(challenge.target),
+                    unit: challenge.unit,
+                })
+            }}
+        </p>
 
-        <p class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-base-secondary">
+        <p
+            v-if="challenge.counted"
+            class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-base-secondary"
+        >
             <span class="inline-flex items-center gap-1.5">
                 <Users class="h-4 w-4" aria-hidden="true" />
                 {{
@@ -122,17 +134,14 @@ const othersCount = computed(() =>
             </div>
         </div>
 
-        <div v-if="challenge.state === 'completed'" data-test="challenge-completers">
+        <div
+            v-if="challenge.state === 'completed' && challenge.people.length > 0"
+            data-test="challenge-completers"
+        >
             <p class="text-sm text-base-secondary">
-                {{
-                    t(
-                        'achievements.challenges.completers',
-                        { count: n(challenge.completers) },
-                        challenge.completers
-                    )
-                }}
+                {{ t('achievements.challenges.peopleTitle') }}
             </p>
-            <ul v-if="challenge.people.length > 0" class="mt-2 flex flex-wrap gap-2" role="list">
+            <ul class="mt-2 flex flex-wrap gap-2" role="list">
                 <li v-for="person in challenge.people" :key="person.url">
                     <a
                         :href="person.url"
@@ -157,12 +166,6 @@ const othersCount = computed(() =>
                     </a>
                 </li>
             </ul>
-            <p
-                v-if="challenge.people.length > 0 && othersCount > 0"
-                class="mt-2 text-xs text-base-muted"
-            >
-                {{ t('achievements.challenges.others', { count: n(othersCount) }, othersCount) }}
-            </p>
         </div>
     </article>
 </template>

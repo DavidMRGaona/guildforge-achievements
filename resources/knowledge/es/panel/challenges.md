@@ -19,14 +19,18 @@ Los retos están apagados al instalar el módulo. Para encenderlos, abre *Sistem
 
 ## Preparar la recompensa
 
-La recompensa es un logro normal del catálogo. Antes de crear el reto, crea en **Personas** → **Logros** un logro activo, no secreto y que se conceda **a mano**, por ejemplo «Diciembre en la mesa». Así nadie lo consigue por otro camino. Mientras un reto lo use como recompensa, ese logro no se puede borrar.
+La recompensa es un logro normal del catálogo. Antes de crear el reto, crea en **Personas** → **Logros** un logro activo, no secreto y que se conceda **a mano**, por ejemplo «Diciembre en la mesa». Así ninguna regla lo concede sola; solo se consigue con el reto o si alguien lo concede a mano.
+
+Mientras un reto lo use como recompensa, ese logro no se puede borrar. Mientras el reto se siga contando, tampoco se puede desactivar, hacer secreto ni darle una regla. Si el logro deja de cumplir estas condiciones, el reto no se enseña en la web y nadie recibe la recompensa hasta que vuelva a cumplirlas.
+
+En un reto para socios, quien vea la recompensa en el perfil de alguien puede deducir que esa persona es socia. Tenlo en cuenta al elegir el logro y su descripción.
 
 ## Crear un reto
 
 1. Abre **Personas** → **Logros** → **Retos** y pulsa **Nuevo reto**.
 2. Escribe el **Nombre** y, si quieres, una **Descripción**. Las dos se ven en la web.
 3. Elige el **Primer día** y el **Último día**. Cuentan los días enteros, de las 0:00 del primero a las 23:59 del último, en la hora de la asociación.
-4. En **Quién participa**, elige **Todas las personas** o **Solo socios**. Con «Solo socios» cuenta solo lo que hacen las personas que son socias en el momento de contar.
+4. En **Quién participa**, elige **Todas las personas** o **Solo socios**. Con «Solo socios» cuenta solo lo que hacen las personas que son socias. Mientras duran sus fechas, se mira cada vez que se cuenta. Pasado el último día, queda fijo quién era socio entonces: entrar o salir de la asociación después ya no cambia nada.
 5. Elige el **Logro de recompensa**.
 6. En **Qué se cuenta**, elige la **Actividad** (partidas, eventos, torneos…). Solo salen las que registra algún módulo instalado.
 7. En **Cómo se suma**, elige una opción:
@@ -38,6 +42,12 @@ La recompensa es un logro normal del catálogo. Antes de crear el reto, crea en 
 
 El reto se cuenta al guardarlo y otra vez cada vez que un módulo registra actividad nueva. También se cuenta cada noche, porque quién es socio puede cambiar sin que cambie nada más.
 
+## Editar un reto
+
+Mientras no se haya conseguido, puedes cambiarlo todo. Si ya ha empezado, el formulario te avisa: cambiar lo que se cuenta, sus fechas o quién participa hace que se vuelva a contar, y el progreso puede bajar. Las recompensas ya concedidas se quedan.
+
+Cuando el reto se consigue, lo que cuenta, sus fechas, quién participa y la recompensa quedan fijos, porque las recompensas se concedieron por eso. Solo puedes cambiar el nombre y la descripción.
+
 ## Estados
 
 - **Próximamente**: aún no ha llegado su primer día.
@@ -48,19 +58,19 @@ El reto se cuenta al guardarlo y otra vez cada vez que un módulo registra activ
 
 ## Quién recibe la recompensa
 
-Al conseguirse el reto, recibe el logro cada persona que contribuyó con algo que cuenta. Quien contribuye después, mientras sigan sus fechas, también lo recibe. Lo que se registra tarde, como una mesa que se marca como terminada unos días después, sigue contando durante 30 días tras el último día.
+Al conseguirse el reto, recibe el logro cada persona que contribuyó con algo que cuenta. Quien contribuye después también lo recibe, mientras el reto se siga contando. Lo que se registra tarde, como una mesa que se marca como terminada unos días después, sigue contando hasta 30 días después del último día, siempre que haya ocurrido dentro de las fechas.
 
-Si el anuncio de logros está encendido, la recompensa se anuncia cuando el reto se consigue o la persona contribuye en los últimos días. Lo que se cuenta con mucho retraso, o en un recálculo, se concede sin avisos.
+La recompensa se concede en los recuentos normales, nunca en un recálculo. Si un recálculo descubre que el reto se ha conseguido, la recompensa llega en el siguiente recuento, como mucho a la noche siguiente. Si los anuncios de logros están encendidos, cada recompensa se anuncia al concederse.
 
 Como cualquier logro, la recompensa no se pierde. Si se la retiras a alguien a mano, el reto no se la vuelve a dar.
 
 ## Lo que ve la gente
 
-En la página **Logros** de la web salen los retos en marcha, los que empiezan en los próximos 30 días y los que terminaron hace menos de 30. Cada uno enseña su barra de progreso, sus fechas y su recompensa, y cuántas personas han contribuido.
+En la página **Logros** de la web salen los retos en marcha, los que empiezan en los próximos 30 días y los que terminaron hace menos de 30. Cada uno enseña su barra de progreso, sus fechas, su recompensa y cuántas personas han contribuido. Un reto que aún no se ha contado lo dice, en lugar de enseñar un 0. No sale un reto cuya actividad no registra ningún módulo o está apagada en *Sistema → Configuración → Logros*.
 
-Solo se ven totales: un reto nunca dice qué partidas, sesiones o eventos han contado. Cada persona con la sesión iniciada ve además cuántas veces ha participado ella.
+Solo se ven totales: un reto nunca dice qué partidas, sesiones o eventos han contado. Cada persona con la sesión iniciada ve además cuántas veces ha participado ella. En un reto para socios, solo los socios ven su parte.
 
-De un reto conseguido se ve cuántas personas tienen la recompensa. Además, se nombran hasta doce de ellas, solo si quien mira puede ver su perfil y solo con su nombre público. No se nombra a quien oculta sus logros.
+De un reto conseguido se nombra a algunas de las personas que tienen la recompensa, hasta doce. Solo salen perfiles que quien mira puede ver, con su nombre público y nunca quien oculta sus logros. En un reto para socios, además, solo salen quienes ya enseñan en su perfil que son socios. No se dice cuántas personas tienen la recompensa.
 
 ## El bloque del reto
 

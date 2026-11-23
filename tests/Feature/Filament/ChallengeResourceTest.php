@@ -13,10 +13,14 @@ use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Tables\Columns\Column;
+use Illuminate\Bus\UniqueLock;
+use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Facades\Bus;
 use Livewire\Livewire;
 use Modules\Achievements\AchievementsServiceProvider;
+use Modules\Achievements\Domain\Repositories\ChallengeRepositoryInterface;
 use Modules\Achievements\Filament\Resources\AchievementResource;
+use Modules\Achievements\Filament\Resources\AchievementResource\Pages\EditAchievement;
 use Modules\Achievements\Filament\Resources\ChallengeResource;
 use Modules\Achievements\Filament\Resources\ChallengeResource\Pages\CreateChallenge;
 use Modules\Achievements\Filament\Resources\ChallengeResource\Pages\EditChallenge;
@@ -209,6 +213,103 @@ final class ChallengeResourceTest extends ModuleTestCase
             ->callAction(DeleteAction::class, ['confirmation' => true]);
 
         $this->assertSame([$completed->id], ChallengeModel::query()->pluck('id')->all());
+    }
+
+    public function test_deleting_needs_the_box(): void
+    {
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+        $challenge = $this->challenge();
+
+        Livewire::test(EditChallenge::class, ['record' => $challenge->id])
+            ->callAction(DeleteAction::class, ['confirmation' => false])
+            ->assertHasActionErrors(['confirmation']);
+
+        $this->assertSame(1, ChallengeModel::query()->count());
+    }
+
+    public function test_a_challenge_completed_while_the_dialog_was_open_is_not_deleted(): void
+    {
+        $challenge = $this->challenge();
+        ChallengeModel::query()->whereKey($challenge->id)->update(['completed_at' => '2026-12-10 10:00:00']);
+
+        $this->assertFalse($this->app->make(ChallengeRepositoryInterface::class)->deleteUnlessCompleted($challenge->id));
+        $this->assertSame(1, ChallengeModel::query()->count());
+    }
+
+    public function test_a_completed_challenge_keeps_what_it_counts_and_only_its_name_changes(): void
+    {
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+        $challenge = $this->challenge(['target' => 12]);
+        $reward = $challenge->reward_achievement_id;
+        ChallengeModel::query()->whereKey($challenge->id)->update(['completed_at' => '2026-12-10 10:00:00']);
+        $other = $this->reward();
+
+        $component = Livewire::test(EditChallenge::class, ['record' => $challenge->id])
+            ->assertFormFieldIsDisabled('rule_target')
+            ->assertFormFieldIsDisabled('reward_achievement_id')
+            ->assertFormFieldIsDisabled('ends_on')
+            ->assertFormFieldIsEnabled('name');
+        // Whatever the form sends for what is locked is dropped on the server
+        $component->set('data.rule_target', 99)->set('data.reward_achievement_id', $other->id)->set('data.ends_on', '2027-02-01')
+            ->fillForm(['name' => 'Otro nombre'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $challenge->refresh();
+        $this->assertSame('Otro nombre', $challenge->name);
+        $this->assertSame(12, is_array($challenge->rule) ? $challenge->rule['target'] : null);
+        $this->assertSame($reward, $challenge->reward_achievement_id);
+        $this->assertSame('2026-12-31', $challenge->ends_on->format('Y-m-d'));
+        $user = auth()->user();
+        $this->assertInstanceOf(UserModel::class, $user);
+        $this->assertFalse($user->can('changeWhatCounts', $challenge));
+    }
+
+    public function test_changing_the_reward_of_an_open_challenge_counts_it_again(): void
+    {
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+        $challenge = $this->challenge();
+        $other = $this->reward();
+        new UniqueLock($this->app->make(Repository::class))->release(new EvaluateChallengesJob([$challenge->id], false));
+        Bus::fake([EvaluateChallengesJob::class]);
+
+        Livewire::test(EditChallenge::class, ['record' => $challenge->id])
+            ->fillForm(['reward_achievement_id' => $other->id])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame($other->id, $challenge->refresh()->reward_achievement_id);
+        Bus::assertDispatched(EvaluateChallengesJob::class, static fn (EvaluateChallengesJob $job): bool => $job->challengeIds === [$challenge->id]);
+    }
+
+    public function test_the_reward_of_a_challenge_still_counted_stays_a_reward(): void
+    {
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+        $challenge = $this->challenge();
+        $reward = AchievementModel::query()->findOrFail($challenge->reward_achievement_id);
+
+        foreach ([
+            'is_secret' => ['is_secret' => true],
+            'is_active' => ['is_active' => false],
+            'rule_metric' => ['rule_metric' => 'count', 'rule_kind' => 'game_session', 'rule_threshold' => 1],
+        ] as $field => $change) {
+            Livewire::test(EditAchievement::class, ['record' => $reward->id])
+                ->fillForm($change)
+                ->call('save')
+                ->assertHasFormErrors([$field]);
+        }
+
+        $reward->refresh();
+        $this->assertTrue($reward->is_active);
+        $this->assertFalse($reward->is_secret);
+
+        // Once the challenge is closed, it is an achievement like any other
+        ChallengeModel::query()->whereKey($challenge->id)->update(['closed_at' => '2026-12-10 10:00:00']);
+        Livewire::test(EditAchievement::class, ['record' => $reward->id])
+            ->fillForm(['is_secret' => true])
+            ->call('save')
+            ->assertHasNoFormErrors();
+        $this->assertTrue($reward->refresh()->is_secret);
     }
 
     public function test_an_achievement_that_rewards_a_challenge_is_not_deleted(): void

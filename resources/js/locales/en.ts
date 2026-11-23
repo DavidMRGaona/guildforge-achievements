@@ -52,9 +52,8 @@ export default {
             yourContribution: 'You took part {count} time | You took part {count} times',
             noContribution: 'You have not added to it yet',
             reward: 'Reward',
-            completers:
-                'Nobody holds the reward | {count} person holds the reward | {count} people hold the reward',
-            others: 'and {count} more person | and {count} more people',
+            peopleTitle: 'Some of the people who reached it:',
+            notCounted: 'Not counted yet. Goal: {target} {unit}.',
             block: {
                 until: 'Until {day}',
                 startsOn: 'Starts on {day}',

@@ -4,7 +4,7 @@ Logros, niveles y reconocimientos entre las personas de la asociación.
 
 ## Requisitos
 
-- GuildForge core `^3.86`
+- GuildForge core `^3.88` (los retos para socios necesitan `AssociationMembersAmongInterface`)
 - PHP >= 8.5, Laravel >= 13, Filament 5
 
 El core rechaza el módulo si no se cumplen (`module.json` → `requires`).
@@ -162,7 +162,11 @@ Objetivos entre todas las personas («entre todos, 40 partidas en diciembre») c
 
 *Personas → Logros → Retos* (entrada hija de «Logros», `ChallengeResource`, slug `retos`), con la política `ChallengePolicy`: `achievements.view_any` o `manage` para ver la tabla, `achievements.manage` para crear, editar, cerrar y borrar. Un reto cerrado no se edita ni se vuelve a abrir; solo se borra uno que nunca se consiguió (diálogo y casilla obligatoria en los dos casos). La tabla cabe en todos los anchos: acciones en el menú **⋯** con «Ver detalles» primero y columnas secundarias con `visibleFrom()`. En una impersonación de solo lectura se rechaza todo, como en el resto del panel.
 
-Cada reto tiene nombre (80 caracteres), descripción (300), primer y último día (días de calendario de la zona de visualización, los dos incluidos), quién participa (todas las personas o solo socios), la recompensa (un logro activo, no secreto y que solo se concede a mano; mientras un reto lo use, el logro no se puede borrar) y una regla. Tabla `achievements_challenges`.
+Cada reto tiene nombre (80 caracteres), descripción (300), primer y último día (días de calendario de la zona de visualización, los dos incluidos), quién participa (todas las personas o solo socios), la recompensa y una regla. Tabla `achievements_challenges`.
+
+- **Recompensa.** Un logro activo, no secreto y que solo se concede a mano (`ChallengeRewardRule`), comprobado al elegirlo, al enseñar el reto y al conceder. Mientras un reto lo use, el logro no se puede borrar (`AchievementPolicy::delete()`). Mientras el reto se siga contando, el formulario de logros tampoco deja desactivarlo, hacerlo secreto ni darle una regla. En un reto para socios, ver la recompensa en un perfil ya insinúa que esa persona es socia; la guía lo avisa.
+- **Reto conseguido.** Lo que cuenta, sus fechas, quién participa y la recompensa quedan fijos (`ChallengePolicy::changeWhatCounts()`, campos desactivados, y el servidor descarta lo que llegue de ellos); solo cambian nombre y descripción. Si ya ha empezado, el formulario avisa de que cambiar lo que se cuenta cambia el progreso.
+- **Borrar.** Se decide otra vez bajo el bloqueo de la fila (`deleteUnlessCompleted()`): un reto que se completó mientras el diálogo estaba abierto no se borra.
 
 ### Regla
 
@@ -176,7 +180,11 @@ JSON con versión, como la de los logros (`ChallengeRule`):
 
 ### Cómo se cuenta
 
-`ChallengeEvaluatorInterface` (`ChallengeEvaluator`) lee del registro de actividad los hechos de la actividad entre las 0:00 del primer día y las 23:59 del último en la zona de visualización (`TimezoneServiceInterface::displayDayRange()`), aplica los filtros (`ChallengeCalculator`, puro) y guarda el total, cuántas personas contribuyeron y la aportación de cada una (`achievements_challenge_contributors`). Un reto *solo socios* pregunta al core quién es socio (`AssociationMembersAmongInterface`), nunca compara nombres de rol; si no se puede leer, el reto se deja como estaba y se reintenta.
+`ChallengeEvaluatorInterface` (`ChallengeEvaluator`) lee del registro de actividad los hechos de la actividad entre las 0:00 del primer día y las 23:59 del último en la zona de visualización (`TimezoneServiceInterface::displayDayRange()`), sin los de cuentas anonimizadas, aplica los filtros (`ChallengeCalculator`, puro) y guarda el total, cuántas personas contribuyeron y la aportación de cada una (`achievements_challenge_contributors`).
+
+- **Solo socios.** Pregunta al core quién es socio (`AssociationMembersAmongInterface`), nunca compara nombres de rol; si no se puede leer, el reto se deja como estaba y se reintenta. Lo que responde se guarda (`achievements_challenge_audience`): dentro de las fechas se vuelve a preguntar en cada recuento; pasado el último día queda congelado, y solo se pregunta una vez por quien aparece entonces con un hecho tardío.
+- **Cambios concurrentes.** `saveProgress()` comprueba bajo el bloqueo que el reto no se guardó desde el panel desde que se cargó (`updated_at`, que un recuento nunca toca); si se guardó, descarta el recuento y no concede nada.
+- **SQL o PHP.** Los filtros por atributo viven en JSON y los socios se preguntan al core, así que la suma se hace en PHP sobre los hechos del periodo (una consulta por el índice de `occurred_at`).
 
 Se cuenta en `EvaluateChallengesJob` (único mientras espera en la cola):
 
@@ -189,16 +197,21 @@ Un reto se cuenta desde su primer día hasta 30 días después del último (`Cha
 
 ### Recompensa
 
-En cuanto el total llega al objetivo, el reto queda *Conseguido* para siempre (`completed_at`, el instante del hecho que lo alcanzó), aunque el total baje después. Cada persona que contribuyó recibe la recompensa con origen `challenge` a través de `AchievementGranterInterface`, y también quien contribuya después mientras se siga contando. No se concede a quien ya la tiene ni a quien se la retiraron a mano. Se anuncia (`AchievementGranted` con `silent` falso) solo si el reto se consiguió, o la persona contribuyó, en los últimos 14 días y la cuenta no venía de un recálculo. Con la recompensa desactivada no se concede nada hasta que vuelva.
+En cuanto el total llega al objetivo, el reto queda *Conseguido* para siempre (`completed_at`, el instante del hecho que lo alcanzó), aunque el total baje después. Cada persona que contribuyó recibe la recompensa con origen `challenge` a través de `AchievementGranterInterface`, y también quien contribuya después mientras se siga contando. No se concede a quien ya la tiene ni a quien se la retiraron a mano, ni mientras la recompensa no cumpla `ChallengeRewardRule`.
+
+Solo conceden los recuentos con aviso, y cada concesión se anuncia (`AchievementGranted` con `silent` falso): el momento que cuenta es cuando se descubre. Un recuento silencioso (un recálculo) guarda el total y la completación, y el siguiente recuento con aviso concede, como mucho a la noche siguiente. Los anuncios los envía #6 (`achievements.announcements`).
 
 ### En la web
 
-- **`/logros`**: antes del catálogo, los retos en marcha, los que empiezan en los próximos 30 días y los que terminaron hace menos de 30 (`ChallengeBoardInterface`), con barra de progreso, fechas, recompensa y cuántas personas contribuyeron. Con la sesión iniciada, cuántas veces participó esa persona. De un reto conseguido, cuántas personas tienen la recompensa y hasta doce de ellas, con la tarjeta del perfil del core (`ProfileCardServiceInterface::card()`): solo perfiles que quien mira puede ver, solo con su nombre público y nunca quien oculta sus logros.
+- **`/logros`**: antes del catálogo, los retos en marcha, los que empiezan en los próximos 30 días y los que terminaron hace menos de 30 (`ChallengeBoardInterface`), con barra de progreso, fechas (con el año si cruzan de un año a otro), recompensa y cuántas personas contribuyeron. Un reto nunca contado dice «Aún no se ha contado» en vez de un 0, y no sale uno sin fuente, con su tipo apagado o con una recompensa que ya no lo es.
+  - Con la sesión iniciada, cuántas veces participó esa persona; en un reto para socios, solo si lo es.
+  - De un reto conseguido, hasta doce de las personas que tienen la recompensa, con la tarjeta del perfil del core (`ProfileCardServiceInterface::card()`, como mucho 16 tarjetas, guardado 5 minutos por visor): solo perfiles que quien mira puede ver, solo con su nombre público y nunca quien oculta sus logros. En un reto para socios, solo tarjetas que ya enseñan la insignia de socio (`showsMembership`), más la del propio visor.
+  - Nunca se dice cuántas personas tienen la recompensa junto a cuántas contribuyeron: juntos delatarían una retirada. Ninguna fecha por persona.
 - **Bloque `achievements.challenge`** («Reto de la asociación»), para el pie de página, las ventanas emergentes y la página de enlaces: el reto elegido en sus ajustes o, sin elegir, el reto en marcha que antes termina (si no hay, el siguiente en empezar). Sin reto que enseñar no se dibuja. Solo da totales; la lista de personas solo está en `/logros`.
 
 Nada de esto nombra una mesa, una sesión o un evento: solo totales.
 
-Al anonimizar una cuenta se borran sus aportaciones; el total se recalcula en la siguiente cuenta.
+Al anonimizar una cuenta se borran sus aportaciones y lo guardado sobre si era socia, y deja de figurar como quien creó o cerró un reto; el total se recalcula en la siguiente cuenta.
 
 ## Catálogo inicial
 
