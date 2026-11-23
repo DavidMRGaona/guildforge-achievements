@@ -1,118 +1,79 @@
 ---
 id: achievements.site.achievements
 title: Tus logros
-summary: Qué son los logros, cómo se consiguen, las temporadas y las rachas, cómo funcionan los retos de la asociación, qué es la rareza, los puntos, los niveles y la clasificación, cómo destacar tres junto a tu nombre, cómo ocultarlos y qué avisos llegan.
+summary: Qué son los logros, cómo se consiguen, cuánto te falta, las temporadas y las rachas, la rareza y dónde salen tus logros.
 category: community
 audience: site
 order: 40
-keywords: [logros, insignias, medallas, trofeos, conseguir, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, destacar, destacados, estrella, junto a mi nombre, foro, tarjeta, perfil, ocultar, privacidad, catálogo, aviso, avisos, campana, anunciar, anuncio, logros raros, clasificación, ajustes de la cuenta, puntos, nivel, niveles, ranking, puesto, temporada, salir de la clasificación, comunidad, personas distintas, cada año, racha, meses seguidos, constancia, retos, reto, objetivo común, entre todos, recompensa, barra de progreso]
-related: [core.site.public-profile]
+keywords: [logros, insignias, medallas, trofeos, conseguir, cómo se consigue, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, catálogo, temporada, cada año, racha, meses seguidos, constancia, comunidad, personas distintas, perfil, fecha]
+related: [achievements.site.privacy, achievements.site.showcase, achievements.site.notices, achievements.site.points, achievements.site.challenges, core.site.public-profile]
 ---
-Un logro es una insignia que se consigue con lo que haces en {{site_name}}: jugar o dirigir partidas, probar sistemas distintos, ir a eventos, participar en torneos, cumplir años en la web… Se concede solo, en cuanto cumples lo que pide, y no se pierde nunca: aunque una partida deje de contar, lo conseguido se queda.
+Un logro es una insignia que se consigue con lo que haces en {{site_name}}: jugar o dirigir partidas, probar sistemas distintos, ir a eventos, participar en torneos, cumplir años en la web… Cada logro dice lo que pide, por ejemplo «Juega 10 partidas».
+
+## Cómo se consiguen
+
+- **Solos.** La mayoría se conceden en cuanto cumples lo que piden. No tienes que hacer nada más.
+- **A mano.** El equipo de {{site_name}} concede algunos a mano, a una persona o a todas las que estuvieron en algo, como un evento. En tu perfil, entre los que te faltan, un logro así dice «Se concede a mano».
+- **Con un reto.** Algunos son la recompensa de un reto entre todas las personas. Lo explica la guía «Retos de la asociación».
+
+Lo conseguido se queda: aunque una partida deje de contar después, no pierdes el logro. Solo el equipo puede retirar uno, a mano.
+
+Solo cuenta lo que los módulos de la web registran. Si un logro pide algo que la web no lleva, como torneos sin el módulo de torneos, no se ofrece.
 
 ## Ver todos los logros
 
-En el menú, abre **Logros**. Ahí están los que se pueden conseguir ahora, con su descripción y su **rareza**. Con la sesión iniciada, también ves cuáles tienes, aunque ya no se puedan conseguir.
+En el menú, abre **Logros**. Ahí están los que se pueden conseguir ahora, con su descripción y su rareza. Con la sesión iniciada, también ves cuántos tienes («Tienes 5 de 22») y cuáles («Lo tienes»), aunque ya no se puedan conseguir.
 
-Algunos son **secretos**: salen como «Logro secreto», sin nombre ni descripción, hasta que los consigues.
+Algunos son **secretos**: salen como «Logro secreto», con «Se descubre al conseguirlo.» en lugar de su descripción, hasta que los consigues.
+
+[[action:achievements.index|Ver todos los logros]]
+
+## Cuánto te falta
+
+En tu perfil público, la sección **Logros** te enseña, solo a ti, los que te faltan y cuánto llevas: «7 de 10» o, en una racha, «2 de 6 meses seguidos». Los secretos que te faltan salen como «Logro secreto», sin progreso. Si la asociación ha apagado el progreso, no sale lo que te falta.
 
 ## Temporadas y rachas
 
-Algunos logros se pueden volver a conseguir cada **temporada**, que dura un año natural: en **Logros** llevan «Cada temporada». Solo cuenta lo que haces ese año, y el 1 de enero empieza otra temporada desde cero. Los que ya conseguiste se quedan, con su año: «Conseguido en 2025 y 2026».
+Algunos logros se pueden volver a conseguir cada **temporada**, que dura un año natural: en **Logros** llevan «Cada temporada». Solo cuenta lo que haces ese año, y el 1 de enero empieza otra temporada desde cero. Los que ya conseguiste se quedan, con su año: en tu perfil, «Conseguido en 2025 y 2026».
 
 Otros piden una **racha**: actividad en varios meses seguidos, por ejemplo una partida al mes durante tres meses. Si un mes no haces nada, la racha vuelve a empezar. Algunas rachas también se repiten cada temporada.
 
-En **Logros**, con la sesión iniciada, cada logro por temporada te dice si ya lo tienes este año, cuánto llevas («Esta temporada: 3 de 10») y en qué temporadas anteriores lo conseguiste. Eso solo lo ves tú.
+En **Logros**, con la sesión iniciada, cada logro por temporada te dice si ya lo tienes este año («Lo tienes esta temporada»), cuánto llevas («Esta temporada: 3 de 10») y en qué temporadas anteriores lo conseguiste («También en 2025»). Eso solo lo ves tú.
 
-## Retos de la asociación
-
-A veces hay retos entre todas las personas, como «entre todos, 40 partidas en diciembre». Salen al principio de la página **Logros**, con una barra que dice cuánto se lleva, sus fechas y el logro de recompensa. También pueden salir en el pie de página, en una ventana o en la página de enlaces.
-
-No se compite: todo lo que haces dentro de las fechas suma al total. Algunos retos son solo para socios, y entonces solo suma lo que hacen los socios. Con la sesión iniciada ves al momento cuántas veces has participado tú.
-
-Un reto dura al menos 28 días. En un reto para socios, el total y cuántas personas han contribuido se actualizan una vez al día, por la noche. Así, el total no cambia justo al acabar una partida y no dice quién estaba en ella.
-
-Cuando se llega al objetivo, cada persona que contribuyó recibe el logro de recompensa en ese momento, con un aviso en la campana, aunque los demás no vean el reto conseguido hasta la noche. También lo recibe quien contribuye después con algo que ocurrió dentro de las fechas, si se registra como mucho 30 días después del último día. En un reto para socios, lo que se registra pasado el último día cuenta así: si ya contabas en el reto, vale si eras socio la última vez que se miró dentro de las fechas; si es la primera vez que apareces, se mira si eres socio cuando se descubre.
-
-Los retos solo enseñan totales: nunca dicen qué partidas o eventos han contado. De un reto conseguido se nombra a algunas de las personas que lo tienen, solo si puedes ver su perfil y con su nombre público. Si ocultas tus logros, no se te nombra. En un reto para socios, solo se nombra a quien ya enseña en su perfil que es socio. Esa lista solo crece el día 1 de cada mes: si consigues la recompensa a mitad de mes, tu nombre sale a partir del día 1 siguiente, sin decir cuándo la conseguiste.
-
-Ten en cuenta que la recompensa de un reto para socios, vista en tu perfil, deja entrever que eres socio. Por eso, si anuncias tus logros raros, esa recompensa solo sale en el resumen mensual cuando tu perfil ya enseña que eres socio.
-
-## Tus logros en tu perfil
-
-En tu perfil público, la sección **Logros** enseña los que tienes y su rareza. Tú ves el día en que conseguiste cada uno; los demás solo ven el mes y el año («noviembre de 2026»), porque quienes juegan juntos consiguen sus logros a la vez y la hora exacta diría con quién jugaste. Tú ves además los que te faltan y cuánto llevas («7 de 10»; en una racha, «2 de 6 meses seguidos»); los demás no ven lo que te falta. Un logro por temporada sale una vez, con los años en que lo conseguiste, y mientras no tengas el de este año también sale entre los que te faltan, con lo que llevas esta temporada.
-
-Los logros solo dicen totales: «10 partidas», «3 sistemas», «5 meses seguidos», «Temporada 2026». Nunca dicen en qué mesa, sesión o evento estuviste.
+Los días, los meses y los años se cuentan con la hora de {{site_name}}: una partida a las 23:30 del 31 de diciembre es del año que acaba.
 
 ## Logros de comunidad
 
-Algunos logros premian a quien trae y cuida gente: jugar con 10 personas distintas o dirigir partidas a 20 personas distintas. Solo cuentan personas: ni el logro ni tu progreso dicen quiénes son. Si alguien anonimiza su cuenta, deja de contar, pero un logro que ya conseguiste no se pierde.
+Algunos logros premian a quien trae y cuida gente: jugar con 10 personas distintas o dirigir partidas a 20 personas distintas. Solo cuentan personas: ni el logro ni tu progreso dicen quiénes son. Cada persona cuenta una vez, aunque hayáis coincidido muchas veces. Si alguien anonimiza su cuenta, deja de contar, pero un logro que ya conseguiste no se pierde.
 
-Quién ve tu perfil lo decides en **Editar perfil**. Tus logros solo los ve quien puede ver tu perfil. Tus logros secretos no salen uno a uno a quien no los tiene: solo ve cuántos tienes («Y 2 logros secretos»), sin fecha ni rareza, salvo que destaques alguno.
+Tu progreso en estos logros puede tardar unos minutos en reflejar una partida nueva.
 
 ## La rareza
 
-La rareza es la parte de la gente activa que tiene un logro: «Lo tiene el 4 % de la gente activa». Cuenta como activa quien ha participado en algo en los últimos doce meses. Si llevas más de un año sin participar, tus logros salen sin rareza. Se calcula una vez al día, por la noche, y sale en porcentajes enteros («< 1 %» para los más raros).
+La rareza es la parte de la gente activa que tiene un logro: «Lo tiene el 4 % de la gente activa». Cuenta como activa cualquier cuenta con actividad registrada en los últimos doce meses, también haberse dado de alta en ese tiempo. Sale en porcentajes enteros, y «< 1 %» para los más raros. Se calcula una vez al día, por la noche.
 
-## Lo que ven los demás cambia una vez al día
+Un logro que no tiene ninguna persona activa sale sin rareza; en **Logros**, con «Ninguna persona activa lo tiene todavía». Si la asociación ha apagado la rareza, no sale en ningún sitio.
 
-Tú ves tus logros nuevos al momento. Los demás los ven al día siguiente: tu perfil, tu contador de logros y tus destacados se les actualizan por la noche. Así, si juegas con alguien, vuestros logros no aparecen a la vez y nadie puede deducir que jugasteis juntos. Lo que quita cosas, en cambio, se ve al momento: si ocultas tus logros o te retiran uno, deja de verse enseguida.
+## Dónde salen tus logros
 
-## Destacar tres logros
+- En la sección **Logros** de tu perfil público, con su rareza.
+- En el contador **Logros** de tu perfil.
+- Hasta tres logros destacados junto a tu nombre: en tu perfil, en tu tarjeta y en el foro. Lo explica la guía «Destacar u ocultar tus logros».
 
-Junto a tu nombre, en tu perfil, en tu tarjeta y en el foro, salen hasta tres logros destacados. Si no eliges ninguno, salen tus tres logros más raros, sin contar los secretos.
+Tus logros solo los ve quien puede ver tu perfil. Quién lo ve lo decides en **Editar perfil**. Allí también puedes quitar la sección **Logros**, pero entonces desaparece también para ti, con sus estrellas y su interruptor.
 
-Para elegirlos tú:
+## Lo que ven los demás
 
-1. Abre tu perfil público.
-2. En la sección **Logros**, pulsa la **estrella** de un logro que tengas. Se guarda al momento.
-3. Repite hasta tres. Para quitar uno, pulsa otra vez su estrella.
+- **Solo totales.** Un logro dice «10 partidas», «3 sistemas» o «5 meses seguidos». Nunca dice en qué mesa, sesión o evento estuviste, ni con quién.
+- **Tus secretos solo se cuentan.** Quien no tiene uno de tus logros secretos no lo ve: solo ve cuántos tienes («Y 2 logros secretos»), salvo que lo destaques.
+- **Fechas con mes y año.** Tú ves el día en que conseguiste cada logro. Los demás solo ven el mes y el año, como «noviembre de 2026». Quienes juegan juntos consiguen sus logros a la vez, y el día o la hora dirían con quién jugaste.
+- **Una vez al día, por la noche.** Tú ves tus logros nuevos al momento en tu sección. Los demás los ven al día siguiente: tu sección y tu contador se les actualizan cada noche. Los destacados junto a tu nombre también cambian por la noche, para todo el mundo, también para ti. Así, si juegas con alguien, vuestros logros no aparecen a la vez. Lo que quita cosas se ve al momento: si ocultas tus logros o el equipo te retira uno, deja de verse enseguida. En una web que acaba de encender los logros, los demás no ven nada hasta la primera noche.
+- **Tu progreso es solo tuyo.** Nadie más ve lo que te falta ni cuánto llevas.
 
-Un logro que consigues hoy sale destacado desde mañana, como todo lo nuevo que ven los demás. Si destacas un logro secreto, lo enseñas a todo el mundo con su nombre. Si un logro que tenías destacado pasa a ser secreto, deja de estar destacado: vuelve a marcarlo si quieres enseñarlo.
+La guía «Qué ven los demás de tus logros» lo reúne todo.
 
-## Ocultar tus logros
+## Si algo no sale bien
 
-En la sección **Logros** de tu perfil, apaga **Mostrar mis logros a los demás**. Desde ese momento solo los ves tú: desaparecen de tu perfil para los demás, junto con su número y los destacados junto a tu nombre. Puedes volver a encenderlo cuando quieras. Aunque los ocultes, tus logros siguen contando en la rareza, que solo da totales.
-
-Si no quieres la sección en tu perfil pero sí los destacados junto a tu nombre, quítala en **Editar perfil**: allí eliges qué secciones salen.
-
-## Avisos de logros
-
-Cuando consigues un logro, te llega un aviso a la campana: «Has conseguido “Diez partidas”». Si consigues varios a la vez, llegan juntos en un solo aviso. No llegan correos.
-
-No hay aviso de lo que ya tenías ganado antes de que existiera el logro, ni de lo que la asociación concede en lote sin aviso.
-
-Puedes apagar estos avisos en **Ajustes de la cuenta → Avisos**, en **Logros que consigo**.
-
-## Anunciar tus logros raros
-
-Si quieres, la gente que puede ver tu perfil recibe una vez al mes un resumen con tus logros raros del mes anterior: los que tiene poca gente activa (menos del 10 %, o lo que decida la asociación) y los de retos. Por ejemplo: «Ana, Bob y 3 más consiguieron logros raros en noviembre». Viene apagado.
-
-Para encenderlo:
-
-1. Abre **Ajustes de la cuenta** y entra en la pestaña **Logros**.
-2. Enciende **Anunciar mis logros raros**. Se guarda al momento.
-
-El resumen sale el día 1 de cada mes y solo dice el mes y el nombre de cada logro: ni el día, ni la hora, ni en qué mesa, sesión o evento estuviste, ni con quién. Solo llega a quien puede ver tu perfil en ese momento. Un logro secreto solo se nombra a quien también lo tiene, o si lo has destacado; a los demás les llega «un logro secreto». Lo que la asociación concede en lote no se anuncia nunca, y la recompensa de un reto para socios solo se anuncia si tu perfil ya enseña que eres socio. Si ocultas tus logros, no se anuncia ninguno.
-
-Puedes cambiar de idea cuando quieras: cuenta lo que tengas elegido el día del resumen. Un resumen que ya llegó se queda en la campana de quien lo recibió.
-
-Cada persona elige si recibe estos resúmenes en **Ajustes de la cuenta → Avisos**, en **Logros poco comunes de otras personas**.
-
-## Puntos y niveles
-
-Si la asociación los ha encendido, cada logro da unos **puntos**, que ves en su ficha en **Logros**. Tus puntos son la suma de los de todos tus logros, secretos incluidos. En tu perfil salen tus puntos desde siempre y los de la **temporada** en curso, que es el año natural.
-
-Los puntos suben de **nivel**: cada nivel empieza en un número de puntos que decide la asociación. En tu perfil ves tu nivel y, tú solo, cuánto te falta para el siguiente. Los demás ven tu nivel en la fila de datos de tu perfil.
-
-Los puntos y el nivel son totales: nunca dicen en qué mesa o en qué evento se ganaron. Tú ves tus puntos enteros. Los demás ven tu total sin los logros secretos que ellos no tienen, salvo los que hayas destacado: así, nadie puede adivinar qué secreto tienes restando. Por eso tu total y tu nivel pueden ser distintos según quién mire.
-
-Tus puntos y tu nivel los ves al momento. A los demás, lo que consigues les llega al día siguiente: se actualiza una vez al día, de madrugada. Así, si juegas con alguien, nadie ve que vuestros puntos suben a la vez. Lo que se quita se aplica al momento: un logro retirado deja de sumar enseguida, y un cambio de puntos de un logro cambia a la vez los totales de todos. Lo más que puede ver quien siga dos perfiles es que los dos subieron el mismo día. Si no quieres ni eso, oculta tus logros.
-
-## La clasificación
-
-En **Logros**, con la sesión iniciada, **Ver la clasificación** enseña quién tiene más puntos, desde siempre o en una temporada. Solo pueden verla las cuentas con sesión que no tengan pendiente verificar su email.
-
-La clasificación suma lo conseguido hasta la noche anterior, salvo tu propia fila, que ves al momento. En ella solo salen los perfiles que tú puedes ver, con su nombre público y los puntos que tú puedes ver de cada uno, y tu puesto se cuenta solo entre ellos. No salen las cuentas desactivadas o anonimizadas, las que no tienen nombre público, quien oculta sus logros ni quien ha elegido no salir.
-
-Apareces en ella salvo que no quieras. Para salir, apaga **Aparecer en la clasificación** en **Ajustes de la cuenta → Logros**, o en la sección **Logros** de tu perfil público mientras haya clasificación: es el mismo ajuste y se guarda al momento. En la pestaña puedes elegirlo aunque la clasificación todavía esté apagada. Puedes volver a encenderlo cuando quieras. Si ocultas tus logros, tampoco sales en la clasificación.
+- **Has hecho lo que pide y no tienes el logro.** Algunas actividades se registran cuando se cierran, por ejemplo una mesa que se marca como jugada días después. El logro llega entonces. Comprueba también que lo que hiciste cumple todo lo que pide el logro, como el papel (jugar o dirigir) o el sistema.
+- **Otra persona no ve tu logro nuevo.** Es normal: lo verá a partir de la noche.
+- **Un logro sale sin rareza.** Ninguna persona activa lo tiene todavía, o aún no se ha calculado la primera noche.

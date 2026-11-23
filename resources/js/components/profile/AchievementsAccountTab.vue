@@ -144,7 +144,7 @@ function help(choice: Choice): string {
             <h2 class="text-xl font-semibold text-base-primary">
                 {{ t('achievements.account.title') }}
             </h2>
-            <HelpLink guide="achievements.site.achievements" />
+            <HelpLink guide="achievements.site.privacy" />
         </div>
 
         <ul class="space-y-3" role="list">

@@ -1,6 +1,6 @@
 # Logros
 
-Logros, niveles y reconocimientos entre las personas de la asociación.
+Logros, puntos, niveles y retos entre las personas de la asociación.
 
 ## Requisitos
 
@@ -11,7 +11,25 @@ El core rechaza el módulo si no se cumplen (`module.json` → `requires`).
 
 ## Qué hace
 
-Un catálogo de logros que se conceden solos con lo que cada persona hace en la asociación, a partir del registro de actividad, o a mano y en lote desde el panel, con su historial, y que se ven en el perfil público, junto al nombre (perfil, tarjeta y foro) y en la página `/logros`. Los logros pueden repetirse cada temporada o pedir rachas de meses seguidos. Avisa en la campana de lo que cada persona consigue y, si la persona quiere, anuncia sus logros raros en un resumen mensual a quien puede ver su perfil; sus elecciones están en la pestaña «Logros» de los ajustes de la cuenta. También retos de la asociación: objetivos entre todas las personas con un logro de recompensa. Cada mecánica restante llega con su propia issue.
+- **Catálogo de logros** que se conceden solos con lo que cada persona hace en la asociación, a partir del registro de actividad, o a mano y en lote desde el panel, con su historial. Pueden ser secretos, repetirse cada temporada, pedir rachas de meses seguidos o contar personas distintas (comunidad).
+- **En la web**: la sección «Logros» del perfil público, el contador del perfil, hasta tres insignias destacadas junto al nombre (perfil, tarjeta y foro), la página `/logros` con la rareza de cada logro y la pestaña «Logros» de los ajustes de la cuenta.
+- **Avisos**: en la campana, de lo que cada persona consigue y, si la persona quiere, un resumen mensual de sus logros raros y de retos para quien puede ver su perfil.
+- **Puntos, niveles y clasificación**, apagados de partida.
+- **Retos de la asociación**: objetivos entre todas las personas con un logro de recompensa, apagados de partida.
+- **Guías de ayuda** para la web y el panel (ver «Guías de ayuda»).
+
+La sección «Reconocimientos» de los ajustes ya tiene su interruptor y su plazo, pero todavía no hay nada que los use.
+
+## Privacidad
+
+Quien juega con alguien consigue sus logros a la vez. Todo lo que ven los demás está pensado para que nadie pueda deducir con quién jugó una persona, en qué mesa o a qué evento fue. Son decisiones del producto, y cada sección de abajo cuenta cómo se cumplen:
+
+- **Solo totales.** Quién jugó una partida, fue a un evento o hizo una reserva no es público, así que los logros, los puntos y los retos solo dan totales («10 partidas»), nunca la cosa concreta.
+- **Los secretos ajenos solo se cuentan.** A quien no tiene un logro secreto de otra persona solo le llega cuántos tiene, y no le suman a sus puntos, salvo los que el dueño destaca.
+- **Fechas con mes y año.** El dueño ve el instante; los demás, el mes de la zona de visualización.
+- **La foto de cada noche.** Lo que ven los demás (lista, contador, destacadas, puntos, nivel, clasificación y rareza) sale de la foto que se toma cada noche a las 03:30. Lo que solo quita cosas se aplica al momento.
+- **Resumen mensual.** A los demás los logros les llegan solo en el resumen del día 1, con el mes y el nombre.
+- **Retos.** Duran al menos 28 días; los de socios se enseñan con el recuento de la noche y la lista de quién los consiguió solo crece el día 1 de cada mes.
 
 ## Registro de actividad
 
@@ -56,7 +74,7 @@ JSON versionado en la columna `rule`, leído por `AchievementRule::tryFrom()`:
 - `manual`: nunca se concede solo.
 - La lectura nunca lanza excepciones, y lo que no entiende deja la regla **ilegible**, nunca «cumplida por todo el mundo»: otra versión, una métrica, tipo, papel, base o ventana desconocidos, una clave inesperada, un valor del tipo equivocado o fuera de rango. Un logro con la regla ilegible no se evalúa y se avisa una vez al día.
 - `window` (`RuleWindow`) dice qué hechos cuentan. Sin ella, o con `all_time`, todos, y el logro se concede una vez. Con `season`, solo los de una temporada (un año natural en la zona de visualización), y se concede una vez en cada temporada en que se cumpla. Con `streak`, `months` meses naturales seguidos (de 2 a 36) con al menos `threshold` cosas cada uno; un mes sin ellas corta la racha. Se concede una vez, o una vez por temporada con `per_season` (la racha no pasa de una temporada a la siguiente, y entonces tiene 12 meses como mucho). La racha solo vale para `count`, los años nunca tienen ventana y un logro `manual` puede ser por temporada (se concede a mano una vez cada año).
-- Sitio para lo que viene: los retos serán métricas nuevas. Hasta que una versión las lea, una regla que las use es ilegible para las anteriores (como lo es una ventana de temporada o de racha para las versiones de antes de ellas).
+- Sitio para lo que viene: una métrica o una ventana nuevas llegan con la versión que las lee. Para las anteriores, una regla que las use es ilegible, como lo es una ventana de temporada o de racha para las versiones de antes de ellas. Los retos no usan esta regla: tienen la suya (ver «Retos de la asociación»).
 - `filters.attribute.label` es solo el nombre del valor al guardar, para el panel; no interviene en la evaluación.
 
 El formulario construye la regla con los tipos que ofrecen las fuentes activas ahora (más el del logro que se edita, marcado «sin fuente») y con los atributos y valores que ofrecen (`OffersActivityAttributes`). *Cuándo cuenta* (siempre, por temporada o racha de meses seguidos, con sus meses y si va *Dentro de cada temporada*) sale mientras *Temporadas y rachas* está encendido, y siempre en un logro que ya tiene una ventana, para poder verla y quitarla. Una combinación que `AchievementRule` no lee se rechaza al guardar.
@@ -299,7 +317,7 @@ Es idempotente: crea solo los que faltan (por su `starter_key`) y deja como est�
 | Permiso | Para qué |
 |---|---|
 | `achievements.view_any` | Ver los logros en el panel |
-| `achievements.manage` | Catálogo, retos (crear, editar, cerrar y borrar) y tipos de reconocimiento (sugerido para el rol `editor`). Ve quién tiene cada logro, también tras un lote, es decir, quién participó: dalo solo a quien ya ve esas participaciones en su módulo |
+| `achievements.manage` | Catálogo y retos: crear, editar, cerrar y borrar (sugerido para el rol `editor`). Su etiqueta nombra también los tipos de reconocimiento, que aún no existen. Ve quién tiene cada logro, también tras un lote, es decir, quién participó: dalo solo a quien ya ve esas participaciones en su módulo |
 | `achievements.grant` | Conceder, conceder en lote y retirar logros (sin rol por defecto). Ve a quién se concede en lote, es decir, quién participó: dalo solo a quien ya ve esas participaciones en su módulo |
 | `achievements.configure` | La página de ajustes (sin rol por defecto) |
 
@@ -309,12 +327,12 @@ Es idempotente: crea solo los que faltan (por su `starter_key`) y deja como est�
 
 | Ajuste | Por defecto |
 |---|---|
-| Progreso visible, rareza, logros secretos, temporadas y rachas, logros de comunidad | Encendidos |
+| Progreso visible, rareza, logros secretos, temporadas y rachas, logros de comunidad | Encendidos (los logros secretos, apagados si el valor guardado está mal formado) |
 | Concesión en lote | Apagada (también si el valor guardado está mal formado) |
 | Anuncios de logros raros | Encendido, con umbral de rareza del 10 % |
-| Puntos, niveles, clasificación, retos | Apagados; los niveles y la clasificación necesitan los puntos |
+| Puntos, niveles, clasificación, retos | Apagados; los niveles y la clasificación necesitan los puntos (el formulario deja encenderlos, pero no se enseñan sin puntos) |
 | Escala de niveles | Seis niveles de partida: Primeros pasos (0), Aprendiz (20), Habitual (50), Pilar del grupo (100), Referente (175), Leyenda (275) |
-| Reconocimientos | Apagados, con un plazo de 14 días |
+| Reconocimientos | Apagados, con un plazo de 14 días. Solo existe el ajuste: todavía no hay nada que lo use |
 | Un interruptor por tipo de actividad | Encendidos (un tipo sin interruptor cuenta) |
 
 El resto del módulo lee los ajustes a través de `AchievementsSettingsInterface` (`progressEnabled()`, `rarityEnabled()`, `announcementsRarityThreshold()`, `metricKindEnabled($kind)`…), nunca de la tabla.
@@ -323,10 +341,13 @@ El resto del módulo lee los ajustes a través de `AchievementsSettingsInterface
 
 1. Descarga `achievements-X.Y.Z.zip` de la última release de `DavidMRGaona/guildforge-achievements` en GitHub.
 2. En el panel, activa el modo mantenimiento (**Sistema → Configuración → Configuración del sitio** → pestaña **Mantenimiento**).
-3. En **Módulos**, pulsa **Instalar / actualizar** y sube el ZIP.
-4. Pulsa **Habilitar** en el módulo: la primera vez ejecuta sus migraciones y crea el catálogo inicial.
+3. En **Módulos**, pulsa **Instalar**, sube el ZIP y pulsa **Instalar / actualizar**.
+4. Pulsa **Habilitar** en el módulo: la primera vez ejecuta sus migraciones, crea el catálogo inicial y añade «Logros» al menú de la cabecera.
 5. Desactiva el modo mantenimiento.
-6. Ejecuta `php artisan achievements:recalculate` una vez, para registrar la actividad anterior a la instalación.
+6. Ejecuta `php artisan achievements:recalculate` una vez, para registrar la actividad anterior a la instalación. Concede en silencio lo que ya se cumplía.
+7. Da los permisos (ver «Permisos»): `achievements.configure` y `achievements.grant` no tienen rol por defecto.
+
+Hasta la primera foto nocturna (a las 03:30 de la zona de visualización), cada persona ve sus logros, pero los demás no ven nada ni hay rareza. Las mecánicas apagadas de partida (puntos, niveles, clasificación, retos, concesión en lote) se encienden en *Sistema → Configuración → Logros*.
 
 Las versiones nuevas se aplican desde **Actualizaciones de módulos** (también con el modo mantenimiento activo) o con `php artisan module:update achievements`.
 
@@ -346,6 +367,25 @@ docker exec guildforge_node npm run build:module -- achievements
 ```
 
 En las releases los assets los compila el CI y van dentro del ZIP.
+
+## Guías de ayuda
+
+En `resources/knowledge/es/`, comprobadas con `php artisan knowledge:lint --module=achievements` (y en los tests, `KnowledgeGuidesTest`):
+
+| Guía | Público | Ayuda contextual |
+|---|---|---|
+| `achievements.site.achievements` «Tus logros» | Web | `/logros` |
+| `achievements.site.showcase` «Destacar u ocultar tus logros» | Web | |
+| `achievements.site.notices` «Avisos y anuncios de logros» | Web | |
+| `achievements.site.points` «Puntos, niveles y clasificación» | Web | `/logros/clasificacion` |
+| `achievements.site.challenges` «Retos de la asociación» | Web | Retos de `/logros` |
+| `achievements.site.privacy` «Qué ven los demás de tus logros» | Web | Pestaña «Logros» de la cuenta |
+| `achievements.panel.catalogue` «Catálogo de logros y sus reglas» | Panel (`view_any`, `manage` o `grant`) | Lista y edición de logros |
+| `achievements.panel.grants` «Conceder y retirar logros a mano» | Panel (`grant` o `manage`) | Ficha de un logro |
+| `achievements.panel.challenges` «Retos de la asociación» | Panel (`view_any` o `manage`) | Lista y edición de retos |
+| `achievements.panel.settings` «Ajustes de los logros y recálculo» | Panel (`configure`) | Página de ajustes |
+
+Cada guía de la web dice qué ven los demás de lo que explica; la de privacidad lo reúne todo. Una mecánica nueva añade su parte a la guía que le toca y, si cambia lo que ven los demás, también a la de privacidad.
 
 ## Tests
 

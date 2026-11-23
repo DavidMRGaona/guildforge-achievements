@@ -405,7 +405,7 @@ return [
             'rarity' => 'Muestra qué parte de la gente activa tiene cada logro.',
             'secrets' => 'Hay logros que no se enseñan hasta conseguirlos.',
             'seasons_and_streaks' => 'Logros que se repiten cada temporada y rachas de meses seguidos.',
-            'community' => 'Logros por jugar con gente distinta, dirigir a muchas personas y dirigir la primera partida de alguien. Solo se cuentan personas, nunca se dice quiénes.',
+            'community' => 'Logros por jugar con gente distinta y dirigir a muchas personas. Solo se cuentan personas, nunca se dice quiénes.',
             'bulk_grants' => 'Quien pueda conceder logros puede darlos a varias personas a la vez.',
             'announcements' => 'Un resumen mensual, el día 1, de los logros poco frecuentes y de los de retos que consiguió otra persona el mes anterior, si esa persona lo permite en su pestaña «Logros».',
             'announcements_rarity_threshold' => 'Solo se anuncian los logros que tiene menos de este porcentaje de la gente activa. Los de retos se anuncian siempre.',
