@@ -6,6 +6,7 @@ namespace Modules\Achievements\Domain\Repositories;
 
 use DateTimeImmutable;
 use Modules\Achievements\Domain\Recognitions\Recognition;
+use Modules\Achievements\Domain\Recognitions\RecognitionRefusal;
 use Modules\Achievements\Domain\Recognitions\RecognitionType;
 
 /**
@@ -14,10 +15,10 @@ use Modules\Achievements\Domain\Recognitions\RecognitionType;
 interface RecognitionRepositoryInterface
 {
     /**
-     * Stores one; null when the giver already recognised that person for that subject (also when a
-     * concurrent request won), or when either account is anonymized (read under a shared lock).
+     * Stores one, or says why not: already given (also when a concurrent request won), or either
+     * account anonymized or gone (read under a shared lock).
      */
-    public function give(string $typeId, string $giverId, string $receiverId, string $sourceType, string $subjectId, string $kind, DateTimeImmutable $givenAt): ?Recognition;
+    public function give(string $typeId, string $giverId, string $receiverId, string $sourceType, string $subjectId, string $kind, DateTimeImmutable $givenAt): Recognition|RecognitionRefusal;
 
     public function find(string $id): ?Recognition;
 

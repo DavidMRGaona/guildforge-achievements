@@ -101,7 +101,9 @@ final class AccountRecognitions extends TableWidget
             ->label($this->text('delete.label'))
             ->icon('heroicon-o-trash')
             ->color('danger')
-            ->authorize(fn (): bool => RecognitionModerationAccess::allows($this->userId))
+            ->visible(fn (): bool => RecognitionModerationAccess::allowsDeleting($this->userId))
+            // Filament asks again when the action runs, on the server
+            ->authorize(fn (): bool => RecognitionModerationAccess::allowsDeleting($this->userId))
             ->requiresConfirmation()
             ->modalHeading($this->text('delete.heading'))
             ->modalDescription($this->text('delete.description'))

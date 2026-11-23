@@ -54,7 +54,26 @@ function confirm(): void {
 }
 
 function cancel(): void {
-    emit('cancel');
+    // While it is being removed, nothing closes the dialog: the answer decides what comes next
+    if (!props.busy) {
+        emit('cancel');
+    }
+}
+
+/** Escape: the browser would close it at once, so the dialog decides instead */
+function onCancel(event: Event): void {
+    event.preventDefault();
+    cancel();
+}
+
+/**
+ * The browser may close it without `cancel` (a form method, another script): the parent is told,
+ * so `open` never stays true over a closed dialog.
+ */
+function onClose(): void {
+    if (props.open) {
+        emit('cancel');
+    }
 }
 
 function onBackdrop(event: MouseEvent): void {
@@ -70,9 +89,11 @@ function onBackdrop(event: MouseEvent): void {
             ref="dialogRef"
             class="fixed inset-0 m-auto max-w-md rounded-lg border-0 bg-transparent p-0 backdrop:bg-neutral-900/60"
             aria-labelledby="remove-recognition-title"
+            aria-describedby="remove-recognition-message"
             data-test="remove-dialog"
             @click="onBackdrop"
-            @cancel.prevent="cancel"
+            @cancel="onCancel"
+            @close="onClose"
         >
             <div
                 v-if="open"
@@ -81,7 +102,7 @@ function onBackdrop(event: MouseEvent): void {
                 <h3 id="remove-recognition-title" class="text-lg font-semibold text-base-primary">
                     {{ t('achievements.recognitions.removeTitle') }}
                 </h3>
-                <p class="mt-2 text-base-secondary">
+                <p id="remove-recognition-message" class="mt-2 text-base-secondary">
                     {{ t('achievements.recognitions.removeMessage', { type: typeName }) }}
                 </p>
                 <label class="mt-4 flex min-h-[44px] items-start gap-3 text-sm text-base-primary">

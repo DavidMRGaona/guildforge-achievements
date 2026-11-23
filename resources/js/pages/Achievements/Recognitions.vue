@@ -38,6 +38,10 @@ const error = ref<string | null>(null);
 /** The received recognition the dialog asks about, and the button that opened it (focus goes back there) */
 const removing = ref<OwnRecognition | null>(null);
 let opener: HTMLElement | null = null;
+/** Where that recognition was in the list: once it is gone, focus goes to the row now in its place */
+let removingIndex = 0;
+const receivedSection = ref<HTMLElement | null>(null);
+const receivedHeading = ref<HTMLElement | null>(null);
 
 function key(subject: RecognitionSubject, person: RecognisablePerson): string {
     return `${subject.sourceType}|${subject.subjectId}|${person.handle}`;
@@ -109,13 +113,32 @@ function askToRemove(recognition: OwnRecognition, event: Event): void {
     }
 
     opener = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+    removingIndex = Math.max(
+        0,
+        props.received.findIndex((item) => item.id === recognition.id)
+    );
     removing.value = recognition;
 }
 
-async function closeDialog(): Promise<void> {
+/**
+ * Closing without removing puts focus back on the button that opened it. Once removed, that row is
+ * gone: focus goes to «Quitar» of the row now in its place, else the one before, else the heading.
+ */
+async function closeDialog(removed = false): Promise<void> {
     removing.value = null;
     await nextTick();
-    opener?.focus();
+
+    if (removed) {
+        const buttons = Array.from(
+            receivedSection.value?.querySelectorAll<HTMLElement>('[data-test="remove"]') ?? []
+        );
+        const target =
+            buttons[Math.min(removingIndex, buttons.length - 1)] ?? receivedHeading.value;
+        target?.focus();
+    } else {
+        opener?.focus();
+    }
+
     opener = null;
 }
 
@@ -128,9 +151,13 @@ function remove(): void {
 
     saving.value = recognition.id;
     error.value = null;
+    let removed = false;
 
     router.delete(`${props.storeUrl}/${encodeURIComponent(recognition.id)}`, {
         preserveScroll: true,
+        onSuccess: () => {
+            removed = true;
+        },
         onHttpException: (response: { status?: number; data?: unknown }) => {
             error.value = refusal(response);
 
@@ -143,7 +170,7 @@ function remove(): void {
         },
         onFinish: () => {
             saving.value = null;
-            void closeDialog();
+            void closeDialog(removed);
         },
     });
 }
@@ -270,8 +297,13 @@ function remove(): void {
             </ul>
         </section>
 
-        <section aria-labelledby="recognitions-received" data-test="received">
-            <h2 id="recognitions-received" class="text-xl font-bold text-base-primary">
+        <section ref="receivedSection" aria-labelledby="recognitions-received" data-test="received">
+            <h2
+                id="recognitions-received"
+                ref="receivedHeading"
+                tabindex="-1"
+                class="text-xl font-bold text-base-primary focus:outline-none"
+            >
                 {{ t('achievements.recognitions.receivedTitle') }}
             </h2>
             <p v-if="received.length === 0" class="mt-3 text-base-secondary">
@@ -311,6 +343,12 @@ function remove(): void {
                         type="button"
                         class="inline-flex min-h-[44px] items-center rounded-md px-3 text-sm font-medium text-base-secondary hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-50"
                         :disabled="saving !== null"
+                        :aria-label="
+                            t('achievements.recognitions.removeLabel', {
+                                type: item.type.name,
+                                name: item.personName ?? t('achievements.recognitions.someone'),
+                            })
+                        "
                         data-test="remove"
                         @click="askToRemove(item, $event)"
                     >

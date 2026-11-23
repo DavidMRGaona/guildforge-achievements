@@ -54,6 +54,6 @@ final class NotifyRecognitionReceivedJob implements ShouldQueue
 
         $giverName = $people->named([$recognition->giverId], $receiver)[$recognition->giverId]['publicName'] ?? null;
 
-        $receiver->notify(RecognitionReceivedNotification::for($recognition->id, $giverName, $type->name));
+        $receiver->notify(RecognitionReceivedNotification::for($recognition->id, $recognition->giverId, $giverName, $type->name));
     }
 }

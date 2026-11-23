@@ -19,8 +19,6 @@ use Modules\Achievements\Infrastructure\Recognitions\RecognitionNotices;
  */
 final class RecognitionReceivedNotification extends Notification implements HasMailCategory, HasMailSubject, HasSiteNotification
 {
-    public const string GROUP_KEY = 'achievements.recognitions.received';
-
     public function __construct(
         public readonly SiteNotificationDTO $notice,
         public readonly MailSubjectDTO $subject,
@@ -29,7 +27,12 @@ final class RecognitionReceivedNotification extends Notification implements HasM
     /**
      * About the recognition itself, so deleting it forgets the notice (RecognitionNotices).
      */
-    public static function for(string $recognitionId, ?string $giverName, string $typeName): self
+    /**
+     * One notice per recognition, never grouped: the core merges unread notices of a group under one
+     * subject, so deleting one recognition would take the others' notice with it. The giver is its
+     * actor, so anonymizing them forgets their name in it at once (the core's forgetActor()).
+     */
+    public static function for(string $recognitionId, string $giverId, ?string $giverName, string $typeName): self
     {
         $subject = new MailSubjectDTO(
             RecognitionNotices::SUBJECT_TYPE,
@@ -44,8 +47,7 @@ final class RecognitionReceivedNotification extends Notification implements HasM
                 : __('achievements::notifications.recognitions.received', ['person' => $giverName, 'type' => $typeName]),
             url: route('achievements.recognitions', [], false),
             icon: AchievementNoticeCategories::RECOGNITION_ICON,
-            groupKey: self::GROUP_KEY,
-            groupedTitle: static fn (): string => __('achievements::notifications.recognitions.received_grouped'),
+            actorId: strtolower($giverId),
         ), $subject);
     }
 

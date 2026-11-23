@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Modules\Achievements\Tests\Feature\Recognitions;
 
 use App\Application\Activity\DTOs\ActivityFactDTO;
+use App\Application\Mail\Services\MailSubjectMuteServiceInterface;
+use App\Application\SiteNotifications\Services\SiteNotificationServiceInterface;
 use App\Domain\Activity\ActivityRole;
 use App\Domain\Events\UserAnonymized;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
@@ -16,9 +18,12 @@ use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 use Modules\Achievements\Application\Enums\GiveRecognitionOutcome;
 use Modules\Achievements\Application\Services\AchievementEvaluatorInterface;
+use Modules\Achievements\Domain\Recognitions\RecognitionRefusal;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\RecognitionRepositoryInterface;
 use Modules\Achievements\Domain\Rules\AchievementRule;
 use Modules\Achievements\Filament\Livewire\AccountRecognitions;
+use Modules\Achievements\Filament\Support\RecognitionModerationAccess;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\RecognitionModel;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Notifications\AchievementNoticeCategories;
@@ -28,6 +33,7 @@ use Modules\Achievements\Tests\Support\BuildsActivityFacts;
 use Modules\Achievements\Tests\Support\BuildsNotices;
 use Modules\Achievements\Tests\Support\BuildsRecognitions;
 use Modules\Achievements\Tests\Support\BuildsShowcase;
+use Modules\Achievements\Tests\Support\FailingMailSubjects;
 use Modules\Achievements\Tests\Support\RecordingSubjectLocks;
 use Tests\Support\Activity\InMemoryActivitySource;
 use Tests\Support\Modules\ModuleTestCase;
@@ -221,6 +227,79 @@ final class RecognitionsReviewTest extends ModuleTestCase
         // Ana and Bob, once each (Bob has facts and recognitions)
         $this->assertSame(2, $result->users);
         $this->assertSame(1, DB::table('achievements_grants')->where('user_id', strtolower((string) $this->bob->id))->whereIn('achievement_id', DB::table('achievements_catalogue')->where('name', 'Primer reconocimiento')->pluck('id'))->count());
+    }
+
+    public function test_each_recognition_has_its_own_notice_and_taking_one_away_keeps_the_other(): void
+    {
+        $marta = $this->person('Marta');
+        $this->played('mesa-1', '2026-12-08 18:00:00', $this->ana, $this->bob, $marta);
+        $this->give($this->ana, 'mesa-1', $this->bob);
+        $this->give($marta, 'mesa-1', $this->bob);
+
+        $notices = $this->bellOf($this->bob, AchievementNoticeCategories::RECOGNITIONS);
+        $this->assertCount(2, $notices);
+        $this->assertSame([1, 1], array_map(static fn ($notice): int => $notice->count, $notices));
+
+        $fromAna = array_first(array_filter($this->recognitions()->received($this->bob), static fn ($one): bool => $one->personName === 'Ana'));
+        $this->assertNotNull($fromAna);
+        $this->recognitions()->deleteReceived($this->bob, $fromAna->id);
+
+        $left = $this->bellOf($this->bob, AchievementNoticeCategories::RECOGNITIONS);
+        $this->assertCount(1, $left);
+        $this->assertSame('Marta te ha reconocido: «Gran narración»', $left[0]->title);
+    }
+
+    public function test_the_giver_is_the_notices_actor_so_their_name_goes_with_them(): void
+    {
+        $this->played('mesa-1', '2026-12-08 18:00:00', $this->ana, $this->bob);
+        $this->give($this->ana, 'mesa-1', $this->bob);
+
+        $actors = json_decode((string) DB::table('site_notifications')->where('category', AchievementNoticeCategories::RECOGNITIONS)->value('actor_ids'), true);
+        $this->assertSame([strtolower((string) $this->ana->id)], $actors);
+
+        $this->app->make(SiteNotificationServiceInterface::class)->forgetActor(strtolower((string) $this->ana->id));
+        $this->assertSame([], $this->bellOf($this->bob, AchievementNoticeCategories::RECOGNITIONS));
+    }
+
+    public function test_a_moderator_who_cannot_manage_an_administrators_account_cannot_delete_there(): void
+    {
+        $admin = UserModel::factory()->admin()->create(['display_name' => 'Admin']);
+        $this->played('mesa-1', '2026-12-08 18:00:00', $this->ana, $admin);
+        $this->give($this->ana, 'mesa-1', $admin);
+        $this->actingAs($this->userWith('users.view_any', 'users.view', AchievementPolicy::MODERATE_RECOGNITIONS));
+        $record = RecognitionModel::query()->sole();
+
+        // The table is shown (they may view the account), the deletion is not offered
+        Livewire::test(AccountRecognitions::class, ['userId' => (string) $admin->id])
+            ->assertTableActionHidden(AccountRecognitions::DELETE_ACTION, $record);
+        // And the same rule refuses it on the server, where the action asks again when it runs
+        $this->assertTrue(RecognitionModerationAccess::allows((string) $admin->id));
+        $this->assertFalse(RecognitionModerationAccess::allowsDeleting((string) $admin->id));
+        $this->assertTrue(RecognitionModerationAccess::allowsDeleting((string) $this->ana->id));
+        $this->assertSame(1, $this->recognitionCount());
+    }
+
+    public function test_an_account_anonymized_meanwhile_is_refused_not_already_given(): void
+    {
+        $this->bob->forceFill(['anonymized_at' => now()])->save();
+
+        $refusal = $this->app->make(RecognitionRepositoryInterface::class)->give(
+            $this->typeId(), (string) $this->ana->id, (string) $this->bob->id, InMemoryActivitySource::TYPE, 'mesa-1', 'game_session', new DateTimeImmutable,
+        );
+
+        $this->assertSame(RecognitionRefusal::AccountGone, $refusal);
+        $this->assertSame(0, $this->recognitionCount());
+    }
+
+    public function test_a_failure_forgetting_a_notice_never_undoes_the_ledgers_deletion(): void
+    {
+        $this->played('mesa-1', '2026-12-08 18:00:00', $this->ana, $this->bob);
+        $this->give($this->ana, 'mesa-1', $this->bob);
+        $this->app->instance(MailSubjectMuteServiceInterface::class, new FailingMailSubjects);
+
+        $this->played('mesa-1', '2026-12-08 18:00:00', $this->bob);
+
+        $this->assertSame(0, $this->recognitionCount());
     }
 
     private function give(UserModel $giver, string $subjectId, UserModel $receiver): GiveRecognitionOutcome

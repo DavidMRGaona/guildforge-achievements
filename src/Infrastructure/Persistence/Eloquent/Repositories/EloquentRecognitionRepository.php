@@ -12,6 +12,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Str;
 use Modules\Achievements\Domain\Recognitions\Recognition;
+use Modules\Achievements\Domain\Recognitions\RecognitionRefusal;
 use Modules\Achievements\Domain\Recognitions\RecognitionType;
 use Modules\Achievements\Domain\Repositories\RecognitionRepositoryInterface;
 use stdClass;
@@ -32,7 +33,7 @@ final readonly class EloquentRecognitionRepository implements RecognitionReposit
         private ConnectionInterface $db,
     ) {}
 
-    public function give(string $typeId, string $giverId, string $receiverId, string $sourceType, string $subjectId, string $kind, DateTimeImmutable $givenAt): ?Recognition
+    public function give(string $typeId, string $giverId, string $receiverId, string $sourceType, string $subjectId, string $kind, DateTimeImmutable $givenAt): Recognition|RecognitionRefusal
     {
         $giverId = strtolower($giverId);
         $receiverId = strtolower($receiverId);
@@ -42,13 +43,17 @@ final readonly class EloquentRecognitionRepository implements RecognitionReposit
         $stamp = $this->stamp($givenAt);
 
         try {
-            return $this->db->transaction(function () use ($id, $typeId, $giverId, $receiverId, $sourceType, $subjectId, $kind, $stamp): ?Recognition {
+            return $this->db->transaction(function () use ($id, $typeId, $giverId, $receiverId, $sourceType, $subjectId, $kind, $stamp): Recognition|RecognitionRefusal {
                 // Under a shared lock, so an anonymization waits for this one and then deletes it
                 // The rows themselves (PostgreSQL refuses FOR SHARE on an aggregate)
                 $live = count(UserModel::withTrashed()->whereKey([$giverId, $receiverId])->whereNull('anonymized_at')->sharedLock()->pluck('id')->all());
 
-                if ($live !== 2 || $this->exists($giverId, $receiverId, $sourceType, $subjectId)) {
-                    return null;
+                if ($live !== 2) {
+                    return RecognitionRefusal::AccountGone;
+                }
+
+                if ($this->exists($giverId, $receiverId, $sourceType, $subjectId)) {
+                    return RecognitionRefusal::AlreadyGiven;
                 }
 
                 $this->db->table(self::TABLE)->insert([
@@ -64,10 +69,10 @@ final readonly class EloquentRecognitionRepository implements RecognitionReposit
                     'updated_at' => $stamp,
                 ]);
 
-                return $this->find($id);
+                return $this->find($id) ?? RecognitionRefusal::AlreadyGiven;
             });
         } catch (UniqueConstraintViolationException) {
-            return null;
+            return RecognitionRefusal::AlreadyGiven;
         }
     }
 

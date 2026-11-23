@@ -167,6 +167,7 @@ export default {
             to: 'To {name}',
             someone: 'Somebody without a public name',
             remove: 'Remove',
+            removeLabel: 'Remove “{type}” from {name}',
             removeTitle: 'Remove the recognition',
             removeMessage:
                 '“{type}” is removed for good: it stops counting and disappears for whoever gave it too.',

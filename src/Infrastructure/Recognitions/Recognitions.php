@@ -22,6 +22,7 @@ use Modules\Achievements\Application\Services\RecognitionsInterface;
 use Modules\Achievements\Domain\Entities\AchievementFact;
 use Modules\Achievements\Domain\Recognitions\Recognition;
 use Modules\Achievements\Domain\Recognitions\RecognitionCut;
+use Modules\Achievements\Domain\Recognitions\RecognitionRefusal;
 use Modules\Achievements\Domain\Recognitions\RecognitionType;
 use Modules\Achievements\Domain\Recognitions\RecognitionWindow;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
@@ -147,7 +148,12 @@ final class Recognitions implements RecognitionsInterface
                 return GiveRecognitionOutcome::Refused;
             }
 
-            return $this->recognitions->give($typeId, $giverId, $receiverId, $sourceType, $subjectId, $kind, $this->now()) ?? GiveRecognitionOutcome::AlreadyGiven;
+            return match ($given = $this->recognitions->give($typeId, $giverId, $receiverId, $sourceType, $subjectId, $kind, $this->now())) {
+                RecognitionRefusal::AlreadyGiven => GiveRecognitionOutcome::AlreadyGiven,
+                // An account anonymized meanwhile: the same answer as anybody who cannot be chosen
+                RecognitionRefusal::AccountGone => GiveRecognitionOutcome::Refused,
+                default => $given,
+            };
         });
 
         if (! $outcome instanceof Recognition) {

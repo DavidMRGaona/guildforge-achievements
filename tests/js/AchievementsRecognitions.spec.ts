@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { router } from '@inertiajs/vue3';
 import Recognitions from '../../resources/js/pages/Achievements/Recognitions.vue';
+import RemoveRecognitionDialog from '../../resources/js/components/RemoveRecognitionDialog.vue';
 import RecognitionsProfileSection from '../../resources/js/components/profileSections/RecognitionsProfileSection.vue';
 import type {
     OwnRecognition,
@@ -10,13 +11,13 @@ import type {
 } from '../../resources/js/types/achievements';
 
 const storytelling: RecognitionType = {
-    id: '0195f3a2-0000-7000-8000-000000000001',
+    id: '7c2d9e14-8a3b-4f6c-b1d2-0e5a7f9c3b01',
     name: 'Gran narración',
     icon: 'scroll-text',
     colour: 'violet',
 };
 const companion: RecognitionType = {
-    id: '0195f3a2-0000-7000-8000-000000000002',
+    id: '3e8a1b5c-6d2f-4a9e-8c7b-1f4d2e6a9b02',
     name: 'Buen compañero',
     icon: 'handshake',
     colour: 'sky',
@@ -44,7 +45,7 @@ function subject(overrides: Partial<RecognitionSubject> = {}): RecognitionSubjec
 
 function own(overrides: Partial<OwnRecognition> = {}): OwnRecognition {
     return {
-        id: '0195f3a2-0000-7000-8000-0000000000aa',
+        id: '5b0f6e2a-3c41-4d8e-9a17-2f6c1b3d4eaa',
         type: storytelling,
         personName: 'Ana',
         personUrl: '/miembros/ana',
@@ -159,7 +160,7 @@ describe('Achievements/Recognitions', () => {
         await wrapper.find('[data-test="remove-confirm"]').trigger('click');
 
         expect(router.delete).toHaveBeenCalledWith(
-            '/logros/reconocimientos/0195f3a2-0000-7000-8000-0000000000aa',
+            '/logros/reconocimientos/5b0f6e2a-3c41-4d8e-9a17-2f6c1b3d4eaa',
             expect.objectContaining({ preserveScroll: true })
         );
     });
@@ -176,6 +177,49 @@ describe('Achievements/Recognitions', () => {
 
         expect(router.delete).not.toHaveBeenCalled();
         expect(wrapper.find('[data-test="remove-confirm"]').exists()).toBe(false);
+    });
+
+    it('puts focus on the next row once one is removed, and on the heading when none is left', async () => {
+        const second = own({ id: '9a4c2e7b-1d3f-4b6a-8e5c-7f2a9d1b3c44', personName: 'Luis' });
+        vi.mocked(router.delete).mockImplementation((_url, options) => {
+            options?.onSuccess?.({} as never);
+            options?.onFinish?.({} as never);
+        });
+        const wrapper = mount(Recognitions, {
+            props: { ...base, received: [own(), second] },
+            global: { stubs: { ...stubs, teleport: true } },
+            attachTo: document.body,
+        });
+
+        await wrapper.findAll('[data-test="remove"]')[0]?.trigger('click');
+        await wrapper.find('[data-test="remove-understood"]').setValue(true);
+        // The server answered: the page now lists only the other one
+        await wrapper.setProps({ received: [second] });
+        await wrapper.find('[data-test="remove-confirm"]').trigger('click');
+        await flushPromises();
+
+        const remaining = wrapper.find('[data-test="remove"]');
+        expect(document.activeElement).toBe(remaining.element);
+
+        await remaining.trigger('click');
+        await wrapper.find('[data-test="remove-understood"]').setValue(true);
+        await wrapper.setProps({ received: [] });
+        await wrapper.find('[data-test="remove-confirm"]').trigger('click');
+        await flushPromises();
+
+        expect(document.activeElement).toBe(wrapper.find('#recognitions-received').element);
+        wrapper.unmount();
+    });
+
+    it('names the type and the person on each remove button', () => {
+        const wrapper = mount(Recognitions, {
+            props: { ...base, received: [own()] },
+            global: { stubs },
+        });
+
+        expect(wrapper.find('[data-test="remove"]').attributes('aria-label')).toBe(
+            'Quitar «Gran narración» de Ana'
+        );
     });
 
     it('says when there is nothing to recognise and how many days there are', () => {
@@ -224,5 +268,47 @@ describe('RecognitionsProfileSection', () => {
         expect(wrapper.find('[data-test="page-link"]').attributes('href')).toBe(
             '/logros/reconocimientos'
         );
+    });
+});
+
+describe('RemoveRecognitionDialog', () => {
+    const global = { stubs: { teleport: true } };
+
+    it('keeps itself open on Escape while the removal is on its way', async () => {
+        const wrapper = mount(RemoveRecognitionDialog, {
+            props: { open: true, typeName: 'Gran narración', busy: true },
+            global,
+        });
+        const cancel = new Event('cancel', { cancelable: true });
+
+        wrapper.find('dialog').element.dispatchEvent(cancel);
+        await wrapper.find('dialog').trigger('click');
+
+        expect(cancel.defaultPrevented).toBe(true);
+        expect(wrapper.emitted('cancel')).toBeUndefined();
+    });
+
+    it('closes on Escape otherwise, and tells when the browser closed it', async () => {
+        const wrapper = mount(RemoveRecognitionDialog, {
+            props: { open: true, typeName: 'Gran narración' },
+            global,
+        });
+
+        wrapper.find('dialog').element.dispatchEvent(new Event('cancel', { cancelable: true }));
+        wrapper.find('dialog').element.dispatchEvent(new Event('close'));
+
+        expect(wrapper.emitted('cancel')).toHaveLength(2);
+    });
+
+    it('describes itself with its message', () => {
+        const wrapper = mount(RemoveRecognitionDialog, {
+            props: { open: true, typeName: 'Gran narración' },
+            global,
+        });
+
+        expect(wrapper.find('dialog').attributes('aria-describedby')).toBe(
+            'remove-recognition-message'
+        );
+        expect(wrapper.find('#remove-recognition-message').text()).toContain('Gran narración');
     });
 });
