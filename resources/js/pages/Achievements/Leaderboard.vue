@@ -97,7 +97,7 @@ function initials(name: string): string {
         <div class="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
             <h1 class="text-3xl font-bold tracking-tight text-base-primary">
                 {{ t('achievements.leaderboard.title') }}
-                <HelpLink guide="achievements.site.achievements" class="ml-1 align-middle" />
+                <HelpLink guide="achievements.site.points" class="ml-1 align-middle" />
             </h1>
             <p class="mt-2 max-w-3xl text-lg text-base-secondary">
                 {{ t('achievements.leaderboard.subtitle') }}
