@@ -29,6 +29,12 @@ enum MetricType: string
      */
     case Recognitions = 'recognitions';
 
+    /**
+     * Different people whose first game session as a player was one the person ran («Mentor»),
+     * decided by the nightly batch alone (MentorRule)
+     */
+    case Mentor = 'mentor';
+
     /** Never granted by the evaluator: only by hand */
     case Manual = 'manual';
 
@@ -38,6 +44,16 @@ enum MetricType: string
      */
     public function isCommunity(): bool
     {
-        return $this === self::People;
+        return $this === self::People || $this === self::Mentor;
+    }
+
+    /**
+     * Evaluated only by the nightly batch, never when facts change nor by any other evaluation: a
+     * mentor is decided once the newcomer's first game is old enough, and its grant must never fall
+     * close to that game (MentorRule).
+     */
+    public function isNightly(): bool
+    {
+        return $this === self::Mentor;
     }
 }

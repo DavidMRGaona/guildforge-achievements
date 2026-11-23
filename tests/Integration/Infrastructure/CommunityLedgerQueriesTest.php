@@ -135,15 +135,88 @@ final class CommunityLedgerQueriesTest extends ModuleTestCase
         $this->assertCount(1, $this->repository()->firstMeetings([self::ANA], 'tournament', null, null)[self::ANA]);
     }
 
+    public function test_it_lists_whoever_had_a_part_in_the_subjects_an_account_had_another_in(): void
+    {
+        $this->ledgerSession('s1', '2026-01-10 18:00:00', director: [self::ANA], players: [self::LUIS, self::MARTA]);
+        // Ana played here: not one of hers to run
+        $this->ledgerSession('s2', '2026-02-10 18:00:00', director: [self::LUIS], players: [self::ANA, self::PEPA]);
+        // Ana directed and played her own table: never herself
+        $this->ledgerSession('s3', '2026-03-10 18:00:00', director: [self::ANA], players: [self::ANA]);
+
+        $this->assertSame([self::LUIS, self::MARTA], $this->repository()->othersSharingSubjects([self::ANA], 'game_session', 'director', 'player'));
+        $this->assertSame([self::ANA, self::PEPA], $this->repository()->othersSharingSubjects([self::LUIS], 'game_session', 'director', 'player'));
+        $this->assertSame([], $this->repository()->othersSharingSubjects([self::ANA], 'campaign', 'director', 'player'));
+        $this->assertSame([], $this->repository()->othersSharingSubjects([], 'game_session', 'director', 'player'));
+    }
+
+    public function test_the_people_listed_leave_anonymized_and_deleted_accounts_out(): void
+    {
+        $this->ledgerSession('s1', '2026-01-10 18:00:00', director: [self::ANA], players: [self::LUIS, self::MARTA, self::PEPA]);
+        UserModel::query()->whereKey(self::MARTA)->update(['anonymized_at' => now()]);
+        UserModel::withTrashed()->findOrFail(self::PEPA)->forceDelete();
+
+        $this->assertSame([self::LUIS], $this->repository()->othersSharingSubjects([self::ANA], 'game_session', 'director', 'player'));
+    }
+
+    public function test_a_first_fact_comes_with_who_ran_and_who_created_its_subject(): void
+    {
+        $this->ledgerSession('s1', '2026-01-10 18:00:00', director: [self::ANA, self::MARTA], players: [self::LUIS], creators: [self::MARTA]);
+        $this->ledgerSession('s2', '2026-02-10 18:00:00', director: [self::PEPA], players: [self::LUIS]);
+        // Raúl directed before he ever played: his first fact as a player is s2's
+        $this->ledgerSession('s3', '2026-01-01 18:00:00', director: [self::RAUL], players: [self::PEPA]);
+        $this->ledgerSession('s4', '2026-03-01 18:00:00', director: [self::LUIS], players: [self::RAUL]);
+
+        $first = $this->repository()->firstFacts([self::LUIS, self::RAUL, self::ANA], 'game_session', 'player', 'director', 'creator');
+
+        $this->assertSame([self::LUIS, self::RAUL], array_keys($first));
+        $this->assertSame('2026-01-10 18:00:00', $first[self::LUIS]->occurredAt->format('Y-m-d H:i:s'));
+        $this->assertCount(1, $first[self::LUIS]->subjects);
+        $this->assertSame([self::ANA, self::MARTA], $first[self::LUIS]->subjects[0]->directors);
+        $this->assertSame([self::MARTA], $first[self::LUIS]->subjects[0]->creators);
+        $this->assertSame('2026-03-01 18:00:00', $first[self::RAUL]->occurredAt->format('Y-m-d H:i:s'));
+        $this->assertSame([self::LUIS], $first[self::RAUL]->subjects[0]->directors);
+        $this->assertSame([], $first[self::RAUL]->subjects[0]->creators);
+    }
+
+    public function test_two_first_facts_at_the_same_instant_both_come_back(): void
+    {
+        // A sign-up mistake, say: Luis is in two tables that start at the same time
+        $this->ledgerSession('s1', '2026-01-10 18:00:00', director: [self::ANA], players: [self::LUIS]);
+        $this->ledgerSession('s2', '2026-01-10 18:00:00', director: [self::MARTA], players: [self::LUIS]);
+
+        $first = $this->repository()->firstFacts([self::LUIS], 'game_session', 'player', 'director', 'creator');
+
+        $this->assertCount(2, $first[self::LUIS]->subjects);
+        $directors = array_map(static fn ($subject): array => $subject->directors, $first[self::LUIS]->subjects);
+        sort($directors);
+        $this->assertSame([[self::ANA], [self::MARTA]], $directors);
+    }
+
+    public function test_a_first_fact_keeps_its_instant_when_stored_in_madrid(): void
+    {
+        $this->storeIn('Europe/Madrid');
+        $this->ledgerSubject(self::SESSIONS, 's1', 'game_session', [
+            $this->recordedFact(self::ANA, 'director', '2026-07-10T18:00:00+00:00'),
+            $this->recordedFact(self::LUIS, 'player', '2026-07-10T18:00:00+00:00'),
+        ]);
+
+        $first = $this->repository()->firstFacts([self::LUIS], 'game_session', 'player', 'director', 'creator');
+
+        $this->assertSame(new DateTimeImmutable('2026-07-10T18:00:00+00:00')->getTimestamp(), $first[self::LUIS]->occurredAt->getTimestamp());
+        $this->assertSame([self::ANA], $first[self::LUIS]->subjects[0]->directors);
+    }
+
     /**
      * @param  list<string>  $director
      * @param  list<string>  $players
+     * @param  list<string>  $creators
      */
-    private function ledgerSession(string $id, string $when, array $director, array $players): void
+    private function ledgerSession(string $id, string $when, array $director, array $players, array $creators = []): void
     {
         $facts = [
             ...array_map(fn (string $user): RecordedFact => $this->recordedFact($user, 'director', $when), $director),
             ...array_map(fn (string $user): RecordedFact => $this->recordedFact($user, 'player', $when), $players),
+            ...array_map(fn (string $user): RecordedFact => $this->recordedFact($user, 'creator', $when), $creators),
         ];
 
         $this->ledgerSubject(self::SESSIONS, $id, 'game_session', $facts);

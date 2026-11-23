@@ -5,7 +5,7 @@ summary: Las reglas que protegen con quién juegas y qué ajustes tienes para en
 category: community
 audience: site
 order: 45
-keywords: [reconocimientos, privacidad, qué ven los demás, quién ve mis logros, ocultar, fecha, mes, cada noche, al día siguiente, secreto, resumen mensual, con quién jugué, totales, clasificación, retos]
+keywords: [reconocimientos, privacidad, qué ven los demás, quién ve mis logros, ocultar, fecha, mes, cada noche, al día siguiente, secreto, resumen mensual, con quién jugué, totales, clasificación, retos, mentor]
 related: [achievements.site.achievements, achievements.site.showcase, achievements.site.notices, achievements.site.points, achievements.site.challenges, achievements.site.recognitions, core.site.public-profile]
 ---
 Quien juega contigo consigue sus logros a la vez que tú. Si los logros dijeran demasiado, cualquiera podría deducir con quién jugaste, en qué mesa o a qué evento fuiste. Por eso siguen estas reglas, siempre, para todo el mundo.
@@ -20,6 +20,7 @@ Quien juega contigo consigue sus logros a la vez que tú. Si los logros dijeran 
 - **Retos de al menos 28 días.** En los retos **Solo socios**, el total se actualiza cada noche, y la lista de quién consiguió un reto solo crece una vez al mes, el día 1.
 - **Tu progreso es solo tuyo.** Nadie más ve lo que te falta ni cuánto llevas.
 - **Reconocimientos.** Quien recibe uno ve quién se lo dio, pero no de qué partida, y quien lo dio ve a quién. Los demás solo ven en tu perfil cuántos tienes de cada tipo, y lo nuevo se les suma una vez al mes, el día 1. Solo se te puede reconocer si estuviste en la misma partida o campaña y si quien reconoce puede ver tu perfil. Si ocultas tus logros, nadie puede reconocerte y tus totales tampoco se ven.
+- **Una excepción: Mentor.** Si diriges la primera partida de alguien, el logro **Mentor** te dice que esa persona no había jugado antes. Por eso se decide cada noche, semanas después de la partida, y los demás solo ven que lo tienes.
 
 ## Lo que decides tú
 

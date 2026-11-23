@@ -27,11 +27,12 @@ Para crear, editar o borrar logros hace falta el permiso de gestionar el catálo
    - **Valores distintos**: cuántos valores distintos hay, por ejemplo «3 sistemas distintos».
    - **Años**: años desde el alta en la web, o años como socio.
    - **Personas distintas**: con cuántas personas distintas ha coincidido alguien en partidas, campañas, torneos o eventos. **Papel** es el de la persona que consigue el logro y **Papel de las demás personas**, el de quienes se cuentan: dirección y jugador es «dirigir a 20 personas distintas». En estos logros solo valen los papeles de jugador y de dirección.
+   - **Mentor: primeras partidas dirigidas**: a cuántas personas les ha dirigido alguien su primera partida como jugador. No pide nada más que el número (ver «Mentor», más abajo).
    - **Solo a mano**: no se concede nunca solo.
-4. Escribe **Cuántos hacen falta** (salvo en **Solo a mano**) y, si sale, elige **Cuándo cuenta** (ver más abajo). **Cuándo cuenta** no sale en **Años** ni en **Personas distintas**.
+4. Escribe **Cuántos hacen falta** (salvo en **Solo a mano**) y, si sale, elige **Cuándo cuenta** (ver más abajo). **Cuándo cuenta** no sale en **Años**, **Personas distintas** ni **Mentor**.
 5. Guarda.
 
-Al guardar, el logro se concede **sin avisos** a quien ya cumpla la regla. Lo mismo pasa al cambiar la regla o al activar un logro desactivado.
+Al guardar, el logro se concede **sin avisos** a quien ya cumpla la regla. Lo mismo pasa al cambiar la regla o al activar un logro desactivado. Un logro **Mentor** espera a la revisión de esa noche.
 
 Solo se avisa de un logro recién conseguido: el que se cumple con una actividad de las dos últimas semanas, o el aniversario de los dos últimos días. Lo que ya se cumplía antes se concede sin avisos. Cuenta la fecha de la actividad, no cuándo se registró: una partida que se marca como completada semanas después de jugarse concede el logro sin aviso.
 
@@ -82,6 +83,16 @@ Premian a quien trae y cuida gente, no solo a quien juega mucho: jugar con mucha
 - Un logro de comunidad conseguido no se pierde aunque luego el número baje: por ejemplo, si una partida deja de contar.
 - El progreso se guarda unos minutos, así que una partida nueva puede tardar ese rato en reflejarse. Si no se puede contar, no se enseña: nunca sale un 0 que no es.
 
+### Mentor
+
+Premia a quien dirige la primera partida de alguien: la primera partida en la que esa persona juega como jugador.
+
+- **Se revisa cada noche**, nunca al momento, y solo para primeras partidas de hace más de 14 días. Una mesa se marca como completada a menudo días después de jugarse: con ese margen, la primera de verdad llega antes de decidir y no quedan dos mentores para la misma persona.
+- **Se concede con la fecha de esa noche**, nunca con la de la partida, así que no coincide con la «Primera partida» de quien empezaba.
+- **Un mentor por persona nueva.** Si la mesa tuvo varias personas en la dirección, el mentor es la que además creó la mesa. Si ninguna la creó, no hay mentor. Si alguien empezó con dos mesas a la misma hora, tampoco.
+- **Aviso.** Quien lo consigue recibe el aviso de siempre si la primera partida es de las últimas semanas. Lo que se decide de golpe, porque la partida es más antigua (al instalar el módulo, por ejemplo), se concede sin aviso.
+- **Qué se deduce.** Quien lo recibe sabe que alguien de una mesa que dirigió no había jugado antes en {{site_name}}. La asociación lo acepta a cambio de este logro. Los demás solo ven que lo tiene, con el mes y el año, nunca a quién dio la bienvenida.
+
 ## Lo que se concede no se retira
 
 Una concesión es para siempre: si una partida deja de contar o subes el umbral, quien ya tenía el logro lo conserva. Por eso un logro que tiene alguien no se puede borrar, solo desactivar: deja de concederse y de ofrecerse, y quien lo tenía lo conserva. **Borrar**, en el menú **⋯** y en la cabecera de la ficha, solo aparece mientras nadie lo tiene y ningún reto lo usa como recompensa, y pide marcar una casilla.
@@ -110,4 +121,4 @@ La **clasificación** también necesita los puntos encendidos. Es la página **C
 
 ## Catálogo inicial
 
-Al instalar el módulo se crea un catálogo con logros de bienvenida, partidas jugadas y dirigidas, primera mesa creada que llega a jugarse, sistemas distintos, campañas, torneos, eventos, antigüedad, propuestas y comunidad (jugar con 10 personas distintas y dirigir a 20). Solo empiezan activos los que tienen fuente. Puedes editarlos y borrarlos como cualquier otro. El catálogo inicial solo se vuelve a crear desde el servidor, con el comando que explica la guía «Ajustes de los logros y recálculo»; un logro que borraste vuelve desactivado.
+Al instalar el módulo se crea un catálogo con logros de bienvenida, partidas jugadas y dirigidas, primera mesa creada que llega a jugarse, sistemas distintos, campañas, torneos, eventos, antigüedad, propuestas y comunidad (jugar con 10 personas distintas, dirigir a 20 y mentor). Solo empiezan activos los que tienen fuente. Puedes editarlos y borrarlos como cualquier otro. El catálogo inicial solo se vuelve a crear desde el servidor, con el comando que explica la guía «Ajustes de los logros y recálculo»; un logro que borraste vuelve desactivado.

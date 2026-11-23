@@ -102,7 +102,7 @@ return [
                 'streak_per_season' => 'Dentro de cada temporada',
             ],
             'helpers' => [
-                'metric' => '«Solo a mano» no se concede nunca solo. «Personas distintas» es un logro de comunidad: solo se concede con los logros de comunidad encendidos. «Reconocimientos recibidos» cuenta, el día 1 de cada mes, los recibidos hasta el mes anterior.',
+                'metric' => '«Solo a mano» no se concede nunca solo. «Personas distintas» y «Mentor» son logros de comunidad: solo se conceden con los logros de comunidad encendidos. «Mentor» se revisa cada noche y solo cuenta primeras partidas de hace más de 14 días. «Reconocimientos recibidos» cuenta, el día 1 de cada mes, los recibidos hasta el mes anterior.',
                 'recognition_type' => 'Para contar solo los de un tipo, como «Gran narración». Vacío, cuenta cualquiera.',
                 'kind' => 'Solo salen los tipos con alguna fuente activa.',
                 'role' => 'Por ejemplo, jugar o dirigir. Sin papel, cuenta cualquiera.',
@@ -135,6 +135,7 @@ return [
                 'years' => 'Años',
                 'people' => 'Personas distintas',
                 'recognitions' => 'Reconocimientos recibidos',
+                'mentor' => 'Mentor: primeras partidas dirigidas',
                 'manual' => 'Solo a mano',
             ],
             'basis' => [
@@ -174,6 +175,7 @@ return [
                 'with_role' => 'con :role',
                 'recognitions' => 'Reconocimientos recibidos: :threshold',
                 'recognitions_of_type' => 'Reconocimientos «:type» recibidos: :threshold',
+                'mentor' => 'Primeras partidas dirigidas: :threshold',
             ],
         ],
 

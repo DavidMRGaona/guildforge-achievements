@@ -50,6 +50,7 @@ final class AchievementPanelView
             MetricType::Count, MetricType::Distinct => self::activitySummary($rule),
             MetricType::People => self::peopleSummary($rule),
             MetricType::Recognitions => self::recognitionsSummary($rule),
+            MetricType::Mentor => self::text('summary.mentor', ['threshold' => (string) $rule->threshold]),
         };
 
         $window = self::windowSummary($rule->window);

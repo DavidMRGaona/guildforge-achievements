@@ -19,6 +19,7 @@ use JsonException;
  *     {"version": 1, "metric": "years", "basis": "account" | "membership", "threshold": 5}
  *     {"version": 1, "metric": "people", "kind": "game_session", "filters": {"role": "director", "with_role": "player"}, "threshold": 20}
  *     {"version": 1, "metric": "recognitions", "filters": {"type": "<recognition type id>"}, "threshold": 10}
+ *     {"version": 1, "metric": "mentor", "threshold": 1}
  *     {"version": 1, "metric": "manual"}
  *     {"version": 1, "metric": "manual", "window": {"type": "season"}}
  *
@@ -38,7 +39,9 @@ use JsonException;
  * The community metric `people` counts other people, never names them: the different accounts
  * that took part in the same subjects (`role` is the person's own part, `with_role` the others',
  * each `player`, `director` or none), only for the kinds done together (COMMUNITY_KINDS). It
- * counts every fact (no season or streak window).
+ * counts every fact (no season or streak window). `mentor` counts the accounts whose first game
+ * session as a player was one the person ran (MentorRule), only from the nightly batch
+ * (isNightly()): its kind and roles are fixed (MENTOR_KIND, MENTOR_ROLE, NEWCOMER_ROLE).
  *
  * `filters.attribute.label` is only the value's name when the rule was saved, for the panel; it
  * never takes part in the evaluation.
@@ -62,12 +65,23 @@ final readonly class AchievementRule
     /** The parts a `people` rule may name, its own and the others': playing and running */
     public const array PEOPLE_ROLES = ['player', 'director'];
 
+    /** A mentor ran the first game session somebody played */
+    public const string MENTOR_KIND = 'game_session';
+
+    public const string MENTOR_ROLE = 'director';
+
+    public const string NEWCOMER_ROLE = 'player';
+
+    /** Among several directors, the one who also created the table is the mentor */
+    public const string CREATOR_ROLE = 'creator';
+
     private const array KEYS = [
         'count' => ['version', 'metric', 'kind', 'filters', 'threshold', 'window'],
         'distinct' => ['version', 'metric', 'kind', 'key', 'filters', 'threshold', 'window'],
         'years' => ['version', 'metric', 'basis', 'threshold', 'window'],
         'people' => ['version', 'metric', 'kind', 'filters', 'threshold', 'window'],
         'recognitions' => ['version', 'metric', 'filters', 'threshold', 'window'],
+        'mentor' => ['version', 'metric', 'threshold', 'window'],
         'manual' => ['version', 'metric', 'window'],
     ];
 
@@ -153,6 +167,14 @@ final readonly class AchievementRule
     }
 
     /**
+     * Different people whose first game as a player the person ran.
+     */
+    public static function mentor(int $threshold): ?self
+    {
+        return self::tryFrom(['version' => self::VERSION, 'metric' => MetricType::Mentor->value, 'threshold' => $threshold]);
+    }
+
+    /**
      * Granted by hand only; once per season when `perSeason`.
      */
     public static function manual(bool $perSeason = false): self
@@ -203,6 +225,10 @@ final readonly class AchievementRule
             $basis = is_string($raw['basis'] ?? null) ? YearsBasis::tryFrom($raw['basis']) : null;
 
             return $basis instanceof YearsBasis ? new self($metric, $threshold, basis: $basis) : null;
+        }
+
+        if ($metric === MetricType::Mentor) {
+            return new self($metric, $threshold);
         }
 
         if ($metric === MetricType::People) {
@@ -256,6 +282,14 @@ final readonly class AchievementRule
     }
 
     /**
+     * Left to the nightly batch alone (see MetricType::isNightly()).
+     */
+    public function isNightly(): bool
+    {
+        return $this->metric->isNightly();
+    }
+
+    /**
      * Who a community rule counts, without its threshold: two rules of the same shape count the
      * same people, so they share one query and one cached count.
      */
@@ -273,6 +307,7 @@ final readonly class AchievementRule
         return match ($this->metric) {
             MetricType::Count, MetricType::Distinct, MetricType::People => $this->kind,
             MetricType::Years => $this->basis?->kind(),
+            MetricType::Mentor => self::MENTOR_KIND,
             MetricType::Recognitions, MetricType::Manual => null,
         };
     }
@@ -291,6 +326,12 @@ final readonly class AchievementRule
                 'metric' => $this->metric->value,
                 'basis' => $this->basis?->value,
                 'threshold' => $this->threshold,
+            ],
+            MetricType::Mentor => [
+                'version' => self::VERSION,
+                'metric' => $this->metric->value,
+                'threshold' => $this->threshold,
+                'window' => ['type' => self::WINDOW_ALL_TIME],
             ],
             MetricType::People => self::withoutNulls([
                 'version' => self::VERSION,
@@ -472,7 +513,7 @@ final readonly class AchievementRule
         return match ($metric) {
             MetricType::Count => true,
             MetricType::Distinct, MetricType::Manual => ! $window->isStreak(),
-            MetricType::Years, MetricType::People, MetricType::Recognitions => $window->isAllTime(),
+            MetricType::Years, MetricType::People, MetricType::Mentor, MetricType::Recognitions => $window->isAllTime(),
         };
     }
 

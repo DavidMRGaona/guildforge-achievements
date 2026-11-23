@@ -11,7 +11,7 @@ use Modules\Achievements\Domain\ValueObjects\FactsReplacement;
 use RuntimeException;
 
 /**
- * The real ledger, except that the community query fails (a database that stops answering, say).
+ * The real ledger, except that the community queries fail (a database that stops answering, say).
  */
 final readonly class FailingCommunityLedger implements AchievementFactRepositoryInterface
 {
@@ -80,6 +80,16 @@ final readonly class FailingCommunityLedger implements AchievementFactRepository
     }
 
     public function firstMeetings(array $userIds, string $kind, ?string $role, ?string $withRole): array
+    {
+        throw new RuntimeException('The ledger cannot be read.');
+    }
+
+    public function othersSharingSubjects(array $userIds, string $kind, string $role, string $othersRole): array
+    {
+        throw new RuntimeException('The ledger cannot be read.');
+    }
+
+    public function firstFacts(array $userIds, string $kind, string $role, string $hostRole, string $creatorRole): array
     {
         throw new RuntimeException('The ledger cannot be read.');
     }

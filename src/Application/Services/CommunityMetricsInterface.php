@@ -8,7 +8,7 @@ use DateTimeImmutable;
 use Modules\Achievements\Domain\Rules\AchievementRule;
 
 /**
- * The people community rules count (`people`), from aggregate queries over the ledger,
+ * The people community rules count (`people`, `mentor`), from aggregate queries over the ledger,
  * never one account at a time. Only numbers and instants ever leave it: never who those people are.
  *
  * Anonymized accounts never count (the activity reader drops their facts and the ledger forgets
@@ -18,7 +18,7 @@ interface CommunityMetricsInterface
 {
     /**
      * For each account asked, one instant per different person the rule counts (when they were
-     * first met), oldest first; accounts with nobody
+     * first met; for `mentor`, when the newcomer's first game was decided), oldest first; accounts with nobody
      * are missing. Read fresh from the ledger, for granting: it throws when the ledger cannot be
      * read, so nothing is granted on a guess. Empty for a rule that is not a community rule.
      *

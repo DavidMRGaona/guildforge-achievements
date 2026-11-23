@@ -55,7 +55,7 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
 
     public function evaluate(array $userIds, bool $silent, ?array $achievementIds = null, bool $dryRun = false): EvaluationResultDTO
     {
-        $selection = $this->evaluable($achievementIds, onlyAccountYears: false, onlyKinds: null);
+        $selection = $this->evaluable($achievementIds, onlyAccountYears: false, onlyKinds: null, onlyNightly: false);
 
         if ($selection === null) {
             return EvaluationResultDTO::settingsUnreadable();
@@ -67,9 +67,9 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
         return new EvaluationResultDTO(EvaluationOutcome::Evaluated, $result->granted, $result->users, $result->achievements, $pending);
     }
 
-    public function evaluateEverybody(?array $achievementIds, bool $silent, bool $dryRun = false, bool $onlyAccountYears = false, ?array $onlyKinds = null): EvaluationResultDTO
+    public function evaluateEverybody(?array $achievementIds, bool $silent, bool $dryRun = false, bool $onlyAccountYears = false, ?array $onlyKinds = null, bool $onlyNightly = false): EvaluationResultDTO
     {
-        $selection = $this->evaluable($achievementIds, $onlyAccountYears, $onlyKinds);
+        $selection = $this->evaluable($achievementIds, $onlyAccountYears, $onlyKinds, $onlyNightly);
 
         if ($selection === null) {
             return EvaluationResultDTO::settingsUnreadable();
@@ -259,13 +259,14 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
 
     /**
      * The achievements to evaluate with their rules, and the kinds left out while their source is
-     * unavailable; null when the settings cannot be read.
+     * unavailable; null when the settings cannot be read. The nightly batch takes the rules left to
+     * it (MetricType::isNightly()) and only those; every other evaluation leaves them out.
      *
      * @param  list<string>|null  $achievementIds
      * @param  list<string>|null  $onlyKinds
      * @return array{list<array{Achievement, AchievementRule}>, list<string>}|null
      */
-    private function evaluable(?array $achievementIds, bool $onlyAccountYears, ?array $onlyKinds): ?array
+    private function evaluable(?array $achievementIds, bool $onlyAccountYears, ?array $onlyKinds, bool $onlyNightly): ?array
     {
         $settings = $this->settings->readStrictly();
 
@@ -309,6 +310,10 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
             }
 
             if (! $status->isEvaluated() || ! $rule instanceof AchievementRule) {
+                continue;
+            }
+
+            if ($rule->isNightly() !== $onlyNightly) {
                 continue;
             }
 

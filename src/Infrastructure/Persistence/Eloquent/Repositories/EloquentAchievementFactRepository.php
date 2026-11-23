@@ -16,7 +16,9 @@ use Modules\Achievements\Domain\Entities\AchievementFact;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\FactAttribute;
 use Modules\Achievements\Domain\ValueObjects\FactsReplacement;
+use Modules\Achievements\Domain\ValueObjects\FirstFact;
 use Modules\Achievements\Domain\ValueObjects\RecordedFact;
+use Modules\Achievements\Domain\ValueObjects\SubjectHosts;
 use stdClass;
 
 /**
@@ -294,6 +296,74 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
         return $this->sortedInstants($meetings);
     }
 
+    public function othersSharingSubjects(array $userIds, string $kind, string $role, string $othersRole): array
+    {
+        $others = [];
+
+        foreach (array_chunk($this->userIds(array_map(strtolower(...), $userIds)), 500) as $chunk) {
+            $ids = $this->db->table(self::TABLE.' as mine')
+                ->join(self::TABLE.' as others', static function (JoinClause $join): void {
+                    $join->on('others.source_type', '=', 'mine.source_type')
+                        ->on('others.subject_id', '=', 'mine.subject_id')
+                        ->on('others.user_id', '<>', 'mine.user_id');
+                })
+                // Anonymized or deleted for good: never listed, even before the ledger forgets them
+                ->join('users', 'users.id', '=', 'others.user_id')
+                ->whereNull('users.anonymized_at')
+                ->whereIn('mine.user_id', $chunk)
+                ->where('mine.kind', $kind)
+                ->where('mine.role', $role)
+                ->where('others.role', $othersRole)
+                ->distinct()
+                ->pluck('others.user_id');
+
+            foreach ($ids as $id) {
+                $others[strtolower((string) $id)] = true;
+            }
+        }
+
+        return $this->userIds(array_keys($others));
+    }
+
+    public function firstFacts(array $userIds, string $kind, string $role, string $hostRole, string $creatorRole): array
+    {
+        $zone = new DateTimeZone(date_default_timezone_get());
+        /** @var array<string, array{DateTimeImmutable, list<array{string, string}>}> $first */
+        $first = [];
+
+        foreach (array_chunk($this->userIds(array_map(strtolower(...), $userIds)), 500) as $chunk) {
+            $rows = $this->db->table(self::TABLE.' as fact')
+                ->whereIn('fact.user_id', $chunk)
+                ->where('fact.kind', $kind)
+                ->where('fact.role', $role)
+                ->where('fact.occurred_at', '=', $this->firstFactOf('fact', $kind, $role))
+                ->orderBy('fact.source_type')
+                ->orderBy('fact.subject_id')
+                ->get(['fact.user_id', 'fact.source_type', 'fact.subject_id', 'fact.occurred_at']);
+
+            foreach ($rows as $row) {
+                /** @var stdClass $row */
+                $userId = strtolower((string) $row->user_id);
+                $first[$userId] ??= [new DateTimeImmutable($this->storedInstant($row->occurred_at), $zone), []];
+                $first[$userId][1][] = [(string) $row->source_type, (string) $row->subject_id];
+            }
+        }
+
+        $hosts = $this->hostsOf(array_merge(...array_values(array_map(static fn (array $entry): array => $entry[1], $first))), $hostRole, $creatorRole);
+        $facts = [];
+
+        foreach ($first as $userId => [$occurredAt, $subjects]) {
+            $facts[$userId] = new FirstFact($userId, $occurredAt, array_map(
+                static fn (array $subject): SubjectHosts => $hosts[$subject[0]."\0".$subject[1]] ?? new SubjectHosts([], []),
+                $subjects,
+            ));
+        }
+
+        ksort($facts, SORT_STRING);
+
+        return $facts;
+    }
+
     public function userIdsSharingSubjectsWith(string $userId): array
     {
         $userId = strtolower($userId);
@@ -355,6 +425,58 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
             $facts,
             static fn (RecordedFact $fact): bool => ! isset($anonymized[strtolower($fact->userId)]),
         ));
+    }
+
+    /**
+     * The instant of the earliest fact of `$kind` in `$role` of the account in `$alias.user_id`: a
+     * correlated subquery answered from the index on (user_id, kind, role, occurred_at).
+     */
+    private function firstFactOf(string $alias, string $kind, string $role): Closure
+    {
+        return static function (Builder $query) use ($alias, $kind, $role): void {
+            $query->from(self::TABLE.' as earliest')
+                ->selectRaw('min(earliest.occurred_at)')
+                ->whereColumn('earliest.user_id', $alias.'.user_id')
+                ->where('earliest.kind', $kind)
+                ->where('earliest.role', $role);
+        };
+    }
+
+    /**
+     * Who had each role in these subjects, keyed by source type and subject id joined with a NUL.
+     *
+     * @param  list<array{string, string}>  $subjects  source type and subject id
+     * @return array<string, SubjectHosts>
+     */
+    private function hostsOf(array $subjects, string $hostRole, string $creatorRole): array
+    {
+        $bySource = [];
+
+        foreach ($subjects as [$sourceType, $subjectId]) {
+            $bySource[$sourceType][$subjectId] = true;
+        }
+
+        /** @var array<string, array{list<string>, list<string>}> $people */
+        $people = [];
+
+        foreach ($bySource as $sourceType => $ids) {
+            foreach (array_chunk(array_map(strval(...), array_keys($ids)), 500) as $chunk) {
+                $rows = $this->table()
+                    ->where('source_type', $sourceType)
+                    ->whereIn('subject_id', $chunk)
+                    ->whereIn('role', [$hostRole, $creatorRole])
+                    ->get(['subject_id', 'user_id', 'role']);
+
+                foreach ($rows as $row) {
+                    /** @var stdClass $row */
+                    $key = $sourceType."\0".$row->subject_id;
+                    $people[$key] ??= [[], []];
+                    $people[$key][$row->role === $hostRole ? 0 : 1][] = (string) $row->user_id;
+                }
+            }
+        }
+
+        return array_map(static fn (array $entry): SubjectHosts => new SubjectHosts($entry[0], $entry[1]), $people);
     }
 
     /**

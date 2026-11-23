@@ -347,6 +347,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
     /**
      * Years of account change with the date alone: they are evaluated every night (not silently:
      * these are real anniversaries). Rarity too: people stop being active with the date alone.
+     * Mentors are decided only there, once a first game is old enough (MentorRule).
      */
     private function registerSchedule(): void
     {
@@ -354,6 +355,11 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
             $schedule->job(new EvaluateAchievementsJob(silent: false, onlyAccountYears: true))
                 ->daily()
                 ->name('achievements:account-years');
+            // Before the photo, so tonight's mentors are in it; never when facts change (#24)
+            $schedule->job(new EvaluateAchievementsJob(silent: false, onlyNightly: true))
+                ->dailyAt('03:00')
+                ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
+                ->name('achievements:mentors');
             // At night where people are: the display zone, not the server's
             $schedule->job(new RefreshAchievementRarityJob)
                 ->dailyAt('03:30')
