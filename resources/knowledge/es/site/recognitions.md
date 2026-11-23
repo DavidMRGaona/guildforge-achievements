@@ -14,7 +14,7 @@ Después de una partida o una campaña puedes reconocer lo bueno de quienes juga
 
 En **Logros**, con la sesión iniciada, pulsa **Reconocimientos**. Salen tus partidas y campañas de los últimos días (normalmente 14, contados desde el día de la partida) y, en cada una, las personas a las que puedes reconocer. Elige el tipo y listo.
 
-A cada persona le das uno por partida, y nunca a ti. Al día siguiente de jugar te puede llegar un aviso que te lo recuerda.
+A cada persona le das uno por partida, y nunca a ti. Después de jugar te puede llegar un aviso que te lo recuerda, como mucho uno al día.
 
 No salen los torneos, ni quien ha ocultado sus logros, ni quien no tiene nombre público, ni nadie cuyo perfil no puedas ver.
 
