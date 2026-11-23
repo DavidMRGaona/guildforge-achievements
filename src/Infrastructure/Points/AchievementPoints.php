@@ -6,18 +6,22 @@ namespace Modules\Achievements\Infrastructure\Points;
 
 use App\Application\Services\TimezoneServiceInterface;
 use App\Domain\Activity\ActivityIdentifierRule;
+use DateTimeImmutable;
+use InvalidArgumentException;
 use Modules\Achievements\Application\DTOs\PointsSummaryDTO;
 use Modules\Achievements\Application\Services\AchievementPointsInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Application\Services\SeasonClock;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\PointsBreakdown;
 use Modules\Achievements\Domain\ValueObjects\PointsPeriod;
+use Modules\Achievements\Domain\ValueObjects\Season;
 
 /**
- * Seasons are calendar years in the display zone: their bounds are midnight of the 1st of January
- * there, as storage-zone instants.
+ * Seasons are #8's (Season, SeasonClock): calendar years in the display zone. Their bounds are
+ * midnight of the 1st of January there, as storage-zone instants.
  *
  * A total is the owner's to see in full. Anybody else sees it without the secret achievements that
  * are masked to them (not held by them, not featured by the owner), as the section and the catalogue
@@ -37,11 +41,12 @@ final class AchievementPoints implements AchievementPointsInterface
         private readonly AchievementPreferencesRepositoryInterface $preferences,
         private readonly AchievementsSettingsInterface $settings,
         private readonly TimezoneServiceInterface $time,
+        private readonly SeasonClock $clock,
     ) {}
 
     public function currentSeason(): int
     {
-        return (int) $this->time->today()->format('Y');
+        return $this->clock->current()->year;
     }
 
     public function period(?int $season): PointsPeriod
@@ -50,20 +55,22 @@ final class AchievementPoints implements AchievementPointsInterface
             return PointsPeriod::allTime();
         }
 
+        $chosen = Season::ofYear($season) ?? throw new InvalidArgumentException('Not a season.');
+
         return PointsPeriod::season(
-            $season,
-            $this->time->fromDisplayWallTime(sprintf('%04d-01-01 00:00', $season)),
-            $this->time->fromDisplayWallTime(sprintf('%04d-01-01 00:00', $season + 1)),
+            $chosen,
+            $this->time->fromDisplayWallTime($chosen->key().'-01-01 00:00'),
+            $this->time->fromDisplayWallTime(sprintf('%04d-01-01 00:00', $chosen->year + 1)),
         );
     }
 
     public function seasons(): array
     {
-        $current = $this->currentSeason();
+        $current = $this->clock->current()->year;
         $first = $this->points->firstGrantedAt();
-        $oldest = $first instanceof \DateTimeImmutable ? min($current, (int) $this->time->toDisplay($first)->format('Y')) : $current;
+        $oldest = $first instanceof DateTimeImmutable ? Season::containing($first, $this->time->displayTimezone())->year : $current;
 
-        return range($current, max($oldest, PointsPeriod::MIN_SEASON));
+        return range($current, min($current, $oldest));
     }
 
     public function summary(string $userId, ?string $viewerId): PointsSummaryDTO

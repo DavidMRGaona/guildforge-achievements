@@ -8,20 +8,15 @@ use DateTimeImmutable;
 use InvalidArgumentException;
 
 /**
- * What points are added up over (#10): all time, or one season.
- *
- * A season is a calendar year in the display zone (#8). Its points are those of the grants made for
- * that season (`season_key`, a repeatable achievement) plus those of the grants without a season
- * made during it; `from` and `until` are that year's bounds as storage-zone instants, `[from, until)`.
+ * What points are added up over (#10): all time, or one Season (#8, a calendar year in the display
+ * zone). A season's points are those of the grants made for it (`season_key`, a repeatable
+ * achievement, whenever it was granted) plus those of the grants without a season made during it;
+ * `from` and `until` are that year's bounds as storage-zone instants, `[from, until)`.
  */
 final readonly class PointsPeriod
 {
-    public const int MIN_SEASON = 2000;
-
-    public const int MAX_SEASON = 2999;
-
     private function __construct(
-        public ?int $season,
+        public ?Season $season,
         public ?DateTimeImmutable $from,
         public ?DateTimeImmutable $until,
     ) {}
@@ -34,9 +29,9 @@ final readonly class PointsPeriod
     /**
      * @throws InvalidArgumentException
      */
-    public static function season(int $season, DateTimeImmutable $from, DateTimeImmutable $until): self
+    public static function season(Season $season, DateTimeImmutable $from, DateTimeImmutable $until): self
     {
-        if ($season < self::MIN_SEASON || $season > self::MAX_SEASON || $from >= $until) {
+        if ($from >= $until) {
             throw new InvalidArgumentException('Not a season.');
         }
 
@@ -45,7 +40,7 @@ final readonly class PointsPeriod
 
     public function isAllTime(): bool
     {
-        return $this->season === null;
+        return ! $this->season instanceof Season;
     }
 
     /**
@@ -53,14 +48,14 @@ final readonly class PointsPeriod
      */
     public function seasonKey(): ?string
     {
-        return $this->season === null ? null : (string) $this->season;
+        return $this->season?->key();
     }
 
     /**
-     * A short name for cache keys: `all` or the year.
+     * A short name for cache keys: `all` or the season's key.
      */
     public function key(): string
     {
-        return $this->season === null ? 'all' : (string) $this->season;
+        return $this->season?->key() ?? 'all';
     }
 }
