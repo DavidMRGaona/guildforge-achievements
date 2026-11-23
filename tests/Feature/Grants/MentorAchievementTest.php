@@ -7,6 +7,7 @@ namespace Modules\Achievements\Tests\Feature\Grants;
 use App\Application\Services\TimezoneServiceInterface;
 use App\Domain\Activity\ActivityRole;
 use App\Domain\Activity\Events\ActivityRecorded;
+use App\Domain\Events\UserAnonymized;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use DateTimeZone;
 use Illuminate\Console\Scheduling\Schedule;
@@ -187,6 +188,145 @@ final class MentorAchievementTest extends ModuleTestCase
         $this->nightly();
 
         $this->assertFalse($this->holds(self::ANA, $mentor));
+    }
+
+    public function test_a_first_table_completed_after_the_grace_never_makes_a_second_mentor(): void
+    {
+        $mentor = $this->mentor();
+        $this->played('s1', [self::ANA], [self::LUIS], daysAgo: 20);
+        $this->nightly();
+        $this->assertTrue($this->holds(self::ANA, $mentor));
+
+        // An earlier table of Luis's is marked completed weeks late: Luis was already decided
+        $this->played('s0', [self::MARTA], [self::LUIS], daysAgo: 30);
+        $this->nightly();
+
+        $this->assertFalse($this->holds(self::MARTA, $mentor));
+        $this->assertSame(1, DB::table('achievements_grants')->where('achievement_id', $mentor)->count());
+    }
+
+    public function test_a_first_game_that_stops_counting_after_the_grant_makes_no_second_mentor(): void
+    {
+        $mentor = $this->mentor();
+        $this->played('s1', [self::ANA], [self::LUIS], daysAgo: 30);
+        $this->played('s2', [self::MARTA], [self::LUIS], daysAgo: 20);
+        $this->nightly();
+        $this->assertTrue($this->holds(self::ANA, $mentor));
+
+        // Ana's table is unpublished: Luis's first game in the ledger is now Marta's
+        $this->ledgerSubject(self::SESSIONS, 's1', 'game_session', []);
+        $this->nightly();
+
+        $this->assertFalse($this->holds(self::MARTA, $mentor));
+        // Ana keeps hers, like any grant
+        $this->assertTrue($this->holds(self::ANA, $mentor));
+    }
+
+    public function test_a_newcomer_decided_without_a_mentor_stays_without_one(): void
+    {
+        $mentor = $this->mentor();
+        // Two directors and neither created the table: no mentor
+        $this->played('s1', [self::ANA, self::MARTA], [self::LUIS], daysAgo: 30);
+        $this->nightly();
+
+        $this->ledgerSubject(self::SESSIONS, 's1', 'game_session', []);
+        $this->played('s2', [self::PEPA], [self::LUIS], daysAgo: 20);
+        $this->nightly();
+
+        $this->assertSame(0, DB::table('achievements_grants')->where('achievement_id', $mentor)->count());
+        $this->assertNull(DB::table('achievements_mentor_decisions')->where('newcomer_id', self::LUIS)->value('mentor_id'));
+    }
+
+    public function test_the_progress_counts_only_what_the_batch_decided(): void
+    {
+        $ana = $this->person('Ana');
+        $luis = $this->person('Luis');
+        $this->mentor(threshold: 2, name: 'Mentor');
+        $this->played('s1', [(string) $ana->id], [(string) $luis->id], daysAgo: 20);
+
+        // Past the grace, but the night has not decided yet
+        $before = $this->achievementsSection($this->render($ana, $ana))?->props['locked'] ?? [];
+        $this->assertSame(0, array_column($before, 'progress', 'name')['Mentor']['value'] ?? null);
+
+        $this->nightly();
+
+        $after = $this->achievementsSection($this->render($ana, $ana))?->props['locked'] ?? [];
+        $this->assertSame(1, array_column($after, 'progress', 'name')['Mentor']['value'] ?? null);
+    }
+
+    public function test_anonymizing_a_newcomer_erases_the_decision_and_never_decides_them_again(): void
+    {
+        $mentor = $this->mentor(threshold: 2);
+        $this->played('s1', [self::ANA], [self::LUIS], daysAgo: 20);
+        $this->nightly();
+        $this->assertSame(1, DB::table('achievements_mentor_decisions')->where('newcomer_id', self::LUIS)->count());
+
+        UserModel::query()->whereKey(self::LUIS)->update(['anonymized_at' => now()]);
+        event(new UserAnonymized(self::LUIS));
+        $this->played('s2', [self::ANA], [self::MARTA], daysAgo: 16);
+        $this->nightly();
+
+        $this->assertSame(0, DB::table('achievements_mentor_decisions')->where('newcomer_id', self::LUIS)->count());
+        // Luis no longer counts for Ana: Marta alone is not two
+        $this->assertFalse($this->holds(self::ANA, $mentor));
+    }
+
+    public function test_anonymizing_a_mentor_leaves_the_newcomer_decided_with_nobody(): void
+    {
+        $mentor = $this->mentor();
+        $this->played('s1', [self::ANA], [self::LUIS], daysAgo: 30);
+        $this->played('s2', [self::MARTA], [self::LUIS], daysAgo: 20);
+        $this->nightly();
+
+        UserModel::query()->whereKey(self::ANA)->update(['anonymized_at' => now()]);
+        event(new UserAnonymized(self::ANA));
+        $this->ledgerSubject(self::SESSIONS, 's1', 'game_session', [$this->recordedFact(self::LUIS, 'player', $this->daysAgo(30))]);
+        $this->nightly();
+
+        $this->assertSame(1, DB::table('achievements_mentor_decisions')->where('newcomer_id', self::LUIS)->count());
+        $this->assertNull(DB::table('achievements_mentor_decisions')->where('newcomer_id', self::LUIS)->value('mentor_id'));
+        $this->assertFalse($this->holds(self::MARTA, $mentor));
+    }
+
+    public function test_only_game_sessions_are_first_games_and_a_campaign_session_goes_to_whoever_created_it(): void
+    {
+        $mentor = $this->mentor();
+        // The campaign as a whole is not a game session: Pepa ran it, but it is not Luis's first game
+        $this->ledgerSubject('game-tables.campaign', 'c1', 'campaign', [
+            $this->recordedFact(self::PEPA, 'director', $this->daysAgo(40)),
+            $this->recordedFact(self::LUIS, 'player', $this->daysAgo(40)),
+        ]);
+        // One of its sessions: the campaign's director and the table's, the latter created it
+        $this->played('s1', [self::PEPA, self::MARTA], [self::LUIS], daysAgo: 20, creators: [self::MARTA]);
+
+        $this->nightly();
+
+        $this->assertTrue($this->holds(self::MARTA, $mentor));
+        $this->assertFalse($this->holds(self::PEPA, $mentor));
+    }
+
+    public function test_a_director_with_a_hidden_name_is_reported_as_a_player_and_is_never_the_mentor(): void
+    {
+        $mentor = $this->mentor(threshold: 2);
+        // Marta ran it with her name hidden: the source reports her as a player
+        $this->played('s1', [self::ANA], [self::LUIS, self::MARTA], daysAgo: 20);
+
+        $this->nightly();
+
+        // Ana is Luis's mentor, and Marta's too, since that is Marta's first fact as a player
+        $this->assertTrue($this->holds(self::ANA, $mentor));
+        $this->assertFalse($this->holds(self::MARTA, $mentor));
+    }
+
+    public function test_a_deactivated_newcomer_still_counts(): void
+    {
+        $mentor = $this->mentor();
+        $this->played('s1', [self::ANA], [self::LUIS], daysAgo: 20);
+        UserModel::query()->whereKey(self::LUIS)->delete();
+
+        $this->nightly();
+
+        $this->assertTrue($this->holds(self::ANA, $mentor));
     }
 
     public function test_a_recent_decision_is_told_to_the_mentor_and_an_old_one_is_not(): void

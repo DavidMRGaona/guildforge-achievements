@@ -135,29 +135,6 @@ final class CommunityLedgerQueriesTest extends ModuleTestCase
         $this->assertCount(1, $this->repository()->firstMeetings([self::ANA], 'tournament', null, null)[self::ANA]);
     }
 
-    public function test_it_lists_whoever_had_a_part_in_the_subjects_an_account_had_another_in(): void
-    {
-        $this->ledgerSession('s1', '2026-01-10 18:00:00', director: [self::ANA], players: [self::LUIS, self::MARTA]);
-        // Ana played here: not one of hers to run
-        $this->ledgerSession('s2', '2026-02-10 18:00:00', director: [self::LUIS], players: [self::ANA, self::PEPA]);
-        // Ana directed and played her own table: never herself
-        $this->ledgerSession('s3', '2026-03-10 18:00:00', director: [self::ANA], players: [self::ANA]);
-
-        $this->assertSame([self::LUIS, self::MARTA], $this->repository()->othersSharingSubjects([self::ANA], 'game_session', 'director', 'player'));
-        $this->assertSame([self::ANA, self::PEPA], $this->repository()->othersSharingSubjects([self::LUIS], 'game_session', 'director', 'player'));
-        $this->assertSame([], $this->repository()->othersSharingSubjects([self::ANA], 'campaign', 'director', 'player'));
-        $this->assertSame([], $this->repository()->othersSharingSubjects([], 'game_session', 'director', 'player'));
-    }
-
-    public function test_the_people_listed_leave_anonymized_and_deleted_accounts_out(): void
-    {
-        $this->ledgerSession('s1', '2026-01-10 18:00:00', director: [self::ANA], players: [self::LUIS, self::MARTA, self::PEPA]);
-        UserModel::query()->whereKey(self::MARTA)->update(['anonymized_at' => now()]);
-        UserModel::withTrashed()->findOrFail(self::PEPA)->forceDelete();
-
-        $this->assertSame([self::LUIS], $this->repository()->othersSharingSubjects([self::ANA], 'game_session', 'director', 'player'));
-    }
-
     public function test_a_first_fact_comes_with_who_ran_and_who_created_its_subject(): void
     {
         $this->ledgerSession('s1', '2026-01-10 18:00:00', director: [self::ANA, self::MARTA], players: [self::LUIS], creators: [self::MARTA]);

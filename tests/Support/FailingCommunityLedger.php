@@ -84,11 +84,6 @@ final readonly class FailingCommunityLedger implements AchievementFactRepository
         throw new RuntimeException('The ledger cannot be read.');
     }
 
-    public function othersSharingSubjects(array $userIds, string $kind, string $role, string $othersRole): array
-    {
-        throw new RuntimeException('The ledger cannot be read.');
-    }
-
     public function firstFacts(array $userIds, string $kind, string $role, string $hostRole, string $creatorRole): array
     {
         throw new RuntimeException('The ledger cannot be read.');

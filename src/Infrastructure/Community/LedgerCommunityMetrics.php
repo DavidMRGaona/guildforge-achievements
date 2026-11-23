@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Infrastructure\Community;
 
-use DateTimeImmutable;
 use Illuminate\Contracts\Cache\Repository;
-use Illuminate\Support\Facades\Date;
 use Modules\Achievements\Application\Services\CommunityMetricsInterface;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\MentorDecisionRepositoryInterface;
 use Modules\Achievements\Domain\Rules\AchievementRule;
-use Modules\Achievements\Domain\Rules\MentorRule;
 use Modules\Achievements\Domain\Rules\MetricType;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Throwable;
@@ -29,6 +27,7 @@ final readonly class LedgerCommunityMetrics implements CommunityMetricsInterface
 
     public function __construct(
         private AchievementFactRepositoryInterface $facts,
+        private MentorDecisionRepositoryInterface $decisions,
         private Repository $cache,
         private AchievementWarnings $warnings,
     ) {}
@@ -41,7 +40,8 @@ final readonly class LedgerCommunityMetrics implements CommunityMetricsInterface
 
         return match ($rule->metric) {
             MetricType::People => $this->facts->firstMeetings($userIds, (string) $rule->kind, $rule->role, $rule->withRole),
-            MetricType::Mentor => $this->welcomed($userIds),
+            // Only what the nightly batch decided, never worked out again from the ledger (#37)
+            MetricType::Mentor => $this->decisions->welcomed($userIds),
             default => [],
         };
     }
@@ -87,48 +87,6 @@ final readonly class LedgerCommunityMetrics implements CommunityMetricsInterface
                 $this->warn('community_cache_unwritable', $exception);
             }
         }
-    }
-
-    /**
-     * The newcomers each account was the mentor of (MentorRule), one instant per newcomer: when
-     * their first game was decided. Only the people who played a game the account ran can be one,
-     * so only their first games are read.
-     *
-     * @param  list<string>  $userIds
-     * @return array<string, list<DateTimeImmutable>>
-     */
-    private function welcomed(array $userIds): array
-    {
-        $hosts = array_fill_keys(array_map(strtolower(...), $userIds), true);
-        $newcomers = $this->facts->othersSharingSubjects(array_keys($hosts), AchievementRule::MENTOR_KIND, AchievementRule::MENTOR_ROLE, AchievementRule::NEWCOMER_ROLE);
-
-        if ($newcomers === []) {
-            return [];
-        }
-
-        $now = DateTimeImmutable::createFromInterface(Date::now());
-        $welcomed = [];
-
-        foreach ($this->facts->firstFacts($newcomers, AchievementRule::MENTOR_KIND, AchievementRule::NEWCOMER_ROLE, AchievementRule::MENTOR_ROLE, AchievementRule::CREATOR_ROLE) as $first) {
-            if (! MentorRule::isDecided($first->occurredAt, $now)) {
-                continue;
-            }
-
-            $mentor = MentorRule::mentor($first->userId, $first->subjects);
-
-            if ($mentor !== null && isset($hosts[$mentor])) {
-                $welcomed[$mentor][] = MentorRule::decidedAt($first->occurredAt);
-            }
-        }
-
-        foreach ($welcomed as $mentor => $instants) {
-            sort($instants);
-            $welcomed[$mentor] = $instants;
-        }
-
-        ksort($welcomed, SORT_STRING);
-
-        return $welcomed;
     }
 
     /**
