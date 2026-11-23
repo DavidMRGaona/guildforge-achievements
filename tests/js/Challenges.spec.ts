@@ -29,6 +29,7 @@ function challenge(overrides: Partial<Challenge> = {}): Challenge {
             colour: 'amber',
             imageUrl: null,
             masked: false,
+            repeats: false,
         },
         contributors: 5,
         people: [],

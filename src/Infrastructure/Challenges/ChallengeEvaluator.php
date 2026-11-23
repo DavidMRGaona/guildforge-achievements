@@ -222,10 +222,11 @@ final readonly class ChallengeEvaluator implements ChallengeEvaluatorInterface
 
         foreach (array_chunk($progress->contributors(), self::CHUNK) as $chunk) {
             $held = $this->grants->heldAchievementIds($chunk);
-            $revoked = $this->grants->revokedAchievementIds($chunk);
+            // A challenge's reward has no season: taken away by hand in that one ('')
+            $revoked = array_fill_keys($this->grants->revokedAmong($reward->id, $chunk), true);
 
             foreach ($chunk as $userId) {
-                if (in_array($reward->id, $held[$userId] ?? [], true) || in_array($reward->id, $revoked[$userId] ?? [], true)) {
+                if (in_array($reward->id, $held[$userId] ?? [], true) || isset($revoked[$userId])) {
                     continue;
                 }
 

@@ -5,7 +5,7 @@ summary: Crea logros, decide cuándo se conceden solos y entiende por qué uno s
 category: users-and-roles
 audience: panel
 order: 80
-keywords: [logros, insignias, catálogo, reglas, conceder, partidas, sistemas, torneos, podio, eventos, antigüedad, secreto, sin fuente, puntos, umbral, recalcular, rareza, gente activa, destacados, perfil, menú, página de logros, comunidad, personas distintas, dirigir]
+keywords: [logros, insignias, catálogo, reglas, conceder, partidas, sistemas, torneos, podio, eventos, antigüedad, secreto, sin fuente, puntos, umbral, recalcular, rareza, gente activa, destacados, perfil, menú, página de logros, temporada, temporadas, cada año, repetible, racha, rachas, meses seguidos, constancia, comunidad, personas distintas, dirigir]
 conditions:
   permissions:
     any: ['achievements:achievements.view_any', 'achievements:achievements.manage']
@@ -28,7 +28,8 @@ Para crear, editar o borrar logros hace falta el permiso de gestionar el catálo
    - **Años**: años desde el alta en la web, o años como socio.
    - **Personas distintas**: con cuántas personas distintas ha coincidido alguien en partidas, campañas, torneos o eventos. **Papel** es el de la persona que consigue el logro y **Papel de las demás personas**, el de quienes se cuentan: dirección y jugador es «dirigir a 20 personas distintas». En estos logros solo valen los papeles de jugador y de dirección.
    - **Solo a mano**: no se concede nunca solo.
-4. Escribe **Cuántos hacen falta** y guarda.
+4. Elige **Cuándo cuenta** (ver más abajo) y escribe **Cuántos hacen falta**.
+5. Guarda.
 
 Al guardar, el logro se concede **sin avisos** a quien ya cumpla la regla. Lo mismo pasa al cambiar la regla o al activar un logro desactivado.
 
@@ -38,6 +39,24 @@ En la biblioteca de medios, la imagen de un logro secreto sale con el título «
 
 Escribe la descripción con totales («Juega 10 partidas»), nunca con una partida o una campaña concreta: quién jugó una mesa no es público.
 
+## Temporadas y rachas
+
+Con **Temporadas y rachas** encendido en *Sistema → Configuración → Logros*, **Cuándo cuenta** ofrece tres opciones:
+
+- **Siempre (una sola vez)**: cuenta todo lo que la persona ha hecho, y el logro se consigue una vez.
+- **Por temporada (cada año)**: una temporada es un año natural. Solo cuenta lo de ese año, y el logro se vuelve a conseguir cada año en que se cumpla: «10 partidas en un año». Cada concesión guarda su año («Temporada 2027»). Un logro **Solo a mano** también puede ser por temporada, por ejemplo «La partida del año»: se concede a mano una vez cada año.
+- **Racha de meses seguidos** (solo con **Número de actividades**): pide actividad en varios meses naturales seguidos. Escribe los **Meses seguidos** (de 2 a 36) y **Cuántas hacen falta cada mes** (con 1 basta una al mes). Un mes sin actividad corta la racha. Se consigue una sola vez, salvo que marques **Dentro de cada temporada**: entonces la racha empieza de cero cada año, se puede conseguir una vez por temporada y tiene 12 meses como mucho.
+
+Los días, los meses y los años se cuentan con la hora de la asociación: una partida a las 23:30 del 31 de diciembre es del año que acaba.
+
+Al guardar un logro por temporada, se concede, sin avisos, cada temporada pasada en que alguien ya lo cumplía. Si una partida deja de contar después, la temporada conseguida se conserva.
+
+Al conceder a mano o en lote un logro por temporada, eliges la **Temporada**: la actual, que sale por defecto, o la anterior, para lo que se hizo justo antes de cambiar de año. En lote, la confirmación dice para qué temporada es. Solo reciben el logro las cuentas que no lo tienen esa temporada.
+
+Cuando alguien ya tiene el logro, **Cuándo cuenta** y **Dentro de cada temporada** quedan bloqueados: no se puede pasar de «una sola vez» a «por temporada», ni al revés, porque las concesiones que ya hay dejarían de tener sentido. Los meses de una racha sí se pueden cambiar. Si necesitas otra opción, crea un logro nuevo. Las tablas de **Personas que lo tienen** y del historial tienen la columna **Temporada**; en pantallas estrechas, en **Ver detalles**. Retirar una temporada no toca las demás.
+
+En la descripción, habla de totales y de meses («Juega al menos una partida cada mes durante tres meses»), nunca de una partida concreta.
+
 ## Estados
 
 - **Activo**: se concede solo.
@@ -45,10 +64,11 @@ Escribe la descripción con totales («Juega 10 partidas»), nunca con una parti
 - **Desactivado**: no se concede ni se enseña. Quien ya lo tenía lo conserva.
 - **Tipo apagado**: su tipo de actividad está apagado en *Sistema → Configuración → Logros*.
 - **Secretos apagados**: es secreto y los logros secretos están apagados en los ajustes.
+- **Temporadas apagadas**: es por temporada o pide una racha, y **Temporadas y rachas** está apagado en los ajustes. Tampoco se concede a mano. Quien ya lo tenía lo conserva.
 - **Comunidad apagada**: es un logro de comunidad y los logros de comunidad están apagados en los ajustes.
 - **Solo a mano** y **Regla no válida**: no se conceden solos. Una regla no válida se arregla editando el logro y guardando la regla de nuevo.
 
-Cuando vuelves a encender un tipo de actividad, los logros secretos o los de comunidad en los ajustes, los logros vuelven a evaluarse para todo el mundo, sin avisos. Mientras estuvo apagado no se concedió nada de ese tipo.
+Cuando vuelves a encender un tipo de actividad, los logros secretos, las temporadas y rachas o los logros de comunidad en los ajustes, los logros vuelven a evaluarse para todo el mundo, sin avisos. Mientras estuvo apagado no se concedió nada de ese tipo.
 
 ## Logros de comunidad
 
@@ -68,13 +88,13 @@ Solo una persona con permiso para conceder logros puede retirar uno, a mano y co
 
 ## Lo que ve la gente
 
-Cada persona ve sus logros en la sección **Logros** de su perfil público, con el día en que los consiguió y su **rareza**, y quien puede ver ese perfil los ve también, con la rareza y solo el mes y el año. Solo el dueño ve los que le faltan y cuánto lleva («7 de 10»), mientras **Progreso visible** esté encendido en los ajustes. Hasta tres logros destacados salen junto a su nombre, en su perfil, en su tarjeta y en el foro: los que marque con la estrella o, si no elige, sus tres más raros. Cada persona puede ocultar sus logros a los demás desde su sección.
+Cada persona ve sus logros en la sección **Logros** de su perfil público, con el día en que los consiguió y su **rareza**, y quien puede ver ese perfil los ve también, con la rareza y solo el mes y el año. Solo el dueño ve los que le faltan y cuánto lleva («7 de 10»), mientras **Progreso visible** esté encendido en los ajustes. En uno por temporada, ve el progreso de este año; en una racha, los meses seguidos que lleva. Los demás solo ven en qué temporadas lo consiguió, nunca con qué partidas. Hasta tres logros destacados salen junto a su nombre, en su perfil, en su tarjeta y en el foro: los que marque con la estrella o, si no elige, sus tres más raros. Cada persona puede ocultar sus logros a los demás desde su sección.
 
 La **rareza** es la parte de la gente activa que tiene un logro: cuentas que han participado en algo en los últimos doce meses, sin las desactivadas ni las anonimizadas. Se calcula cada noche y cada vez que se concede un logro. Con **Rareza** apagada en los ajustes no se enseña en ningún sitio.
 
 En el perfil, los demás ven la fecha de cada logro solo con mes y año, porque quienes juegan juntos lo consiguen a la vez y la hora exacta diría con quién se jugó; el dueño ve el día. En el panel, quien puede conceder o gestionar logros ve la fecha completa. Los logros secretos de otra persona no se ven uno a uno: solo cuántos tiene. Si marcas como secreto un logro que alguien tenía destacado, deja de estar destacado para todo el mundo, porque nadie eligió enseñarlo siendo secreto.
 
-La página **Logros** de la web enseña los logros que se pueden conseguir ahora, con la rareza de cada uno; los secretos salen como «Logro secreto». No salen los que están **Sin fuente**, **Tipo apagado**, **Secretos apagados** ni con **Regla no válida**, salvo a quien ya los tiene. Al habilitar el módulo se añade un enlace a ella en el menú de la cabecera; puedes moverlo o borrarlo en **Sitio web** → **Navegación**, y no vuelve.
+La página **Logros** de la web enseña los logros que se pueden conseguir ahora, con la rareza de cada uno; los secretos salen como «Logro secreto». Los que se repiten llevan «Cada temporada», y cada persona ve si lo tiene este año y cuánto lleva. No salen los que están **Sin fuente**, **Tipo apagado**, **Secretos apagados**, **Temporadas apagadas** ni con **Regla no válida**, salvo a quien ya los tiene. Al habilitar el módulo se añade un enlace a ella en el menú de la cabecera; puedes moverlo o borrarlo en **Sitio web** → **Navegación**, y no vuelve.
 
 ## Catálogo inicial
 

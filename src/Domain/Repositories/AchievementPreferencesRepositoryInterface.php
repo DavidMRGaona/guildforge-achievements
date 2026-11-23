@@ -22,7 +22,23 @@ interface AchievementPreferencesRepositoryInterface
 
     public function find(string $userId): AchievementPreferences;
 
+    /**
+     * Writes every choice. Prefer the narrower writes below, which leave the other choices as they
+     * are even when someone else changes them meanwhile.
+     */
     public function save(AchievementPreferences $preferences): void;
+
+    /**
+     * Writes what the profile section chooses (hidden, featured) and nothing else.
+     *
+     * @param  list<string>  $featured
+     */
+    public function saveShowcase(string $userId, bool $hidden, array $featured): void;
+
+    /**
+     * Writes what the account tab chooses; null leaves that choice as it is.
+     */
+    public function saveChoices(string $userId, ?bool $announceRare, ?bool $inLeaderboard): void;
 
     /**
      * Takes an achievement out of everybody's featured choices (it became secret: nobody chose to

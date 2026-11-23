@@ -297,6 +297,18 @@ final class AchievementsSettingsPageTest extends ModuleTestCase
         Bus::assertDispatched(EvaluateChallengesJob::class, static fn (EvaluateChallengesJob $job): bool => $job->challengeIds === null && ! $job->silent);
     }
 
+    public function test_switching_seasons_and_streaks_back_on_evaluates_everybody_again(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        $this->app->make(AchievementsSettingsInterface::class)->save(new AchievementsSettings(seasonsAndStreaks: false));
+        $this->app->forgetScopedInstances();
+        $this->actingAs($this->userWith(AchievementsSettingsPage::PERMISSION));
+
+        Livewire::test(AchievementsSettingsPage::class)->fillForm(['seasons_and_streaks' => true])->call('save');
+
+        Bus::assertDispatched(EvaluateAchievementsJob::class, static fn (EvaluateAchievementsJob $job): bool => $job->achievementIds === null && $job->silent);
+    }
+
     public function test_switching_the_community_achievements_back_on_evaluates_everybody_again(): void
     {
         Bus::fake([EvaluateAchievementsJob::class]);

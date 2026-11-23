@@ -60,7 +60,7 @@ Cuando el reto se consigue, lo que cuenta, sus fechas, quién participa y la rec
 
 Al conseguirse el reto, recibe el logro cada persona que contribuyó con algo que cuenta. Quien contribuye después también lo recibe, mientras el reto se siga contando. Lo que se registra tarde, como una mesa que se marca como terminada unos días después, sigue contando hasta 30 días después del último día, siempre que haya ocurrido dentro de las fechas.
 
-La recompensa se concede en los recuentos normales, nunca en un recálculo. Si un recálculo descubre que el reto se ha conseguido, la recompensa llega en el siguiente recuento, como mucho a la noche siguiente. Si los anuncios de logros están encendidos, cada recompensa se anuncia al concederse.
+La recompensa se concede en los recuentos normales, nunca en un recálculo. Si un recálculo descubre que el reto se ha conseguido, la recompensa llega en el siguiente recuento, como mucho a la noche siguiente. Cada persona sabe enseguida, en la campana, que ha recibido la recompensa. Si los anuncios de logros están encendidos, quien puede ver su perfil lo sabe en el resumen del mes siguiente, solo si esa persona eligió anunciar sus logros. El resumen la cuenta en el mes en que se concedió, que es cuando se descubrió que el reto se había conseguido.
 
 Como cualquier logro, la recompensa no se pierde. Si se la retiras a alguien a mano, el reto no se la vuelve a dar.
 

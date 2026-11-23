@@ -41,6 +41,7 @@ use Modules\Achievements\Filament\Resources\AchievementResource\RelationManagers
 use Modules\Achievements\Filament\Resources\AchievementResource\RelationManagers\GrantsRelationManager;
 use Modules\Achievements\Filament\Support\AchievementPanelView;
 use Modules\Achievements\Filament\Support\AchievementRuleForm;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementGrantModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 
 /**
@@ -153,6 +154,11 @@ final class AchievementResource extends BaseResource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(static fn (Builder $query): Builder => $query->addSelect([
+                'holders_count' => AchievementGrantModel::query()
+                    ->selectRaw('count(distinct user_id)')
+                    ->whereColumn('achievement_id', 'achievements_catalogue.id'),
+            ]))
             ->columns([
                 TextColumn::make('name')
                     ->label(self::text('fields.name'))
@@ -168,10 +174,10 @@ final class AchievementResource extends BaseResource
                     ->color(static fn (string $state): string => AchievementStatus::from($state)->colour())
                     ->badge(),
 
-                TextColumn::make('grants_count')
+                // People, not grants: one that repeats per season has a row per season
+                TextColumn::make('holders_count')
                     ->label(self::text('fields.holders'))
-                    ->counts('grants')
-                    ->sortable()
+                    ->sortable(query: static fn (Builder $query, string $direction): Builder => $query->orderBy('holders_count', $direction === 'desc' ? 'desc' : 'asc'))
                     ->alignCenter()
                     ->visibleFrom('sm'),
 

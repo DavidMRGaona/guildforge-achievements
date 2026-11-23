@@ -191,7 +191,8 @@ final class AchievementsProfileSectionTest extends ModuleTestCase
 
         $this->assertNotNull($props);
         $this->assertSame(['Diez partidas', 'Gran ayuda', 'Logro secreto'], array_column($props['locked'], 'name'));
-        $this->assertSame(['value' => 7, 'threshold' => 10], $props['locked'][0]['progress']);
+        $this->assertSame(['value' => 7, 'threshold' => 10, 'inMonths' => false], $props['locked'][0]['progress']);
+        $this->assertNull($props['locked'][0]['season']);
         $this->assertTrue($props['locked'][1]['manual']);
         $this->assertNull($props['locked'][1]['progress']);
         // A secret keeps its rule and its id too: nothing that would hint at it

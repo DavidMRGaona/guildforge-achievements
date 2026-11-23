@@ -29,6 +29,9 @@ enum AchievementStatus: string
     /** A secret achievement while secret achievements are switched off */
     case SecretsOff = 'secrets_off';
 
+    /** Repeats per season or asks for a streak while seasons and streaks are switched off */
+    case SeasonsOff = 'seasons_off';
+
     /** A community achievement while community achievements are switched off */
     case CommunityOff = 'community_off';
 
@@ -51,7 +54,7 @@ enum AchievementStatus: string
             self::Evaluated => 'success',
             self::Manual => 'info',
             self::Inactive => 'gray',
-            self::NoSource, self::KindOff, self::SecretsOff, self::CommunityOff => 'warning',
+            self::NoSource, self::KindOff, self::SecretsOff, self::SeasonsOff, self::CommunityOff => 'warning',
             self::InvalidRule => 'danger',
         };
     }

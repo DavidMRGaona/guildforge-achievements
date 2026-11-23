@@ -8,7 +8,8 @@ use App\Domain\Activity\ActivityRole;
 
 /**
  * A bulk grant asked for: the achievement, to whoever held `role` in one subject of an activity
- * source (an event, a tournament, a table…).
+ * source (an event, a tournament, a table…). `season` is the season chosen for one that repeats
+ * (SeasonClock::choices(); the current one when null), ignored for the rest.
  */
 final readonly class BulkGrantRequestDTO
 {
@@ -17,5 +18,6 @@ final readonly class BulkGrantRequestDTO
         public string $subjectId,
         public ActivityRole $role,
         public string $achievementId,
+        public ?string $season = null,
     ) {}
 }

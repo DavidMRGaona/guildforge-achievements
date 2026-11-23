@@ -11,7 +11,7 @@ El core rechaza el módulo si no se cumplen (`module.json` → `requires`).
 
 ## Qué hace
 
-Un catálogo de logros que se conceden solos con lo que cada persona hace en la asociación, a partir del registro de actividad, o a mano y en lote desde el panel, con su historial, y que se ven en el perfil público, junto al nombre (perfil, tarjeta y foro) y en la página `/logros`. También retos de la asociación: objetivos entre todas las personas con un logro de recompensa. Cada mecánica restante (avisos, temporadas…) llega con su propia issue.
+Un catálogo de logros que se conceden solos con lo que cada persona hace en la asociación, a partir del registro de actividad, o a mano y en lote desde el panel, con su historial, y que se ven en el perfil público, junto al nombre (perfil, tarjeta y foro) y en la página `/logros`. Los logros pueden repetirse cada temporada o pedir rachas de meses seguidos. Avisa en la campana de lo que cada persona consigue y, si la persona quiere, anuncia sus logros raros en un resumen mensual a quien puede ver su perfil; sus elecciones están en la pestaña «Logros» de los ajustes de la cuenta. También retos de la asociación: objetivos entre todas las personas con un logro de recompensa. Cada mecánica restante llega con su propia issue.
 
 ## Registro de actividad
 
@@ -29,7 +29,7 @@ Los logros se calculan con lo que cuentan las fuentes de actividad del core (`do
 
 - **Imagen.** Se sube a Cloudinary por el disco `images`, en `achievements/badges/<año>/<mes>/`, o se elige de la biblioteca de medios. La fuente de medios `achievements.badge-image` reclama esa carpeta; el modelo libera la imagen sustituida o borrada a través del core. El uso de un logro secreto se titula «Logro secreto», pero su miniatura sí se ve en la biblioteca (que solo abre el equipo, con `media.view_any`): el core solo puede ocultar carpetas enteras, y nunca borra lo que hay en ellas. Ocultar un uso concreto llegará con DavidMRGaona/GuildForge#830.
 - **Secretos.** A quien no lo tiene, un logro secreto del dueño no se le enseña uno a uno: la sección solo dice cuántos hay (`secretCount`, «Y 2 logros secretos»), sin fecha, rareza ni posición, porque las concesiones de una misma tanda comparten segundo y una fecha ataría el secreto a uno revelado en otro sitio (y a la partida o el evento de detrás). El dueño ve los suyos. Destacar un secreto es enseñarlo a todo el mundo; si un logro destacado pasa a ser secreto, `ForgetFeaturedWhenMadeSecret` lo quita de las destacadas de todo el mundo. En `/logros` y en lo que le falta al dueño, los enmascarados no llevan id ni fecha.
-- **Estado.** La columna *Estado* dice si el evaluador mira el logro y, si no, por qué: *Activo*, *Desactivado*, *Solo a mano*, *Regla no válida*, *Sin fuente* (ningún módulo activo informa de su tipo), *Tipo apagado* o *Secretos apagados*. Es la misma decisión que toma el evaluador (`AchievementStatusRule`).
+- **Estado.** La columna *Estado* dice si el evaluador mira el logro y, si no, por qué: *Activo*, *Desactivado*, *Solo a mano*, *Regla no válida*, *Sin fuente* (ningún módulo activo informa de su tipo), *Tipo apagado*, *Secretos apagados*, *Temporadas apagadas* o *Comunidad apagada*. Es la misma decisión que toma el evaluador (`AchievementStatusRule`).
 - **Borrar** solo se ofrece mientras nadie tiene el logro (`AchievementPolicy::delete()`, y la clave ajena `restrictOnDelete` en la base de datos), y pide una casilla. Un logro que alguien tiene solo se desactiva.
 
 ### La regla
@@ -44,6 +44,9 @@ JSON versionado en la columna `rule`, leído por `AchievementRule::tryFrom()`:
 {"version": 1, "metric": "years", "basis": "account", "threshold": 5}
 {"version": 1, "metric": "people", "kind": "game_session", "filters": {"role": "director", "with_role": "player"}, "threshold": 20}
 {"version": 1, "metric": "manual"}
+{"version": 1, "metric": "count", "kind": "game_session", "threshold": 10, "window": {"type": "season"}}
+{"version": 1, "metric": "count", "kind": "game_session", "threshold": 1, "window": {"type": "streak", "months": 3, "per_season": true}}
+{"version": 1, "metric": "manual", "window": {"type": "season"}}
 ```
 
 - `count`: cosas (tipo de fuente + id) del tipo de actividad en las que la persona tiene un hecho que pasa todos los filtros; varios papeles en la misma cosa cuentan una vez. `placement_max` deja fuera los hechos sin puesto.
@@ -52,10 +55,23 @@ JSON versionado en la columna `rule`, leído por `AchievementRule::tryFrom()`:
 - `people` (comunidad): personas distintas con las que se coincidió en cosas del tipo de actividad, solo `game_session`, `campaign`, `tournament` y `event`. `filters.role` es el papel propio y `filters.with_role`, el de las demás: solo `player` o `director` (otro papel deja la regla ilegible); sin ellos, cualquiera. Nadie se cuenta a sí mismo.
 - `manual`: nunca se concede solo.
 - La lectura nunca lanza excepciones, y lo que no entiende deja la regla **ilegible**, nunca «cumplida por todo el mundo»: otra versión, una métrica, tipo, papel, base o ventana desconocidos, una clave inesperada, un valor del tipo equivocado o fuera de rango. Un logro con la regla ilegible no se evalúa y se avisa una vez al día.
-- Sitio para lo que viene: temporadas y rachas serán tipos nuevos de `window`; los retos, métricas nuevas. Hasta que una versión las lea, una regla que las use es ilegible para las anteriores.
+- `window` (`RuleWindow`) dice qué hechos cuentan. Sin ella, o con `all_time`, todos, y el logro se concede una vez. Con `season`, solo los de una temporada (un año natural en la zona de visualización), y se concede una vez en cada temporada en que se cumpla. Con `streak`, `months` meses naturales seguidos (de 2 a 36) con al menos `threshold` cosas cada uno; un mes sin ellas corta la racha. Se concede una vez, o una vez por temporada con `per_season` (la racha no pasa de una temporada a la siguiente, y entonces tiene 12 meses como mucho). La racha solo vale para `count`, los años nunca tienen ventana y un logro `manual` puede ser por temporada (se concede a mano una vez cada año).
+- Sitio para lo que viene: los retos serán métricas nuevas. Hasta que una versión las lea, una regla que las use es ilegible para las anteriores (como lo es una ventana de temporada o de racha para las versiones de antes de ellas).
 - `filters.attribute.label` es solo el nombre del valor al guardar, para el panel; no interviene en la evaluación.
 
-El formulario construye la regla con los tipos que ofrecen las fuentes activas ahora (más el del logro que se edita, marcado «sin fuente») y con los atributos y valores que ofrecen (`OffersActivityAttributes`). Una combinación que `AchievementRule` no lee se rechaza al guardar.
+El formulario construye la regla con los tipos que ofrecen las fuentes activas ahora (más el del logro que se edita, marcado «sin fuente») y con los atributos y valores que ofrecen (`OffersActivityAttributes`). *Cuándo cuenta* (siempre, por temporada o racha de meses seguidos, con sus meses y si va *Dentro de cada temporada*) sale mientras *Temporadas y rachas* está encendido, y siempre en un logro que ya tiene una ventana, para poder verla y quitarla. Una combinación que `AchievementRule` no lee se rechaza al guardar.
+
+### Temporadas y rachas
+
+Una temporada es un año natural en la zona de visualización: la clave de la concesión es el año (`Season`, «2027»), y en pantalla «Temporada 2027». El día, el mes y el año de un hecho salen de su fecha en la zona de visualización, nunca del instante guardado: una partida a las 23:30 del 31 de diciembre en Madrid es de esa temporada aunque se guarde como las 22:30 UTC, y los meses de una racha siguen el calendario de Madrid también con el cambio de hora. La temporada en curso es la de hoy en esa zona (`SeasonClock`, con `TimezoneServiceInterface::today()`).
+
+- **Evaluación.** El evaluador pregunta a una regla por temporadas (`RuleEvaluator::seasons()`) por cada temporada en la que la persona tiene un hecho que pasa sus filtros, hasta la actual, y concede cada una que se cumpla y no tenga (ni se le haya retirado). Un recálculo concede también las temporadas pasadas, en silencio. Una racha se cumple cuando una serie de meses llega a `months`; el momento es el del hecho que completó el último mes, y sobre él se decide si se avisa.
+- **Lo concedido se queda.** Si una fuente publica de nuevo una cosa sin la persona, el registro cambia y el progreso se recalcula, pero la concesión de esa temporada se conserva.
+- **A mano y en lote.** Un logro por temporada se concede para la temporada elegida; «ya lo tiene» quiere decir «ya lo tiene esa temporada». La columna *Personas* del catálogo cuenta personas distintas, no concesiones. Las tablas de concesiones y el historial tienen la columna *Temporada* (desde `xl`; en pantallas más estrechas, en *Ver detalles*).
+- **Elegir la temporada.** Conceder a mano y en lote un logro por temporada pide la temporada: la actual (por defecto) o la anterior, para lo que se hizo justo antes de cambiar de año (`SeasonClock::choices()`). El diálogo de lote dice «Para la temporada N» antes de confirmar. El lote decide la temporada una sola vez por petición y la usa para todo (quién ya lo tiene y qué se concede), así que nunca se parte en Nochevieja; también comprueba por sí mismo que las temporadas estén encendidas (`SeasonUnavailable`).
+- **La ventana no cambia con titulares.** En cuanto alguien tiene el logro, *Cuándo cuenta* (siempre, por temporada o racha) y *Dentro de cada temporada* quedan bloqueados en el formulario, y el servidor rechaza el cambio (`AchievementRuleForm::windowLocked()`): las concesiones de un logro por temporada guardan su año y las de los demás no. Los meses de una racha sí pueden cambiar, como un umbral. Para otra ventana se crea otro logro.
+- **Retirar** una temporada no toca las demás, y esa temporada no vuelve sola.
+- **Apagado.** Con *Temporadas y rachas* apagado, las reglas con temporada o racha no se evalúan (estado *Temporadas apagadas*), tampoco se conceden a mano, no se ofrecen en `/logros` ni en lo que le falta al dueño, y lo ya concedido se conserva y se enseña con sus temporadas. Al volver a encenderlo, todos los logros se evalúan de nuevo, en silencio.
 
 ## Logros de comunidad
 
@@ -71,7 +87,7 @@ Las reglas `people` cuentan a otras personas, así que no salen de los hechos de
 
 ## Concesiones
 
-Tabla `achievements_grants`: cuenta, logro, temporada (nula por ahora), `granted_at`, origen (`rule`, `manual`, `bulk` o `challenge`), quién la hizo (`actor_id`) y `silent`. Única por cuenta, logro y temporada (`season_key`, `''` sin temporada, porque dos NULL nunca chocan en un índice único).
+Tabla `achievements_grants`: cuenta, logro, temporada (el año, en los logros por temporada; nula en los demás), `granted_at`, origen (`rule`, `manual`, `bulk` o `challenge`), quién la hizo (`actor_id`) y `silent`. Única por cuenta, logro y temporada (`season_key`, `''` sin temporada, porque dos NULL nunca chocan en un índice único).
 
 - Se concede solo a través de `AchievementGranterInterface::grant(NewGrant)`. Lo ya concedido no se vuelve a conceder (`INSERT … ON CONFLICT DO NOTHING`, así que dos trabajos a la vez escriben una fila), ni a una cuenta que no existe o está anonimizada (se lee con bloqueo compartido), ni a un logro borrado.
 - Cada concesión nueva lanza `AchievementGranted` (ids, origen, `silent`) cuando su transacción se confirma; nunca dentro de la red de seguridad de la impersonación.
@@ -136,6 +152,7 @@ El perfil lo dibuja el core, y solo después de que su regla de acceso (`Profile
 - **Secretos.** Un logro secreto se ve como «Logro secreto», sin rareza y sin id, a quien no lo tiene, salvo que su dueño lo destaque: destacarlo es enseñarlo a todo el mundo. Sin id, porque uno revelado en otro sitio diría quién más tiene el mismo secreto; lo enmascarado no se puede destacar.
 - **Rareza 0.** En un logro conseguido, una rareza de 0 solo dice que su dueño no está activo: no se enseña, y en el orden de las destacadas cuenta como desconocida (al final). En el navegador, menos de 0,1 % se escribe «< 0,1 %».
 - **Solo totales.** Nada nombra la mesa, la sesión o el evento que concedió un logro; las props nunca llevan la regla ni los puntos.
+- **Temporadas.** Un logro por temporada se ve una vez, con las temporadas en que se consiguió («Conseguido en 2025 y 2026»: solo años) y la fecha de la última (para los demás, solo su mes). Mientras no tenga la de este año, el dueño lo ve también entre lo que le falta, con el progreso de esta temporada («Temporada 2027», «3 de 10»). Una racha enseña la serie que lleva ahora («2 de 6 meses seguidos»): la que llega a este mes o, si este mes aún no tiene nada, al anterior; un mes perdido la deja en 0.
 - **Fecha por meses para los demás.** Los logros que concede una misma evaluación comparten el segundo, así que dos perfiles con «Primera partida» a las 20:31:07 dirían que esas personas jugaron juntas. Por eso solo el dueño recibe el instante (`grantedAt`); cualquier otra persona recibe el mes de la zona de visualización (`grantedMonth`, `AAAA-MM`, «noviembre de 2026»), recortado en el servidor, y la lista le llega ordenada por mes y después por nombre, nunca por el instante. Las tablas del panel (titulares de un logro, logros de una cuenta) enseñan la fecha completa solo a quien tiene `achievements.grant` o `achievements.manage`. Las insignias destacadas, la tarjeta y `/logros` no llevan fecha.
 - **Contador `achievements.count`** («Logros», orden 50): cuántos logros tiene, secretos incluidos; nada con cero.
 - **Ocultar mis logros.** El dueño los oculta desde la propia sección (`achievements_preferences.hidden`): nadie más ve la sección, el contador ni las insignias destacadas.
@@ -152,7 +169,38 @@ La parte de la gente activa que tiene cada logro. Gente activa: cuentas con al m
 
 ### Página `/logros`
 
-`achievements.index`, para todo el mundo: los logros que se pueden conseguir ahora (estado *Activo* o *Solo a mano*, con `AchievementStatusRule`), con la rareza de cada uno y los secretos ocultos, más los que la persona ya tiene, aunque ya no se puedan conseguir. Las funciones siguen a los módulos instalados: un logro sin fuente no se ofrece. Al habilitar el módulo por primera vez, `AchievementsMenuLinkSeeder` añade «Logros» al final del menú de la cabecera, como enlace del módulo: se mueve o se borra en *Sitio web → Navegación* y no vuelve.
+`achievements.index`, para todo el mundo: los logros que se pueden conseguir ahora (estado *Activo* o *Solo a mano*, con `AchievementStatusRule`), con la rareza de cada uno y los secretos ocultos, más los que la persona ya tiene, aunque ya no se puedan conseguir. Los que se repiten llevan «Cada temporada», y la página dice qué temporada es. A quien ha iniciado sesión, y solo a esa persona, cada uno de ellos le dice si lo tiene esta temporada, en qué temporadas anteriores lo consiguió y cuánto lleva en la actual (`AchievementShowcaseInterface::seasonStandings()`); nunca se construye la posición de otra persona. Las funciones siguen a los módulos instalados: un logro sin fuente no se ofrece. Al habilitar el módulo por primera vez, `AchievementsMenuLinkSeeder` añade «Logros» al final del menú de la cabecera, como enlace del módulo: se mueve o se borra en *Sitio web → Navegación* y no vuelve.
+
+## Avisos y anuncios
+
+Dos categorías de avisos, solo en la campana (nunca por correo, así que no hay resumen diario), opcionales y encendidas por defecto; cada persona las apaga en *Ajustes de la cuenta → Avisos* (`AchievementNoticeCategories`, icono `trophy`):
+
+- **`achievements.earned`** («Has conseguido…»): al dueño, de lo que acaba de conseguir. Sus propios logros, así que los secretos van con su nombre.
+- **`achievements.announcements`** («Ana, Bob y 3 más consiguieron logros raros en noviembre»): un resumen mensual de los logros raros y de retos de otras personas.
+
+**Cuándo.** `QueueAchievementNotice` escucha `AchievementGranted` (en cola, tras el commit). Una concesión silenciosa no avisa nunca: un recálculo, lo que ya se cumplía antes (`AnnouncementWindow`) o un lote marcado «en silencio». Las demás se apuntan dos veces en `achievements_pending_notices` (tipo `earned` y `announcement`; la fila se va con la concesión si se retira o se anonimiza la cuenta).
+
+**Al dueño.** Cada concesión encola `DeliverAchievementNoticesJob` un minuto después (`DELAY_SECONDS`), único por persona mientras espera. Ese job manda un solo aviso con todas las concesiones pendientes de la persona: una evaluación que concede cientos da un aviso («Has conseguido 120 logros», con tres nombres y «y 117 más»). Lo pendiente se bloquea mientras se manda y se borra solo después, en la misma transacción. El aviso se monta antes de `notify()` (`AchievementsEarnedNotification::for()`), porque el canal de la campana del core se traga lo que falla mientras lo monta: si algo falla, falla el job y todo sigue esperando al reintento, y repetirlo no avisa dos veces.
+
+**A los demás: resumen mensual.** A quien no es el dueño, de un logro solo se le dice el mes: las concesiones de una misma evaluación comparten segundo, y salir a la vez, o el mismo día, diría quién jugó con quién. `ReleaseAchievementAnnouncementsJob` sale el día 1 de cada mes a las 10:00 de la zona de visualización (`achievements:announcements`) con todo lo conseguido antes de ese mes, y manda **un aviso por lector y mes** (clave `achievements.announcements:<AAAA-MM>`). Cada concesión va bajo el mes de la zona de visualización en que se consiguió: lo que llega tarde (una concesión del 31 a las 23:59 encolada después del resumen, un mes cuyo resumen falló) sale en el siguiente, con su propio mes, y el título nunca nombra un mes falso. El título va en singular con un solo logro, y dice «raros», «de retos» o los dos según lo que lleve. El título nombra a dos personas y cuenta el resto; el cuerpo da, por persona y en orden alfabético, el nombre de sus logros, nunca el día, la hora, ni con quién. Se decide al salir y falla cerrado (`AnnouncementRule`):
+
+- el interruptor **Anuncios de logros raros** encendido, con los ajustes leídos con `readStrictly()`. Si no se pueden leer, no se toca nada, el job se reintenta (10 minutos, 1 hora y 6 horas) y en el último intento falla con `AchievementSettingsUnreadableException`, para que se vea; si el interruptor está apagado, lo que esperaba se descarta y no se anuncia después;
+- el dueño lo ha pedido (`achievements_preferences.announce_rare`, apagado por defecto) y no oculta sus logros, en el momento del resumen;
+- cada concesión es de un reto (`GrantSource::Challenge`) o de un logro que tiene **menos** gente activa que el umbral (`AchievementRarityInterface::current()`; con la rareza desconocida no se anuncia), venga de una regla o de una concesión a mano;
+- nunca un lote: dice quién participó en una cosa, y eso los demás solo lo ven como totales.
+
+Se reparte en tandas de 100 cuentas (`DeliverAchievementAnnouncementsJob`, con `notify()` por el canal `site` del core), encoladas tras el commit; lo pendiente se borra en la misma transacción. Cada tanda prefiere no repetir a completar: antes de mandar nada lee los ajustes en modo estricto (si no se pueden leer, se reintenta y en el último intento falla) y todo lo que comparte (cada dueño y lo que tienen los lectores), así que lo que falla ahí se reintenta sin que nadie lo haya recibido. Una vez empieza a mandar, una cuenta que falla se registra y se salta, y nunca se manda otra vez a las demás. Al entregar se vuelve a mirar todo lo anterior por dueño y, para cada lector, si puede ver el perfil del dueño (`PublicProfileServiceInterface::findByHandle()`, la regla de la página del perfil). Nadie recibe noticias de sí mismo. Un logro secreto solo se nombra a quien también lo tiene, o si el dueño lo ha destacado; a los demás se les cuenta («un logro secreto»). Lo que tienen los lectores se lee en una consulta por tanda, y solo si algún secreto lo necesita. Un anuncio ya entregado se queda en la campana aunque el dueño cambie de idea después.
+
+El módulo no depende del módulo de anuncios: todo va por los contratos de avisos del core (`HasMailCategory`, `HasSiteNotification`).
+
+## Pestaña «Logros» de la cuenta
+
+`/perfil?tab=achievements`, en el hueco `profile-sections` con `profileTab` (`AccountAchievementsTab`, props compartidas `achievementsAccount` y `achievementsAccountVisible`, solo en `profile.show`):
+
+- **Anunciar mis logros raros** (`announce_rare`, apagado), mientras **Anuncios de logros raros** esté encendido;
+- **Aparecer en la clasificación** (`in_leaderboard`, encendido), siempre, para que cada cual pueda salirse antes de que se encienda; la usa la clasificación del hito «Gamificación» (con puntos y clasificación encendidos, `leaderboardOn`).
+
+Mientras la persona deba verificar su correo no hay pestaña. Cada interruptor se guarda al momento con `PUT /logros/preferencias` (`achievements.account.update`, `auth`, mismo límite que la sección del perfil: 20 por minuto y 200 por hora). Cada escritor de `achievements_preferences` escribe solo sus columnas, en una sola sentencia (`saveShowcase()` para ocultar y destacados, `saveChoices()` para la pestaña), así que ninguno devuelve a un valor viejo lo que cambió el otro. Pedir que se anuncie mientras los anuncios están apagados se rechaza con un error de validación, nunca con un guardado que no guarda. Una impersonación de solo lectura no guarda nada.
 
 ## Retos de la asociación
 
@@ -199,7 +247,7 @@ Un reto se cuenta desde su primer día hasta 30 días después del último (`Cha
 
 En cuanto el total llega al objetivo, el reto queda *Conseguido* para siempre (`completed_at`, el instante del hecho que lo alcanzó), aunque el total baje después. Cada persona que contribuyó recibe la recompensa con origen `challenge` a través de `AchievementGranterInterface`, y también quien contribuya después mientras se siga contando. No se concede a quien ya la tiene ni a quien se la retiraron a mano, ni mientras la recompensa no cumpla `ChallengeRewardRule`.
 
-Solo conceden los recuentos con aviso, y cada concesión se anuncia (`AchievementGranted` con `silent` falso): el momento que cuenta es cuando se descubre. Un recuento silencioso (un recálculo) guarda el total y la completación, y el siguiente recuento con aviso concede, como mucho a la noche siguiente. Los anuncios los envía #6 (`achievements.announcements`).
+Solo conceden los recuentos con aviso, y cada concesión se anuncia (`AchievementGranted` con `silent` falso): el momento que cuenta es cuando se descubre. Un recuento silencioso (un recálculo) guarda el total y la completación, y el siguiente recuento con aviso concede, como mucho a la noche siguiente. Las concesiones van por el mismo camino que cualquier otra (`QueueAchievementNotice`): el dueño lo sabe enseguida en la campana y los demás en el resumen mensual de anuncios, bajo el mes de la concesión, que es cuando se descubrió que el reto se completó (o la persona contribuyó), nunca uno anterior aunque los hechos sean de otro mes.
 
 ### En la web
 

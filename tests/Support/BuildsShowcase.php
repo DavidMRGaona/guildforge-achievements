@@ -39,14 +39,14 @@ trait BuildsShowcase
         return (string) UserProfileModel::query()->where('user_id', $user->id)->value('handle');
     }
 
-    protected function grantAt(UserModel|string $user, string $achievementId, string $when = '2026-10-01 18:00:00'): void
+    protected function grantAt(UserModel|string $user, string $achievementId, string $when = '2026-10-01 18:00:00', ?string $season = null): void
     {
         DB::table('achievements_grants')->insert([
             'id' => (string) Str::uuid7(),
             'user_id' => strtolower($user instanceof UserModel ? (string) $user->id : $user),
             'achievement_id' => strtolower($achievementId),
-            'season' => null,
-            'season_key' => '',
+            'season' => $season,
+            'season_key' => $season ?? '',
             'granted_at' => $when,
             'source' => 'rule',
             'actor_id' => null,

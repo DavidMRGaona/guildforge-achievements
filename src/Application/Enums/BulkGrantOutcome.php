@@ -35,4 +35,7 @@ enum BulkGrantOutcome: string
     /** The source could not read who took part: nothing is guessed */
     case SourceUnavailable = 'source_unavailable';
 
+    /** A season or a streak while seasons and streaks are off, or a season that cannot be chosen */
+    case SeasonUnavailable = 'season_unavailable';
+
 }

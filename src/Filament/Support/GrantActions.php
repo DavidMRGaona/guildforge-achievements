@@ -29,18 +29,22 @@ use Modules\Achievements\Application\Enums\BulkGrantOutcome;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\BulkGrantInterface;
+use Modules\Achievements\Application\Services\SeasonClock;
 use Modules\Achievements\Domain\Entities\AchievementGrant;
 use Modules\Achievements\Domain\Enums\GrantSource;
 use Modules\Achievements\Domain\ValueObjects\GrantReason;
 use Modules\Achievements\Domain\ValueObjects\NewGrant;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementGrantModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementRepository;
 use Modules\Achievements\Policies\AchievementPolicy;
 
 /**
  * The grant actions of the panel, shared by the achievement page (who holds it) and the account page.
  * Each is authorized by AchievementPolicy, which Filament checks both to show it and again when it
- * runs; none is marked as reading, so a read-only impersonation refuses them all.
+ * runs; none is marked as reading, so a read-only impersonation refuses them all. An achievement that
+ * repeats per season is granted for the season going on (SeasonClock), and «does not hold it» means
+ * «not this season».
  */
 final class GrantActions
 {
@@ -71,16 +75,24 @@ final class GrantActions
                     ->label(self::text('grant.account'))
                     ->helperText(self::text('grant.account_helper'))
                     ->searchable()
-                    ->getSearchResultsUsing(static fn (string $search): array => self::accountsWithout($achievement(), $search))
+                    ->getSearchResultsUsing(static fn (string $search, Get $get): array => self::accountsWithout($achievement(), $search, self::chosenSeasonKey($achievement(), $get('season')) ?? ''))
                     ->getOptionLabelUsing(static fn (mixed $value): ?string => self::visibleAccountName($value))
                     ->required()
                     ->rules([
-                        static fn (): Closure => static function (string $attribute, mixed $value, Closure $fail) use ($achievement): void {
-                            if (! is_string($value) || ! self::mayReceive($achievement(), $value)) {
+                        static fn (Get $get): Closure => static function (string $attribute, mixed $value, Closure $fail) use ($achievement, $get): void {
+                            $seasonKey = self::chosenSeasonKey($achievement(), $get('season'));
+
+                            // A season that cannot be chosen is the season field's error
+                            if ($seasonKey === null) {
+                                return;
+                            }
+
+                            if (! is_string($value) || ! self::mayReceive($achievement(), $value, $seasonKey)) {
                                 $fail(self::text('grant.not_granted'));
                             }
                         },
                     ]),
+                self::seasonField(static fn (Get $get): AchievementModel => $achievement(), 'grant'),
                 ...self::grantFields(),
             ])
             ->action(static function (array $data) use ($achievement): void {
@@ -109,7 +121,9 @@ final class GrantActions
                     ->options(static fn (): array => self::grantableFor($userId()))
                     ->searchable()
                     ->native(false)
-                    ->required(),
+                    ->required()
+                    ->live(),
+                self::seasonField(static fn (Get $get): ?AchievementModel => AchievementModel::query()->find(is_string($get('achievement_id')) ? $get('achievement_id') : null), 'grant'),
                 ...self::grantFields(),
             ])
             ->action(static function (array $data) use ($userId): void {
@@ -225,6 +239,7 @@ final class GrantActions
                             ->native(false)
                             ->required()
                             ->live(),
+                        self::seasonField(static fn (Get $get): AchievementModel => $achievement(), 'bulk'),
                     ]),
                 Step::make(self::text('bulk.steps.confirm'))
                     ->schema([
@@ -257,7 +272,7 @@ final class GrantActions
                 }
 
                 $result = app(BulkGrantInterface::class)->grant(
-                    new BulkGrantRequestDTO((string) $data['source_type'], (string) $data['subject_id'], $role, (string) $achievement()->id),
+                    new BulkGrantRequestDTO((string) $data['source_type'], (string) $data['subject_id'], $role, (string) $achievement()->id, is_scalar($data['season'] ?? null) ? (string) $data['season'] : null),
                     silent: ($data['notice'] ?? 'silent') !== 'notify',
                     reason: is_string($data['reason'] ?? null) ? $data['reason'] : null,
                     actor: $actor,
@@ -309,12 +324,22 @@ final class GrantActions
      */
     private static function grantByHand(AchievementModel $achievement, string $userId, array $data): void
     {
+        $seasonKey = self::chosenSeasonKey($achievement, $data['season'] ?? null);
+
+        // Checked again on the server: only the seasons the dialog offers
+        if ($seasonKey === null) {
+            Notification::make()->title(self::text('grant.season_refused'))->danger()->send();
+
+            return;
+        }
+
         $granted = app(AchievementGranterInterface::class)->grant(new NewGrant(
             userId: $userId,
             achievementId: (string) $achievement->id,
             source: GrantSource::Manual,
             silent: ! (bool) ($data['notify'] ?? true),
             actorId: (string) Auth::id(),
+            season: $seasonKey === '' ? null : $seasonKey,
             reason: is_string($data['reason'] ?? null) ? $data['reason'] : null,
         ));
 
@@ -331,7 +356,7 @@ final class GrantActions
      *
      * @return array<string, string>
      */
-    private static function accountsWithout(AchievementModel $achievement, string $search): array
+    private static function accountsWithout(AchievementModel $achievement, string $search, string $seasonKey = ''): array
     {
         $search = trim($search);
 
@@ -353,7 +378,7 @@ final class GrantActions
                 $query->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", [$pattern])
                     ->orWhereRaw("LOWER(COALESCE(display_name, '')) LIKE ? ESCAPE '!'", [$pattern]);
             })
-            ->whereNotIn('id', AchievementGrantModel::query()->select('user_id')->where('achievement_id', $achievement->id)->where('season_key', ''))
+            ->whereNotIn('id', AchievementGrantModel::query()->select('user_id')->where('achievement_id', $achievement->id)->where('season_key', $seasonKey))
             ->orderBy('name')
             ->limit(self::MAX_ACCOUNTS)
             ->get(['id', 'name'])
@@ -363,7 +388,7 @@ final class GrantActions
             ->all();
     }
 
-    private static function mayReceive(AchievementModel $achievement, string $userId): bool
+    private static function mayReceive(AchievementModel $achievement, string $userId, string $seasonKey): bool
     {
         $viewer = self::viewer();
         $user = UserModel::query()->whereKey($userId)->whereNull('anonymized_at')->first();
@@ -371,7 +396,60 @@ final class GrantActions
         return $viewer instanceof UserModel
             && $user instanceof UserModel
             && $viewer->can('view', $user)
-            && AchievementGrantModel::query()->where('achievement_id', $achievement->id)->where('user_id', strtolower($userId))->where('season_key', '')->doesntExist();
+            && AchievementGrantModel::query()->where('achievement_id', $achievement->id)->where('user_id', strtolower($userId))->where('season_key', $seasonKey)->doesntExist();
+    }
+
+    /**
+     * The season a grant by hand or in bulk of this achievement goes to: '' when it does not repeat,
+     * the chosen one of SeasonClock::choices() (the current one when none was chosen), null for any
+     * other choice.
+     */
+    public static function chosenSeasonKey(?AchievementModel $achievement, mixed $chosen): ?string
+    {
+        return app(SeasonClock::class)->keyForChoice(
+            $achievement instanceof AchievementModel ? EloquentAchievementRepository::toEntity($achievement) : null,
+            $chosen,
+        );
+    }
+
+    /**
+     * «Temporada»: the current season (chosen by default) or the one before, shown only for an
+     * achievement that repeats per season, so the dialog says where the grant goes before it is
+     * confirmed.
+     *
+     * @param  Closure(Get): ?AchievementModel  $achievement
+     */
+    private static function seasonField(Closure $achievement, string $texts): Select
+    {
+        $repeats = static fn (Get $get): bool => app(SeasonClock::class)->forGrantOf(
+            ($model = $achievement($get)) instanceof AchievementModel ? EloquentAchievementRepository::toEntity($model) : null,
+        ) !== null;
+
+        return Select::make('season')
+            ->label(self::text($texts.'.season'))
+            ->helperText(self::text($texts.'.season_helper'))
+            ->options(static fn (): array => self::seasonOptions())
+            ->default(static fn (): string => app(SeasonClock::class)->current()->key())
+            ->selectablePlaceholder(false)
+            ->native(false)
+            ->in(static fn (): array => array_map(strval(...), array_keys(self::seasonOptions())))
+            ->required($repeats)
+            ->visible($repeats)
+            ->live();
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function seasonOptions(): array
+    {
+        $options = [];
+
+        foreach (app(SeasonClock::class)->choices() as $season) {
+            $options[$season->key()] = (string) GrantDisplay::seasonLabel($season->key());
+        }
+
+        return $options;
     }
 
     /**
@@ -381,10 +459,24 @@ final class GrantActions
      */
     private static function grantableFor(string $userId): array
     {
-        $held = AchievementGrantModel::query()->where('user_id', strtolower($userId))->where('season_key', '')->pluck('achievement_id')->all();
+        $held = [];
+
+        foreach (AchievementGrantModel::query()->where('user_id', strtolower($userId))->get(['achievement_id', 'season_key']) as $grant) {
+            $held[strtolower((string) $grant->achievement_id)][$grant->season_key] = true;
+        }
+
         $options = [];
 
-        foreach (AchievementModel::query()->where('is_active', true)->whereNotIn('id', $held)->orderBy('name')->get() as $achievement) {
+        foreach (AchievementModel::query()->where('is_active', true)->orderBy('name')->get() as $achievement) {
+            // Held for good, or in every season that can be chosen: not offered
+            $keys = app(SeasonClock::class)->forGrantOf(EloquentAchievementRepository::toEntity($achievement)) === null
+                ? ['']
+                : array_map(strval(...), array_keys(app(SeasonClock::class)->choices()));
+
+            if (array_all($keys, static fn (string $key): bool => isset($held[strtolower((string) $achievement->id)][$key]))) {
+                continue;
+            }
+
             if (Gate::allows('grant', $achievement)) {
                 $options[(string) $achievement->id] = $achievement->name;
             }
@@ -456,8 +548,9 @@ final class GrantActions
             return '';
         }
 
+        $season = is_scalar($get('season')) ? (string) $get('season') : null;
         $preview = app(BulkGrantInterface::class)->preview(
-            new BulkGrantRequestDTO($sourceType, (string) $subjectId, $role, (string) $achievement->id),
+            new BulkGrantRequestDTO($sourceType, (string) $subjectId, $role, (string) $achievement->id, $season),
             $viewer,
         );
 
@@ -465,7 +558,15 @@ final class GrantActions
             return self::refusal($preview);
         }
 
-        return implode(' ', self::previewLines($preview));
+        $seasonKey = self::chosenSeasonKey($achievement, $season);
+        $lines = self::previewLines($preview);
+
+        // Before confirming, the season it goes to
+        if ($seasonKey !== null && $seasonKey !== '') {
+            array_unshift($lines, (string) __('achievements::messages.grants.bulk.preview_season', ['season' => $seasonKey]));
+        }
+
+        return implode(' ', $lines);
     }
 
     /**
