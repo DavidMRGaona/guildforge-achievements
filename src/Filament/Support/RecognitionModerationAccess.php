@@ -7,6 +7,7 @@ namespace Modules\Achievements\Filament\Support;
 use App\Application\Authorization\Services\RoleGrantPolicy;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Illuminate\Support\Facades\Auth;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\RecognitionModel;
 use Modules\Achievements\Policies\AchievementPolicy;
 use Throwable;
 
@@ -48,6 +49,33 @@ final class RecognitionModerationAccess
                 && $viewer instanceof UserModel
                 && $account instanceof UserModel
                 && app(RoleGrantPolicy::class)->canManageAccount($viewer, $account);
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * One recognition from the page of `$userId`: it must be one of that account's, and the
+     * moderator must be able to manage both people, since deleting it changes what each of them
+     * gave or received (an administrator's received recognitions are never touched from a member's
+     * page). A person who no longer exists leaves only the other to check.
+     */
+    public static function allowsDeletingRecord(string $userId, RecognitionModel $record): bool
+    {
+        try {
+            $userId = strtolower($userId);
+            $giver = strtolower($record->giver_id);
+            $receiver = strtolower($record->receiver_id);
+
+            if (($giver !== $userId && $receiver !== $userId) || ! self::allowsDeleting($userId)) {
+                return false;
+            }
+
+            $viewer = Auth::user();
+            $other = UserModel::withTrashed()->find($giver === $userId ? $receiver : $giver);
+
+            return $viewer instanceof UserModel
+                && (! $other instanceof UserModel || app(RoleGrantPolicy::class)->canManageAccount($viewer, $other));
         } catch (Throwable) {
             return false;
         }

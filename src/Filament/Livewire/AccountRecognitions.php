@@ -101,9 +101,9 @@ final class AccountRecognitions extends TableWidget
             ->label($this->text('delete.label'))
             ->icon('heroicon-o-trash')
             ->color('danger')
-            ->visible(fn (): bool => RecognitionModerationAccess::allowsDeleting($this->userId))
+            ->visible(fn (RecognitionModel $record): bool => RecognitionModerationAccess::allowsDeletingRecord($this->userId, $record))
             // Filament asks again when the action runs, on the server
-            ->authorize(fn (): bool => RecognitionModerationAccess::allowsDeleting($this->userId))
+            ->authorize(fn (RecognitionModel $record): bool => RecognitionModerationAccess::allowsDeletingRecord($this->userId, $record))
             ->requiresConfirmation()
             ->modalHeading($this->text('delete.heading'))
             ->modalDescription($this->text('delete.description'))
@@ -114,6 +114,9 @@ final class AccountRecognitions extends TableWidget
                     ->required(),
             ])
             ->action(function (RecognitionModel $record): void {
+                // Once more right before deleting, with the record as it is now
+                abort_unless(RecognitionModerationAccess::allowsDeletingRecord($this->userId, $record), 403);
+
                 $deleted = app(RecognitionRepositoryInterface::class)->delete($record->id);
 
                 if ($deleted) {

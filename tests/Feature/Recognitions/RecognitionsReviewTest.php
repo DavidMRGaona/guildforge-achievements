@@ -279,6 +279,29 @@ final class RecognitionsReviewTest extends ModuleTestCase
         $this->assertSame(1, $this->recognitionCount());
     }
 
+    public function test_from_a_members_page_a_recognition_of_an_administrator_is_not_deleted(): void
+    {
+        $admin = UserModel::factory()->admin()->create(['display_name' => 'Admin']);
+        $this->played('mesa-1', '2026-12-08 18:00:00', $this->ana, $admin, $this->bob);
+        $this->give($this->ana, 'mesa-1', $admin);
+        $this->give($this->ana, 'mesa-1', $this->bob);
+        $this->actingAs($this->userWith('users.view_any', 'users.view', AchievementPolicy::MODERATE_RECOGNITIONS));
+        $toAdmin = RecognitionModel::query()->where('receiver_id', strtolower((string) $admin->id))->sole();
+        $toBob = RecognitionModel::query()->where('receiver_id', strtolower((string) $this->bob->id))->sole();
+
+        // Ana's page may be managed, yet the row whose other side is the administrator is not offered
+        $this->assertTrue(RecognitionModerationAccess::allowsDeleting((string) $this->ana->id));
+        $this->assertFalse(RecognitionModerationAccess::allowsDeletingRecord((string) $this->ana->id, $toAdmin));
+        $this->assertTrue(RecognitionModerationAccess::allowsDeletingRecord((string) $this->ana->id, $toBob));
+        // Nor a recognition that is not one of that page's account
+        $this->assertFalse(RecognitionModerationAccess::allowsDeletingRecord((string) $this->bob->id, $toAdmin));
+
+        Livewire::test(AccountRecognitions::class, ['userId' => (string) $this->ana->id])
+            ->assertTableActionHidden(AccountRecognitions::DELETE_ACTION, $toAdmin)
+            ->assertTableActionVisible(AccountRecognitions::DELETE_ACTION, $toBob);
+        $this->assertSame(2, $this->recognitionCount());
+    }
+
     public function test_an_account_anonymized_meanwhile_is_refused_not_already_given(): void
     {
         $this->bob->forceFill(['anonymized_at' => now()])->save();
