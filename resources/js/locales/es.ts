@@ -91,7 +91,7 @@ export default {
             held: 'Tienes {count} de {total}.',
             empty: 'Todavía no hay logros.',
             rarityExplained:
-                'La rareza es la parte de la gente activa (quien ha participado en algo en los últimos doce meses) que tiene cada logro.',
+                'La rareza es la parte de la gente activa (quien ha participado en algo en los últimos doce meses) que tiene cada logro. Se actualiza una vez al día, por la noche.',
             youHoldIt: 'Lo tienes',
             seasonExplained:
                 'Algunos logros se pueden volver a conseguir cada temporada, que dura un año natural. Ahora es la temporada {season}.',

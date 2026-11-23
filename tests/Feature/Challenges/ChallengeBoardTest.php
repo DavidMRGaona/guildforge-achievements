@@ -19,8 +19,10 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\PendingCommand;
 use Inertia\Testing\AssertableInertia as Assert;
+use Modules\Achievements\Application\Services\AchievementRarityInterface;
 use Modules\Achievements\Filament\SiteBlocks\ChallengeSiteBlock;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\ChallengeModel;
+use Modules\Achievements\Infrastructure\Profiles\ShowcasePresenter;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Jobs\EvaluateChallengesJob;
 use Modules\Achievements\Jobs\ListChallengeCompletersJob;
@@ -333,6 +335,29 @@ final class ChallengeBoardTest extends ModuleTestCase
                 ->where('challenges.0.progress', 2));
     }
 
+    public function test_completing_a_challenge_of_members_never_moves_its_rewards_rarity_until_the_night(): void
+    {
+        [$ana, $luis] = [$this->person('Ana'), $this->person('Luis')];
+        $this->everybodyIsAMember();
+        $reward = (string) $this->challenge(['target' => 1], ['audience' => 'members'])->reward_achievement_id;
+        // Both active this year: the photo of last night says nobody holds the reward
+        $this->ledgerSubject(InMemoryActivitySource::TYPE, 'old', 'event', [$this->recordedFact((string) $ana->id, when: '2026-10-01 18:00:00'), $this->recordedFact((string) $luis->id, when: '2026-10-01 18:00:00')]);
+        $this->refreshRarity();
+        $this->assertNull($this->rewardRarity($reward));
+
+        // Ana's table is counted during the day: the challenge is complete and she gets the reward at once
+        $this->ledgerSubject(InMemoryActivitySource::TYPE, 't1', 'game_session', [$this->recordedFact((string) $ana->id, when: '2026-12-19 18:00:00')]);
+        $this->challenges()->evaluate(null, silent: false);
+        $this->assertSame(1, DB::table('achievements_grants')->count());
+
+        $this->assertNull($this->rewardRarity($reward));
+
+        // The next night
+        $this->travelTo('2026-12-21 04:10:00');
+        $this->refreshRarity();
+        $this->assertSame(50, $this->rewardRarity($reward));
+    }
+
     public function test_a_challenge_for_everybody_shows_each_count_as_it_comes(): void
     {
         $ana = $this->person('Ana');
@@ -431,6 +456,23 @@ final class ChallengeBoardTest extends ModuleTestCase
         // The catch-up itself is not made again
         new ListChallengeCompletersJob(catchUp: true)->failed(new RuntimeException('settings unreadable'));
         Bus::assertDispatchedTimes(ListChallengeCompletersJob::class, 1);
+    }
+
+    private function refreshRarity(): void
+    {
+        $this->app->forgetScopedInstances();
+        $this->app->make(AchievementRarityInterface::class)->refresh();
+        $this->app->forgetScopedInstances();
+    }
+
+    /**
+     * The reward's rarity as `/logros` shows it to anybody: a whole percent of the last nightly photo.
+     */
+    private function rewardRarity(string $rewardId): ?int
+    {
+        $this->app->forgetScopedInstances();
+
+        return ShowcasePresenter::shownRarity($this->app->make(AchievementRarityInterface::class)->current()->shareOf($rewardId));
     }
 
     private function everybodyIsAMember(): void

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Modules\Achievements\Tests\Feature\Pages;
 
 use App\Infrastructure\Navigation\Persistence\Eloquent\Models\MenuItemModel;
+use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Database\Seeders\AchievementsMenuLinkSeeder;
+use Modules\Achievements\Infrastructure\Rarity\NightlyAchievementRarity;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsActivityFacts;
 use Modules\Achievements\Tests\Support\BuildsShowcase;
@@ -70,7 +72,7 @@ final class AchievementCataloguePageTest extends ModuleTestCase
                 ->where('achievements.0.id', null)
                 ->missing('achievements.0.grantedAt')
                 ->where('achievements.1.name', 'Primera partida')
-                ->where('achievements.1.rarity', 50.0)
+                ->where('achievements.1.rarity', 50)
                 ->where('achievements.1.held', false)
                 ->missing('achievements.1.rule')
                 ->where('seo.title', fn (string $title): bool => str_contains($title, 'Logros')));
@@ -132,7 +134,24 @@ final class AchievementCataloguePageTest extends ModuleTestCase
         $this->actingAs($ana)->get('/logros')->assertInertia(fn (Assert $page): Assert => $page
             ->where('achievements.0.name', 'A mano')
             ->where('achievements.0.rarity', null)
-            ->where('achievements.1.rarity', 0.0));
+            ->where('achievements.1.rarity', null)
+            ->where('achievements.1.heldByNobody', true));
+    }
+
+    public function test_under_one_percent_goes_out_as_zero_never_as_held_by_nobody(): void
+    {
+        $rare = $this->achievement($this->countRule(), ['name' => 'Rarísimo']);
+        DB::table('achievements_snapshots')->insert([
+            'key' => NightlyAchievementRarity::KEY,
+            'taken_at' => '2026-11-22 02:30:00',
+            'data' => (string) json_encode(['activePeople' => 250, 'shares' => [strtolower((string) $rare->id) => 0.4]]),
+            'created_at' => '2026-11-22 02:30:00',
+            'updated_at' => '2026-11-22 02:30:00',
+        ]);
+
+        $this->get('/logros')->assertInertia(fn (Assert $page): Assert => $page
+            ->where('achievements.0.rarity', 0)
+            ->where('achievements.0.heldByNobody', false));
     }
 
     public function test_rarity_switched_off_is_not_shown(): void

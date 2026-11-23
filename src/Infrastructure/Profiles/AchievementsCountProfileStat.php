@@ -13,7 +13,8 @@ use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 
 /**
  * «Logros» on the stats row (`achievements.count`): how many achievements the owner holds, secret
- * ones included (a total names none of them). Nothing for anybody else when the owner hid their
+ * ones included (a total names none of them): now for the owner, as of the last nightly photo for
+ * anybody else, so it never rises at the same moment as somebody else's. Nothing for anybody else when the owner hid their
  * achievements, and nothing while they hold none.
  */
 final readonly class AchievementsCountProfileStat implements DescribesProfileStat, ProfileStatInterface
@@ -62,7 +63,7 @@ final readonly class AchievementsCountProfileStat implements DescribesProfileSta
             return null;
         }
 
-        $count = $this->showcase->heldCount($owner->id);
+        $count = $this->showcase->heldCount($owner->id, $viewerId);
 
         return $count === 0 ? null : new ProfileStatDTO($count, route('achievements.index', absolute: false));
     }

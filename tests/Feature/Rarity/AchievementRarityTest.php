@@ -9,20 +9,18 @@ use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use DateTimeZone;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
-use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Application\Services\AchievementRarityInterface;
 use Modules\Achievements\Domain\Enums\GrantSource;
 use Modules\Achievements\Domain\ValueObjects\NewGrant;
-use Modules\Achievements\Infrastructure\Rarity\CachedAchievementRarity;
+use Modules\Achievements\Infrastructure\Rarity\NightlyAchievementRarity;
 use Modules\Achievements\Jobs\RefreshAchievementRarityJob;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsShowcase;
-use RuntimeException;
 use Tests\Support\Modules\ModuleTestCase;
 use Tests\Support\Time\UsesUtcStorage;
 
@@ -110,28 +108,33 @@ final class AchievementRarityTest extends ModuleTestCase
         $this->assertNull(app(AchievementRarityInterface::class)->refresh()->shareOf($achievement));
     }
 
-    public function test_it_is_kept_in_the_cache_and_read_from_there(): void
+    public function test_it_is_read_from_the_last_photo_and_never_computed_on_reading(): void
     {
         $achievement = (string) $this->achievement($this->countRule())->id;
         $ana = $this->person('Ana');
         $this->factAt($ana, '2026-10-01 18:00:00');
         $this->grantAt($ana, $achievement);
+        $this->assertNull(app(AchievementRarityInterface::class)->current()->takenAt);
         $this->refreshRarity();
-        // A holder added behind its back is not seen until it is computed again
+        // A holder added behind its back is not seen until the next photo
         $luis = $this->person('Luis');
         $this->factAt($luis, '2026-10-01 18:00:00');
         $this->app->forgetScopedInstances();
 
-        $this->assertSame(100.0, app(AchievementRarityInterface::class)->current()->shareOf($achievement));
-        $this->assertIsArray(Cache::get(CachedAchievementRarity::CACHE_KEY));
+        $photo = app(AchievementRarityInterface::class)->current();
+        $this->assertSame(100.0, $photo->shareOf($achievement));
+        // 03:30 of the display day (Madrid, UTC+1), whenever the job ran
+        $this->assertSame('2026-11-22 02:30:00', $photo->takenAt?->format('Y-m-d H:i:s'));
 
-        Cache::forget(CachedAchievementRarity::CACHE_KEY);
+        // Without a photo there is nothing: never what is there now
+        DB::table('achievements_snapshots')->delete();
         $this->app->forgetScopedInstances();
 
-        $this->assertSame(50.0, app(AchievementRarityInterface::class)->current()->shareOf($achievement));
+        $this->assertNull(app(AchievementRarityInterface::class)->current()->shareOf($achievement));
+        $this->assertNull(app(AchievementRarityInterface::class)->current()->takenAt);
     }
 
-    public function test_a_grant_computes_it_again(): void
+    public function test_a_grant_never_changes_it_until_the_next_night(): void
     {
         $achievement = (string) $this->achievement(['version' => 1, 'metric' => 'manual'])->id;
         $ana = $this->person('Ana');
@@ -141,35 +144,83 @@ final class AchievementRarityTest extends ModuleTestCase
         app(AchievementGranterInterface::class)->grant(new NewGrant((string) $ana->id, $achievement, GrantSource::Manual, true));
         $this->app->forgetScopedInstances();
 
+        $this->assertSame(0.0, app(AchievementRarityInterface::class)->current()->shareOf($achievement));
+
+        $this->travel(1)->days();
+        $this->refreshRarity();
+
         $this->assertSame(100.0, app(AchievementRarityInterface::class)->current()->shareOf($achievement));
     }
 
-    public function test_a_revoke_computes_it_again(): void
+    public function test_a_revoke_never_changes_it_either(): void
     {
         $achievement = (string) $this->achievement(['version' => 1, 'metric' => 'manual'])->id;
         $ana = $this->person('Ana');
         $this->factAt($ana, '2026-10-01 18:00:00');
         $grant = app(AchievementGranterInterface::class)->grant(new NewGrant((string) $ana->id, $achievement, GrantSource::Manual, true));
         $this->assertNotNull($grant);
-        $this->app->forgetScopedInstances();
-        $this->assertSame(100.0, app(AchievementRarityInterface::class)->current()->shareOf($achievement));
+        $this->travelTo('2026-11-23 04:00:00');
+        $this->refreshRarity();
 
         app(AchievementGranterInterface::class)->revoke($grant->id, (string) $this->person('Admin')->id, 'Concedido por error');
         $this->app->forgetScopedInstances();
 
-        $this->assertSame(0.0, app(AchievementRarityInterface::class)->current()->shareOf($achievement));
+        $this->assertSame(100.0, app(AchievementRarityInterface::class)->current()->shareOf($achievement));
     }
 
-    public function test_grants_queue_one_refresh_while_it_waits(): void
+    public function test_before_the_nights_time_the_photo_is_of_the_night_before(): void
+    {
+        // 02:00 in Madrid: tonight's 03:30 has not come yet
+        $this->travelTo('2026-11-22 01:00:00');
+
+        $this->assertSame('2026-11-21 02:30:00', app(AchievementRarityInterface::class)->refresh()->takenAt?->format('Y-m-d H:i:s'));
+    }
+
+    public function test_a_grant_in_the_photos_own_second_waits_for_the_next_one(): void
+    {
+        $achievement = (string) $this->achievement($this->countRule())->id;
+        $ana = $this->person('Ana');
+        $this->factAt($ana, '2026-10-01 18:00:00');
+        $this->grantAt($ana, $achievement, '2026-11-22 02:30:00');
+
+        $this->assertSame(0.0, app(AchievementRarityInterface::class)->refresh()->shareOf($achievement));
+    }
+
+    public function test_a_photo_older_than_26_hours_is_warned_once_a_day(): void
+    {
+        $log = Log::spy();
+        // 27 hours before now: last night's photo was never taken
+        $this->photoTakenAt('2026-11-21 07:00:00');
+
+        app(AchievementRarityInterface::class)->current();
+        $this->app->forgetScopedInstances();
+        app(AchievementRarityInterface::class)->current();
+
+        $log->shouldHaveReceived('warning')->once()->withArgs(
+            static fn (string $message, array $context = []): bool => ($context['reason'] ?? null) === 'snapshot_stale' && ($context['hours'] ?? null) === 27,
+        );
+    }
+
+    public function test_last_nights_photo_is_not_warned(): void
+    {
+        $log = Log::spy();
+        $this->photoTakenAt('2026-11-22 02:30:00');
+
+        app(AchievementRarityInterface::class)->current();
+
+        $log->shouldNotHaveReceived('warning');
+    }
+
+    public function test_neither_grants_nor_revokes_queue_a_photo(): void
     {
         Bus::fake([RefreshAchievementRarityJob::class]);
         $achievement = (string) $this->achievement(['version' => 1, 'metric' => 'manual'])->id;
+        $grant = app(AchievementGranterInterface::class)->grant(new NewGrant((string) $this->person('Ana')->id, $achievement, GrantSource::Manual, true));
+        $this->assertNotNull($grant);
 
-        foreach (['Ana', 'Luis', 'Marta'] as $name) {
-            app(AchievementGranterInterface::class)->grant(new NewGrant((string) $this->person($name)->id, $achievement, GrantSource::Manual, true));
-        }
+        app(AchievementGranterInterface::class)->revoke($grant->id, (string) $this->person('Admin')->id, 'Concedido por error');
 
-        Bus::assertDispatchedTimes(RefreshAchievementRarityJob::class, 1);
+        Bus::assertNotDispatched(RefreshAchievementRarityJob::class);
     }
 
     public function test_it_is_computed_every_night(): void
@@ -186,19 +237,31 @@ final class AchievementRarityTest extends ModuleTestCase
         $this->assertSame(app(TimezoneServiceInterface::class)->displayTimezone()->getName(), $zone instanceof DateTimeZone ? $zone->getName() : $zone);
     }
 
-    public function test_a_cache_that_fails_still_answers_from_the_database(): void
+    public function test_an_unreadable_photo_is_no_photo(): void
     {
-        $achievement = (string) $this->achievement($this->countRule())->id;
-        $ana = $this->person('Ana');
-        $this->factAt($ana, '2026-10-01 18:00:00');
-        $this->grantAt($ana, $achievement);
-        $cache = $this->createStub(Repository::class);
-        $cache->method('get')->willThrowException(new RuntimeException('down'));
-        $cache->method('put')->willThrowException(new RuntimeException('down'));
-        $this->app->forgetScopedInstances();
-        $this->app->bind(Repository::class, static fn (): Repository => $cache);
+        DB::table('achievements_snapshots')->insert([
+            'key' => NightlyAchievementRarity::KEY,
+            'taken_at' => '2026-11-22 03:30:00',
+            'data' => '{"shares": "rota"}',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
-        $this->assertSame(100.0, app(AchievementRarityInterface::class)->current()->shareOf($achievement));
+        $photo = app(AchievementRarityInterface::class)->current();
+
+        $this->assertSame(0, $photo->activePeople);
+        $this->assertNull($photo->takenAt);
+    }
+
+    private function photoTakenAt(string $takenAt): void
+    {
+        DB::table('achievements_snapshots')->insert([
+            'key' => NightlyAchievementRarity::KEY,
+            'taken_at' => $takenAt,
+            'data' => '{"activePeople": 1, "shares": {}}',
+            'created_at' => $takenAt,
+            'updated_at' => $takenAt,
+        ]);
     }
 
     public function test_the_active_people_query_has_an_index_of_its_own(): void

@@ -66,6 +66,8 @@ final class ChallengeAnnouncementTest extends ModuleTestCase
         $this->ana = $this->person('Ana');
         $this->bea = $this->person('Bea');
         $this->allowAnnouncing($this->ana);
+        // The summary tells what the nightly photo holds: one taken whenever it is read (#28)
+        $this->rarity([]);
     }
 
     protected function tearDown(): void

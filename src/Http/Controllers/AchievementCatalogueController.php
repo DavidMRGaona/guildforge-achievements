@@ -18,7 +18,6 @@ use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\ChallengeBoardInterface;
 use Modules\Achievements\Application\Services\SeasonClock;
 use Modules\Achievements\Infrastructure\Challenges\ChallengePresenter;
-use Modules\Achievements\Infrastructure\Profiles\AchievementShowcase;
 use Modules\Achievements\Infrastructure\Profiles\ShowcasePresenter;
 
 /**
@@ -53,12 +52,10 @@ final class AchievementCatalogueController extends Controller
             'achievements' => array_map(fn (AchievementViewDTO $view): array => $this->presenter->achievement($view) + [
                 'held' => $view->held,
                 'standing' => $view->masked || ! isset($standings[strtolower($view->id)]) ? null : $this->presenter->standing($standings[strtolower($view->id)]),
-                // 0 of what the viewer holds only says they are not active: not shown
-                'rarity' => match (true) {
-                    $view->masked => null,
-                    $view->held => AchievementShowcase::knownShare($rarity?->shareOf($view->id)),
-                    default => $rarity?->shareOf($view->id),
-                },
+                // A whole percent (0 for «< 1 %»); 0 of what the viewer holds only says they are not
+                // active, so it is not shown; nobody active holding something else is said apart
+                'rarity' => $view->masked ? null : ShowcasePresenter::shownRarity($rarity?->shareOf($view->id)),
+                'heldByNobody' => ! $view->masked && ! $view->held && $rarity?->shareOf($view->id) === 0.0,
             ], $this->showcase->catalogueFor($viewerId)),
             'showsRarity' => $showsRarity && $rarity instanceof AchievementRarityDTO && $rarity->activePeople > 0,
             'signedIn' => $viewer !== null,
