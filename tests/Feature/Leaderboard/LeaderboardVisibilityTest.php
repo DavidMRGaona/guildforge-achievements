@@ -19,6 +19,7 @@ use Modules\Achievements\AchievementsServiceProvider;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Application\Services\AchievementLeaderboardInterface;
+use Modules\Achievements\Application\Services\AchievementRarityInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\PointsCutoffInterface;
 use Modules\Achievements\Domain\Enums\GrantSource;
@@ -63,6 +64,9 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $this->ten = $this->achievement($this->countRule(), ['name' => 'Diez', 'points' => 10]);
         $this->thirty = $this->achievement($this->countRule(), ['name' => 'Treinta', 'points' => 30]);
         $this->settingsWith(['points' => true, 'levels' => true, 'leaderboard' => true]);
+
+        // Tonight's photo (03:30 in the display zone): what others see stops there
+        $this->photoTaken();
     }
 
     public function test_a_guest_is_sent_to_sign_in(): void
@@ -363,6 +367,33 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 40));
     }
 
+    public function test_the_photo_decides_not_midnight_a_grant_before_it_shows_and_one_after_waits(): void
+    {
+        // 01:00 on the 23rd in Madrid: tonight's photo is not taken yet, so the last one is from
+        // 03:30 on the 22nd (02:30 UTC)
+        $this->travelTo('2026-11-23 00:00:00');
+        $this->photoTaken();
+        $viewer = $this->person('Vera');
+        $ana = $this->scored('Ana', 'public', []);
+        // 03:00 in Madrid on the 22nd: before the photo
+        $this->grantAt($ana, (string) $this->ten->id, '2026-11-22 02:00:00');
+        // 22:30 in Madrid on the 22nd: before midnight, yet after the photo
+        $this->grantAt($ana, (string) $this->thirty->id, '2026-11-22 21:30:00');
+
+        $this->actingAs($viewer)->get('/logros/clasificacion')
+            ->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.publicName', 'Ana')->where('entries.0.points', 10));
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($ana)->get('/logros/clasificacion')
+            ->assertInertia(fn (Assert $page): Assert => $page->where('viewer.entry.points', 40));
+
+        // 05:00 in Madrid: tonight's photo holds both
+        $this->travelTo('2026-11-23 04:00:00');
+        $this->photoTaken();
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($viewer)->get('/logros/clasificacion')
+            ->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 40));
+    }
+
     public function test_a_revoke_alone_applies_at_once_for_others(): void
     {
         $viewer = $this->person('Vera');
@@ -472,6 +503,7 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $viewer = $this->person('Vera');
         $ana = $this->scored('Ana', 'public', []);
         $this->seasonGrant($ana, $this->ten, '2026', '2027-01-05 10:00:00');
+        $this->photoTaken();
         $this->actingAs($viewer)->get('/logros/clasificacion?temporada=2026')
             ->assertOk()
             ->assertInertia(fn (Assert $page): Assert => $page
@@ -566,11 +598,22 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
     }
 
     /**
-     * The next day: the cut (midnight in the display zone until #28's photo) has moved past today.
+     * The next day: the nightly photo (03:30 in the display zone) is taken again, past today's grants.
      */
     private function nightPasses(): void
     {
         $this->travel(1)->days();
+        $this->photoTaken();
+    }
+
+    /**
+     * Takes the nightly photo of today (03:30 in the display zone, whatever the time now) and starts
+     * the next read afresh.
+     */
+    private function photoTaken(): void
+    {
+        $this->app->forgetScopedInstances();
+        app(AchievementRarityInterface::class)->refresh();
         $this->app->forgetScopedInstances();
     }
 

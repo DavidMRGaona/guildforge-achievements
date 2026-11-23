@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Tests\Feature\Filament;
 
+use App\Application\Media\Contracts\ShowsMediaPreviews;
+use App\Application\Media\DTOs\MediaUsageDTO;
 use App\Application\Profiles\ProfileBadgeIcons;
 use App\Domain\Profiles\ProfileBadgeColour;
 use App\Filament\Actions\RowDetailsAction;
 use App\Filament\Support\PanelNavigationGroup;
+use App\Infrastructure\Media\Jobs\RefreshMediaUsagesJob;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
@@ -35,14 +38,18 @@ use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Policies\AchievementPolicy;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsActivityFacts;
+use Modules\Achievements\Tests\Support\BuildsShowcase;
 use RuntimeException;
 use Tests\Support\Activity\InMemoryActivitySource;
 use Tests\Support\Modules\ModuleTestCase;
+use Tests\Support\Time\UsesUtcStorage;
 
 final class AchievementResourceTest extends ModuleTestCase
 {
     use BuildsAchievements;
     use BuildsActivityFacts;
+    use BuildsShowcase;
+    use UsesUtcStorage;
 
     protected ?string $moduleName = 'achievements';
 
@@ -313,6 +320,32 @@ final class AchievementResourceTest extends ModuleTestCase
             ->assertCanNotSeeTableRecords([$plain]);
     }
 
+    public function test_the_holders_column_is_live_only_for_whoever_sees_the_grants(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        $this->useUtcStorage();
+        $this->travelTo('2026-11-22 10:00:00');
+        $achievement = $this->achievement($this->countRule(), ['name' => 'Primera partida']);
+        $viewer = $this->userWith(AchievementPolicy::VIEW_ANY);
+
+        // Before the first night, whoever only views sees nobody yet
+        $this->actingAs($viewer);
+        Livewire::test(ListAchievements::class)->assertTableColumnStateSet('holders_count', 0, $achievement);
+
+        $this->grantAt($this->person('Ana'), (string) $achievement->id, '2026-10-01 18:00:00');
+        $this->refreshRarity();
+        // This morning, after the night's photo
+        $this->grantAt($this->person('Luis'), (string) $achievement->id, '2026-11-22 09:00:00');
+        $this->app->forgetScopedInstances();
+
+        Livewire::test(ListAchievements::class)->assertTableColumnStateSet('holders_count', 1, $achievement);
+
+        foreach ([AchievementPolicy::GRANT, AchievementPolicy::MANAGE] as $permission) {
+            $this->actingAs($this->userWith($permission));
+            Livewire::test(ListAchievements::class)->assertTableColumnStateSet('holders_count', 2, $achievement);
+        }
+    }
+
     public function test_sorting_never_shows_where_a_secret_name_falls(): void
     {
         Bus::fake([EvaluateAchievementsJob::class]);
@@ -448,5 +481,57 @@ final class AchievementResourceTest extends ModuleTestCase
         $titles = array_map(static fn ($usage): string => $usage->title, iterator_to_array($source->usages(), false));
         sort($titles);
         $this->assertSame(['Logro secreto', 'Visible'], $titles);
+    }
+
+    public function test_the_media_source_shows_its_previews(): void
+    {
+        $this->assertContains(ShowsMediaPreviews::class, class_implements(AchievementBadgeImageMediaSource::class));
+    }
+
+    public function test_only_the_badge_of_a_secret_achievement_is_hidden_in_the_library(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        $secret = $this->achievement($this->countRule(), ['name' => 'Dragón dormido', 'is_secret' => true, 'image_public_id' => 'achievements/badges/2026/11/a.png']);
+        $plain = $this->achievement($this->countRule(), ['name' => 'Visible', 'image_public_id' => 'achievements/badges/2026/11/b.png']);
+
+        $usages = $this->badgeUsages();
+
+        $this->assertTrue($usages[(string) $secret->id]->hidden);
+        $this->assertSame('Logro secreto', $usages[(string) $secret->id]->title);
+        $this->assertFalse($usages[(string) $plain->id]->hidden);
+        $this->assertSame('Visible', $usages[(string) $plain->id]->title);
+    }
+
+    public function test_making_an_achievement_secret_hides_its_badge_and_refreshes_its_usage(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        $achievement = $this->achievement($this->countRule(), ['name' => 'Dragón dormido', 'image_public_id' => 'achievements/badges/2026/11/a.png']);
+        $this->assertFalse($this->badgeUsages()[(string) $achievement->id]->hidden);
+        $refreshed = static fn (RefreshMediaUsagesJob $job): bool => $job->type === AchievementBadgeImageMediaSource::TYPE && $job->recordId === (string) $achievement->id;
+
+        Bus::fake([RefreshMediaUsagesJob::class]);
+        $achievement->update(['is_secret' => true]);
+
+        Bus::assertDispatched(RefreshMediaUsagesJob::class, $refreshed);
+        $this->assertTrue($this->badgeUsages()[(string) $achievement->id]->hidden);
+
+        Bus::fake([RefreshMediaUsagesJob::class]);
+        $achievement->update(['is_secret' => false]);
+
+        Bus::assertDispatched(RefreshMediaUsagesJob::class, $refreshed);
+        $this->assertFalse($this->badgeUsages()[(string) $achievement->id]->hidden);
+    }
+
+    /**
+     * @return array<string, MediaUsageDTO> keyed by record id
+     */
+    private function badgeUsages(): array
+    {
+        $usages = [];
+        foreach ($this->app->make(AchievementBadgeImageMediaSource::class)->usages() as $usage) {
+            $usages[$usage->recordId] = $usage;
+        }
+
+        return $usages;
     }
 }

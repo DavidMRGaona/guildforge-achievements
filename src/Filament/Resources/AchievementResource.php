@@ -10,6 +10,8 @@ use App\Filament\Actions\RowDetailsAction;
 use App\Filament\Forms\Components\MediaLibraryPicker;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Support\PanelNavigationGroup;
+use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use DateTimeImmutable;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
@@ -28,10 +30,12 @@ use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Modules\Achievements\Application\Enums\AchievementStatus;
+use Modules\Achievements\Application\Services\AchievementRarityInterface;
 use Modules\Achievements\Filament\Media\AchievementBadgeImageMediaSource;
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\CreateAchievement;
 use Modules\Achievements\Filament\Resources\AchievementResource\Pages\EditAchievement;
@@ -43,6 +47,7 @@ use Modules\Achievements\Filament\Support\AchievementPanelView;
 use Modules\Achievements\Filament\Support\AchievementRuleForm;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementGrantModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
+use Modules\Achievements\Policies\AchievementPolicy;
 
 /**
  * «Personas → Logros»: the catalogue. Listed with `achievements.view_any`, written with
@@ -151,13 +156,36 @@ final class AchievementResource extends BaseResource
             ]);
     }
 
+    /**
+     * People holding each achievement: now for whoever may grant or manage (they see the holders
+     * anyway), as of the last nightly photo for anybody else, so a count never rises at the moment
+     * two people play together. Without a photo, nothing yet.
+     *
+     * @return Builder<AchievementGrantModel>
+     */
+    private static function holdersCount(): Builder
+    {
+        $query = AchievementGrantModel::query()
+            ->selectRaw('count(distinct user_id)')
+            ->whereColumn('achievement_id', 'achievements_catalogue.id');
+        $viewer = Auth::user();
+
+        if ($viewer instanceof UserModel && AchievementPolicy::seesGrants($viewer)) {
+            return $query;
+        }
+
+        $takenAt = app(AchievementRarityInterface::class)->current()->takenAt;
+
+        return $takenAt instanceof DateTimeImmutable
+            ? $query->where('granted_at', '<', $takenAt->format('Y-m-d H:i:s'))
+            : $query->whereRaw('1 = 0');
+    }
+
     public static function table(Table $table): Table
     {
         return $table
             ->modifyQueryUsing(static fn (Builder $query): Builder => $query->addSelect([
-                'holders_count' => AchievementGrantModel::query()
-                    ->selectRaw('count(distinct user_id)')
-                    ->whereColumn('achievement_id', 'achievements_catalogue.id'),
+                'holders_count' => self::holdersCount(),
             ]))
             ->columns([
                 TextColumn::make('name')

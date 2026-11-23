@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementPointsInterface;
+use Modules\Achievements\Application\Services\AchievementRarityInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\PointsCutoffInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterface;
@@ -60,6 +61,9 @@ final class PointsAndLevelsTest extends ModuleTestCase
         $this->grantAt($this->ana, (string) $this->twenty->id);
         $this->grantAt($this->ana, (string) $this->secret->id, '2025-03-01 10:00:00');
         $this->settingsWith(['points' => true, 'levels' => true, 'leaderboard' => true, 'seasons_and_streaks' => true]);
+
+        // Tonight's photo (03:30 in the display zone): what others see stops there
+        $this->photoTaken();
     }
 
     public function test_the_summary_counts_secrets_inactive_ones_and_the_season(): void
@@ -287,11 +291,22 @@ final class PointsAndLevelsTest extends ModuleTestCase
     }
 
     /**
-     * The next day: the cut (midnight in the display zone until #28's photo) has moved past today.
+     * The next day: the nightly photo (03:30 in the display zone) is taken again, past today's grants.
      */
     private function nightPasses(): void
     {
         $this->travel(1)->days();
+        $this->photoTaken();
+    }
+
+    /**
+     * Takes the nightly photo of today (03:30 in the display zone, whatever the time now) and starts
+     * the next read afresh.
+     */
+    private function photoTaken(): void
+    {
+        $this->app->forgetScopedInstances();
+        app(AchievementRarityInterface::class)->refresh();
         $this->app->forgetScopedInstances();
     }
 

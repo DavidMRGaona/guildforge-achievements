@@ -12,9 +12,10 @@ use Illuminate\Queue\InteractsWithQueue;
 use Modules\Achievements\Application\Services\AchievementRarityInterface;
 
 /**
- * Computes the rarity again: every night (people stop being active with the date alone) and after
- * grants. Unique while it waits, so an evaluation granting hundreds of achievements queues one; a
- * grant made while it runs queues the next.
+ * Takes the nightly photo (`achievements:rarity`, 03:30 in the display zone): the rarity of every
+ * achievement and the instant up to which grants are shown to anybody but their owner. Only at
+ * night, never after a grant or a revoke: what others see changes once a day, so two people who play
+ * together never give themselves away by their totals rising at once.
  */
 final class RefreshAchievementRarityJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {

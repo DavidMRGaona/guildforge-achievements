@@ -50,7 +50,6 @@ use Modules\Achievements\Console\Commands\InstallStarterCatalogueCommand;
 use Modules\Achievements\Console\Commands\RecalculateAchievementFactsCommand;
 use Modules\Achievements\Domain\Events\AchievementFactsChanged;
 use Modules\Achievements\Domain\Events\AchievementGranted;
-use Modules\Achievements\Domain\Events\AchievementRevoked;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterface;
@@ -80,14 +79,14 @@ use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\Eloque
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentPendingAchievementNoticeRepository;
 use Modules\Achievements\Infrastructure\Points\AchievementPoints;
-use Modules\Achievements\Infrastructure\Points\MidnightPointsCutoff;
+use Modules\Achievements\Infrastructure\Points\NightlyPhotoPointsCutoff;
 use Modules\Achievements\Infrastructure\Profiles\AccountAchievementsTab;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsCountProfileStat;
 use Modules\Achievements\Infrastructure\Profiles\AchievementShowcase;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsLevelProfileStat;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsProfileSection;
 use Modules\Achievements\Infrastructure\Profiles\FeaturedAchievementBadges;
-use Modules\Achievements\Infrastructure\Rarity\CachedAchievementRarity;
+use Modules\Achievements\Infrastructure\Rarity\NightlyAchievementRarity;
 use Modules\Achievements\Infrastructure\Services\ActivityLedger;
 use Modules\Achievements\Infrastructure\Settings\ModuleAchievementsSettings;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
@@ -102,7 +101,6 @@ use Modules\Achievements\Listeners\ForgetAnonymizedAccountPreferences;
 use Modules\Achievements\Listeners\ForgetCommunityProgress;
 use Modules\Achievements\Listeners\QueueAchievementNotice;
 use Modules\Achievements\Listeners\RecordActivityFacts;
-use Modules\Achievements\Listeners\RefreshRarityAfterGrant;
 use Modules\Achievements\Notifications\AchievementNoticeCategories;
 use Modules\Achievements\Policies\AchievementPolicy;
 use Throwable;
@@ -163,15 +161,15 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
 
         // What profiles show: the choices, the catalogue and the rarity, read once per request or job
         $this->app->bind(AchievementPreferencesRepositoryInterface::class, EloquentAchievementPreferencesRepository::class);
-        $this->app->scoped(AchievementRarityInterface::class, CachedAchievementRarity::class);
+        $this->app->scoped(AchievementRarityInterface::class, NightlyAchievementRarity::class);
         $this->app->scoped(AchievementShowcaseInterface::class, AchievementShowcase::class);
 
         // Points, levels and the leaderboard (#10): each account's points once per request or job
         $this->app->bind(AchievementPointsRepositoryInterface::class, EloquentAchievementPointsRepository::class);
         $this->app->scoped(AchievementPointsInterface::class, AchievementPoints::class);
         $this->app->bind(AchievementLeaderboardInterface::class, Leaderboard::class);
-        // Up to when others see grants: midnight in the display zone until #28's nightly photo
-        $this->app->scoped(PointsCutoffInterface::class, MidnightPointsCutoff::class);
+        // Up to when others see grants: the instant of the nightly photo, like the rest of the profile
+        $this->app->bind(PointsCutoffInterface::class, NightlyPhotoPointsCutoff::class);
 
         // Grants waiting to be told to their holders, a little later and together (#6)
         $this->app->bind(PendingAchievementNoticeRepositoryInterface::class, EloquentPendingAchievementNoticeRepository::class);
@@ -185,9 +183,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountFacts::class);
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountGrants::class);
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountPreferences::class);
-        Event::listen(AchievementGranted::class, RefreshRarityAfterGrant::class);
         Event::listen(AchievementGranted::class, QueueAchievementNotice::class);
-        Event::listen(AchievementRevoked::class, RefreshRarityAfterGrant::class);
         Event::listen(AchievementFactsChanged::class, EvaluateAchievementsForChangedFacts::class);
         Event::listen(AchievementFactsChanged::class, ForgetCommunityProgress::class);
         Event::listen(ModuleEnabled::class, EvaluateAchievementsOfEnabledModule::class);

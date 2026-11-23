@@ -132,16 +132,16 @@ function progressText(progress: AchievementProgress): string {
                         <p
                             class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-muted"
                         >
-                            <template v-if="showsRarity && item.rarity !== null">
-                                <span v-if="item.rarity > 0">
-                                    {{
-                                        t('achievements.rarity.share', {
-                                            share: formatShare(item.rarity, locale),
-                                        })
-                                    }}
-                                </span>
-                                <span v-else>{{ t('achievements.rarity.nobody') }}</span>
-                            </template>
+                            <span v-if="showsRarity && item.rarity !== null">
+                                {{
+                                    t('achievements.rarity.share', {
+                                        share: formatShare(item.rarity, locale),
+                                    })
+                                }}
+                            </span>
+                            <span v-else-if="showsRarity && item.heldByNobody">
+                                {{ t('achievements.rarity.nobody') }}
+                            </span>
                             <span v-if="showsPoints && item.points != null && item.points > 0">
                                 {{
                                     t(

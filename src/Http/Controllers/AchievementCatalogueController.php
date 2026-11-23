@@ -16,7 +16,6 @@ use Modules\Achievements\Application\Services\AchievementRarityInterface;
 use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\SeasonClock;
-use Modules\Achievements\Infrastructure\Profiles\AchievementShowcase;
 use Modules\Achievements\Infrastructure\Profiles\ShowcasePresenter;
 
 /**
@@ -54,12 +53,10 @@ final class AchievementCatalogueController extends Controller
                 // What it gives (#10); a masked secret keeps it to itself
                 'points' => $showsPoints && ! $view->masked ? $view->points : null,
                 'standing' => $view->masked || ! isset($standings[strtolower($view->id)]) ? null : $presenter->standing($standings[strtolower($view->id)]),
-                // 0 of what the viewer holds only says they are not active: not shown
-                'rarity' => match (true) {
-                    $view->masked => null,
-                    $view->held => AchievementShowcase::knownShare($shares?->shareOf($view->id)),
-                    default => $shares?->shareOf($view->id),
-                },
+                // A whole percent (0 for «< 1 %»); 0 of what the viewer holds only says they are not
+                // active, so it is not shown; nobody active holding something else is said apart
+                'rarity' => $view->masked ? null : ShowcasePresenter::shownRarity($shares?->shareOf($view->id)),
+                'heldByNobody' => ! $view->masked && ! $view->held && $shares?->shareOf($view->id) === 0.0,
             ], $showcase->catalogueFor($viewerId)),
             'showsRarity' => $showsRarity && $shares instanceof AchievementRarityDTO && $shares->activePeople > 0,
             'signedIn' => $viewer !== null,

@@ -49,6 +49,12 @@ final class AchievementShowcase implements AchievementShowcaseInterface
     /** @var array<string, array<string, AchievementGrant>> */
     private array $held = [];
 
+    /** @var array<string, array<string, AchievementGrant>> what others see: grants in the nightly photo */
+    private array $shownHeld = [];
+
+    /** @var array<string, array<string, list<string>>> */
+    private array $shownSeasons = [];
+
     /** @var array<string, array<string, list<string>>> */
     private array $seasons = [];
 
@@ -89,8 +95,13 @@ final class AchievementShowcase implements AchievementShowcaseInterface
         }
 
         $isOwner = $this->isOwner($ownerId, $viewerId);
-        $held = $this->heldBy($ownerId);
+        // The owner sees theirs at once; anybody else what the nightly photo holds, so a grant of
+        // today shows to them tomorrow (a revoke, hiding or a secret act at once: they only take away)
+        $held = $isOwner ? $this->heldBy($ownerId) : $this->shownHeldBy($ownerId);
+        $seasons = $isOwner ? $this->seasonsBy($ownerId) : $this->shownSeasonsBy($ownerId);
         $catalogue = $this->catalogue();
+        // Featured: the owner's pill follows their choices now; anybody else sees the photo's, as
+        // under the name
         $featured = $this->featuredIds($held, $this->preferences($ownerId), $this->rarity());
         $viewerHolds = $isOwner || $viewerId === null ? [] : $this->heldBy(strtolower($viewerId));
         $rarity = $this->rarity();
@@ -119,7 +130,7 @@ final class AchievementShowcase implements AchievementShowcaseInterface
                 // The instant to sort the owner's list; never kept for anybody else
                 grantedOrder: $isOwner ? $grant->grantedAt : null,
                 // Which seasons, never what was played in them; none on a masked one
-                seasons: $revealed ? ($this->seasonsBy($ownerId)[$achievementId] ?? []) : [],
+                seasons: $revealed ? ($seasons[$achievementId] ?? []) : [],
                 points: $achievement->points,
             );
         }
@@ -293,9 +304,12 @@ final class AchievementShowcase implements AchievementShowcaseInterface
         return $standings;
     }
 
-    public function heldCount(string $ownerId): int
+    public function heldCount(string $ownerId, ?string $viewerId): int
     {
-        return count(array_intersect_key($this->heldBy(strtolower($ownerId)), $this->catalogue()));
+        $ownerId = strtolower($ownerId);
+        $held = $this->isOwner($ownerId, $viewerId) ? $this->heldBy($ownerId) : $this->shownHeldBy($ownerId);
+
+        return count(array_intersect_key($held, $this->catalogue()));
     }
 
     public function featured(array $userIds): array
@@ -320,11 +334,13 @@ final class AchievementShowcase implements AchievementShowcaseInterface
         $featured = [];
 
         foreach ($shown as $userId) {
-            $this->held[$userId] = $this->byAchievement($grants[$userId] ?? []);
-            $this->seasons[$userId] = $this->seasonKeys($grants[$userId] ?? []);
+            // Badges are seen by everybody: from the nightly photo
+            $inPhoto = $this->inPhoto($grants[$userId] ?? []);
+            $this->shownHeld[$userId] = $this->byAchievement($inPhoto);
+            $this->shownSeasons[$userId] = $this->seasonKeys($inPhoto);
             $views = [];
 
-            foreach ($this->featuredIds($this->held[$userId], $this->preferences[$userId], $rarity) as $achievementId) {
+            foreach ($this->featuredIds($this->shownHeld[$userId], $this->preferences[$userId], $rarity) as $achievementId) {
                 $views[] = $this->presenter->present($catalogue[$achievementId], true);
             }
 
@@ -420,6 +436,52 @@ final class AchievementShowcase implements AchievementShowcaseInterface
         $this->heldBy($userId);
 
         return $this->seasons[$userId] ?? [];
+    }
+
+    /**
+     * What anybody but the owner sees an account hold: its grants up to the last nightly photo (none
+     * while there is no photo), each with the grant of its newest season.
+     *
+     * @return array<string, AchievementGrant>
+     */
+    private function shownHeldBy(string $userId): array
+    {
+        if (! isset($this->shownHeld[$userId])) {
+            $grants = $this->inPhoto($this->grants->forUser($userId));
+            $this->shownHeld[$userId] = $this->byAchievement($grants);
+            $this->shownSeasons[$userId] = $this->seasonKeys($grants);
+        }
+
+        return $this->shownHeld[$userId];
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    private function shownSeasonsBy(string $userId): array
+    {
+        $this->shownHeldBy($userId);
+
+        return $this->shownSeasons[$userId] ?? [];
+    }
+
+    /**
+     * The grants made before the last nightly photo, whatever the rarity switch says; none without a
+     * photo. A grant revoked since is gone from the table, so it is gone here too, at once.
+     *
+     * @param  list<AchievementGrant>  $grants
+     * @return list<AchievementGrant>
+     */
+    private function inPhoto(array $grants): array
+    {
+        $takenAt = $this->rarity->current()->takenAt;
+
+        if (! $takenAt instanceof DateTimeImmutable) {
+            return [];
+        }
+
+        // Strictly before, as the photo counts them: one written in its own second waits a night
+        return array_values(array_filter($grants, static fn (AchievementGrant $grant): bool => $grant->grantedAt < $takenAt));
     }
 
     /**

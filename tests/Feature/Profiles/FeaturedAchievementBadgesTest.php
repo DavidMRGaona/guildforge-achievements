@@ -86,6 +86,22 @@ final class FeaturedAchievementBadgesTest extends ModuleTestCase
         $this->assertSame(['La mitad', 'Todo el mundo', 'Solo Ana'], $this->labels($this->ana));
     }
 
+    public function test_a_grant_of_today_is_featured_only_after_the_next_nightly_photo(): void
+    {
+        $old = $this->held('Antigua');
+        $this->refreshRarity();
+        $this->travel(2)->hours();
+        $new = (string) $this->achievement(['version' => 1, 'metric' => 'manual'], ['name' => 'Nueva'])->id;
+        $this->grantAt($this->ana, $new, now()->format('Y-m-d H:i:s'));
+        $this->choose($this->ana, featured: [$new, $old]);
+
+        $this->assertSame(['Antigua'], $this->labels($this->ana, afterTheNight: false));
+
+        // The next night
+        $this->travelTo('2026-11-23 03:30:00');
+        $this->assertSame(['Nueva', 'Antigua'], $this->labels($this->ana));
+    }
+
     public function test_the_owners_choice_wins_in_their_order(): void
     {
         $first = $this->held('Primera');
@@ -199,6 +215,8 @@ final class FeaturedAchievementBadgesTest extends ModuleTestCase
         $this->held('Alfa', when: '2026-11-15 18:00:00');
         $this->held('Octubre', when: '2026-10-31 10:00:00');
         app(AchievementsSettingsInterface::class)->save(AchievementsSettings::fromArray(['rarity' => false]));
+        // The night after the last of them
+        $this->travelTo('2026-11-29 03:30:00');
 
         $this->assertSame(['Alfa', 'Beta', 'Zeta'], $this->labels($this->ana));
     }
@@ -247,9 +265,15 @@ final class FeaturedAchievementBadgesTest extends ModuleTestCase
     /**
      * @return list<ProfileBadgeDTO>
      */
-    private function badges(UserModel $owner, ?UserModel $viewer = null): array
+    private function badges(UserModel $owner, ?UserModel $viewer = null, bool $afterTheNight = true): array
     {
         $this->app->forgetScopedInstances();
+
+        // Badges are what the nightly photo holds: by default, the night passes first
+        if ($afterTheNight) {
+            $this->refreshRarity();
+            $this->app->forgetScopedInstances();
+        }
 
         return app(ProfileBadgesInterface::class)->forAuthors([(string) $owner->id], $viewer ?? $this->luis)[strtolower((string) $owner->id)] ?? [];
     }
@@ -257,9 +281,9 @@ final class FeaturedAchievementBadgesTest extends ModuleTestCase
     /**
      * @return list<string>
      */
-    private function labels(UserModel $owner): array
+    private function labels(UserModel $owner, bool $afterTheNight = true): array
     {
-        return array_map(static fn (ProfileBadgeDTO $badge): string => $badge->label, $this->badges($owner));
+        return array_map(static fn (ProfileBadgeDTO $badge): string => $badge->label, $this->badges($owner, afterTheNight: $afterTheNight));
     }
 
     /**
