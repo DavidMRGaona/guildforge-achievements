@@ -8,7 +8,7 @@ order: 80
 keywords: [logros, insignias, catálogo, reglas, conceder, partidas, sistemas, torneos, podio, eventos, antigüedad, secreto, sin fuente, puntos, umbral, recalcular, rareza, gente activa, destacados, perfil, menú, página de logros, niveles, clasificación, temporada, comunidad, personas distintas, dirigir, temporadas, cada año, repetible, racha, rachas, meses seguidos, constancia]
 conditions:
   permissions:
-    any: ['achievements:achievements.view_any', 'achievements:achievements.manage']
+    any: ['achievements:achievements.view_any', 'achievements:achievements.manage', 'achievements:achievements.grant']
 ---
 Un logro es una insignia que se gana con lo que cada persona hace en la asociación: partidas jugadas o dirigidas, sistemas distintos, torneos, eventos, años en la web… Se concede solo, en cuanto se cumple su regla, y no se retira nunca solo.
 
@@ -16,7 +16,7 @@ Un logro es una insignia que se gana con lo que cada persona hace en la asociaci
 
 En el menú lateral, abre **Personas** → **Logros**. La tabla enseña cada logro con su **Estado**, cuántas **Personas** lo tienen y un resumen de su **Regla**. En pantallas estrechas, **Ver detalles**, en el menú **⋯** de cada fila, enseña las columnas que no caben.
 
-Para crear, editar o borrar logros hace falta el permiso de gestionar el catálogo. Con el de ver, los logros secretos salen como «Logro secreto», sin nombre ni regla.
+Para crear, editar o borrar logros hace falta el permiso de gestionar el catálogo. Con el de ver o el de conceder, los logros secretos salen como «Logro secreto», sin nombre ni regla.
 
 ## Crear un logro
 
@@ -28,7 +28,7 @@ Para crear, editar o borrar logros hace falta el permiso de gestionar el catálo
    - **Años**: años desde el alta en la web, o años como socio.
    - **Personas distintas**: con cuántas personas distintas ha coincidido alguien en partidas, campañas, torneos o eventos. **Papel** es el de la persona que consigue el logro y **Papel de las demás personas**, el de quienes se cuentan: dirección y jugador es «dirigir a 20 personas distintas». En estos logros solo valen los papeles de jugador y de dirección.
    - **Solo a mano**: no se concede nunca solo.
-4. Elige **Cuándo cuenta** (ver más abajo) y escribe **Cuántos hacen falta**.
+4. Escribe **Cuántos hacen falta** (salvo en **Solo a mano**) y, si sale, elige **Cuándo cuenta** (ver más abajo). **Cuándo cuenta** no sale en **Años** ni en **Personas distintas**.
 5. Guarda.
 
 Al guardar, el logro se concede **sin avisos** a quien ya cumpla la regla. Lo mismo pasa al cambiar la regla o al activar un logro desactivado.
@@ -60,13 +60,15 @@ En la descripción, habla de totales y de meses («Juega al menos una partida ca
 ## Estados
 
 - **Activo**: se concede solo.
-- **Sin fuente**: ningún módulo activo informa de ese tipo de actividad (por ejemplo, torneos sin el módulo de torneos). En cuanto se habilita un módulo que lo trae, o vuelve a funcionar una fuente que había fallado, el logro se evalúa solo para todo el mundo, sin avisos.
-- **Desactivado**: no se concede ni se enseña. Quien ya lo tenía lo conserva.
+- **Sin fuente**: ningún módulo activo informa de ese tipo de actividad (por ejemplo, torneos sin el módulo de torneos), o el módulo que lo hace está fallando. En cuanto se habilita un módulo que lo trae, el logro se evalúa solo para todo el mundo, sin avisos. Si un módulo falló un rato y vuelve a funcionar, la evaluación pendiente se reintenta durante unos veinte minutos; si tarda más, pide que se ejecute el recálculo (guía «Ajustes de los logros y recálculo»).
+- **Desactivado**: no se concede ni se ofrece a quien no lo tiene. Quien ya lo tenía lo conserva, lo sigue viendo en su perfil y le sigue sumando puntos.
 - **Tipo apagado**: su tipo de actividad está apagado en *Sistema → Configuración → Logros*.
 - **Secretos apagados**: es secreto y los logros secretos están apagados en los ajustes.
 - **Temporadas apagadas**: es por temporada o pide una racha, y **Temporadas y rachas** está apagado en los ajustes. Tampoco se concede a mano. Quien ya lo tenía lo conserva.
 - **Comunidad apagada**: es un logro de comunidad y los logros de comunidad están apagados en los ajustes.
 - **Solo a mano** y **Regla no válida**: no se conceden solos. Una regla no válida se arregla editando el logro y guardando la regla de nuevo.
+
+La columna enseña el primer motivo que aplica: un logro **Solo a mano**, **Sin fuente** o con **Regla no válida** sale así aunque además esté desactivado.
 
 Cuando vuelves a encender un tipo de actividad, los logros secretos, las temporadas y rachas o los logros de comunidad en los ajustes, los logros vuelven a evaluarse para todo el mundo, sin avisos. Mientras estuvo apagado no se concedió nada de ese tipo.
 
@@ -82,7 +84,9 @@ Premian a quien trae y cuida gente, no solo a quien juega mucho: jugar con mucha
 
 ## Lo que se concede no se retira
 
-Una concesión es para siempre: si una partida deja de contar o subes el umbral, quien ya tenía el logro lo conserva. Por eso un logro que tiene alguien no se puede borrar, solo desactivar: deja de concederse y de enseñarse, y quien lo tenía lo conserva. **Borrar** solo aparece, en el menú **⋯**, mientras nadie lo tiene, y pide marcar una casilla.
+Una concesión es para siempre: si una partida deja de contar o subes el umbral, quien ya tenía el logro lo conserva. Por eso un logro que tiene alguien no se puede borrar, solo desactivar: deja de concederse y de ofrecerse, y quien lo tenía lo conserva. **Borrar**, en el menú **⋯** y en la cabecera de la ficha, solo aparece mientras nadie lo tiene y ningún reto lo usa como recompensa, y pide marcar una casilla.
+
+El logro de recompensa de un reto que se sigue contando tampoco se puede desactivar, hacer secreto ni darle una regla. Lo explica la guía «Retos de la asociación».
 
 Solo una persona con permiso para conceder logros puede retirar uno, a mano y con un motivo, y entonces no vuelve a concederse solo. Lo explica la guía «Conceder y retirar logros a mano».
 
@@ -94,7 +98,7 @@ La **rareza** es la parte de la gente activa que tiene un logro: cuentas que han
 
 En el perfil, los demás ven la fecha de cada logro solo con mes y año, porque quienes juegan juntos lo consiguen a la vez y la hora exacta diría con quién se jugó; el dueño ve el día. En el panel, quien puede conceder o gestionar logros ve la fecha completa. Los logros secretos de otra persona no se ven uno a uno: solo cuántos tiene. Si marcas como secreto un logro que alguien tenía destacado, deja de estar destacado para todo el mundo, porque nadie eligió enseñarlo siendo secreto.
 
-La página **Logros** de la web enseña los logros que se pueden conseguir ahora, con la rareza de cada uno; los secretos salen como «Logro secreto». Los que se repiten llevan «Cada temporada», y cada persona ve si lo tiene este año y cuánto lleva. No salen los que están **Sin fuente**, **Tipo apagado**, **Secretos apagados**, **Temporadas apagadas** ni con **Regla no válida**, salvo a quien ya los tiene. Al habilitar el módulo se añade un enlace a ella en el menú de la cabecera; puedes moverlo o borrarlo en **Sitio web** → **Navegación**, y no vuelve.
+La página **Logros** de la web enseña los logros que se pueden conseguir ahora, con la rareza de cada uno; los secretos salen como «Logro secreto». Los que se repiten llevan «Cada temporada», y cada persona ve si lo tiene este año y cuánto lleva. Solo salen los que están **Activo** o **Solo a mano**, más los que cada persona ya tiene, aunque estén desactivados o apagados. Al habilitar el módulo se añade un enlace a ella en el menú de la cabecera; puedes moverlo o borrarlo en **Sitio web** → **Navegación**, y no vuelve.
 
 ## Puntos, niveles y clasificación
 
@@ -106,4 +110,4 @@ La **clasificación** también necesita los puntos encendidos. Es la página **C
 
 ## Catálogo inicial
 
-Al instalar el módulo se crea un catálogo con logros de bienvenida, partidas jugadas y dirigidas, sistemas distintos, campañas, torneos, eventos, antigüedad, propuestas y comunidad (jugar con 10 personas distintas y dirigir a 20). Solo empiezan activos los que tienen fuente. Puedes editarlos y borrarlos como cualquier otro. Si vuelves a crear el catálogo inicial, un logro que borraste vuelve desactivado.
+Al instalar el módulo se crea un catálogo con logros de bienvenida, partidas jugadas y dirigidas, primera mesa creada que llega a jugarse, sistemas distintos, campañas, torneos, eventos, antigüedad, propuestas y comunidad (jugar con 10 personas distintas y dirigir a 20). Solo empiezan activos los que tienen fuente. Puedes editarlos y borrarlos como cualquier otro. El catálogo inicial solo se vuelve a crear desde el servidor, con el comando que explica la guía «Ajustes de los logros y recálculo»; un logro que borraste vuelve desactivado.

@@ -19,28 +19,28 @@ Los retos están apagados al instalar el módulo. Para encenderlos, abre *Sistem
 
 ## Preparar la recompensa
 
-La recompensa es un logro normal del catálogo. Antes de crear el reto, crea en **Personas** → **Logros** un logro activo, no secreto y que se conceda **a mano**, por ejemplo «Diciembre en la mesa». Así ninguna regla lo concede sola; solo se consigue con el reto o si alguien lo concede a mano.
+La recompensa es un logro normal del catálogo. Antes de crear el reto, crea en **Personas** → **Logros** un logro activo, no secreto, con la regla **Solo a mano** y que no se repita cada temporada, por ejemplo «Diciembre en la mesa». Así ninguna regla lo concede sola; solo se consigue con el reto o si alguien lo concede a mano.
 
-Mientras un reto lo use como recompensa, ese logro no se puede borrar. Mientras el reto se siga contando, tampoco se puede desactivar, hacer secreto ni darle una regla. Si el logro deja de cumplir estas condiciones, el reto no se enseña en la web y nadie recibe la recompensa hasta que vuelva a cumplirlas.
+Mientras un reto lo use como recompensa, ese logro no se puede borrar. Mientras el reto no esté cerrado y no hayan pasado 30 días desde su último día, aunque aún no haya empezado, tampoco se puede desactivar, hacer secreto, darle una regla ni hacer que se repita cada temporada. Si el logro deja de cumplir estas condiciones, el reto no se enseña en la web y nadie recibe la recompensa hasta que vuelva a cumplirlas.
 
-En un reto para socios, quien vea la recompensa en el perfil de alguien puede deducir que esa persona es socia. Tenlo en cuenta al elegir el logro y su descripción. Por eso el resumen mensual de anuncios solo la cuenta de quien ya enseña en su perfil que es socio.
+En un reto para socios, quien vea la recompensa en el perfil de alguien puede deducir que esa persona tiene el rol {{association_role}}. Tenlo en cuenta al elegir el logro y su descripción. Por eso el resumen mensual de anuncios solo la cuenta de quien ya enseña en su perfil que tiene ese rol.
 
 ## Crear un reto
 
 1. Abre **Personas** → **Logros** → **Retos** y pulsa **Nuevo reto**.
 2. Escribe el **Nombre** y, si quieres, una **Descripción**. Las dos se ven en la web.
 3. Elige el **Primer día** y el **Último día**. Cuentan los días enteros, de las 0:00 del primero a las 23:59 del último, en la hora de la asociación. Un reto dura al menos 28 días, contando el primero y el último. El total de un reto más corto, como uno de una tarde o de un fin de semana, diría quién estuvo en esa mesa o en ese evento.
-4. En **Quién participa**, elige **Todas las personas** o **Solo socios**. Con «Solo socios» cuenta solo lo que hacen las personas que son socias. Mientras duran sus fechas, se mira cada vez que se cuenta. Pasado el último día, queda fijo quién era socio en el último recuento: entrar o salir de la asociación después ya no cambia nada. Si después llega un hecho tardío de alguien que aún no había contado, se mira una sola vez si es socio en ese momento, y se queda así.
+4. En **Quién participa**, elige **Todas las personas** o **Solo socios**. Con «Solo socios» cuenta solo lo que hacen las personas con el rol {{association_role}}. Mientras duran sus fechas, se mira cada vez que se cuenta. Pasado el último día, queda fijo quién tenía el rol en el último recuento: entrar o salir de la asociación después ya no cambia nada. Si después llega un hecho tardío de alguien que aún no había contado, se mira una sola vez si tiene el rol en ese momento, y se queda así.
 5. Elige el **Logro de recompensa**.
-6. En **Qué se cuenta**, elige la **Actividad** (partidas, eventos, torneos…). Solo salen las que registra algún módulo instalado.
+6. En **Qué se cuenta**, elige la **Actividad** (partidas, eventos, torneos…). Solo salen las que registra algún módulo instalado o el propio sitio. Si eliges una actividad apagada en *Sistema → Configuración → Logros*, el reto no se cuenta ni se enseña hasta que la enciendas.
 7. En **Cómo se suma**, elige una opción:
    - **En total**: cada partida o evento cuenta una vez, juegue quien juegue;
    - **Participaciones**: cuenta cada persona en cada partida, así que una mesa de cinco suma cinco;
    - **Personas distintas**: cuenta cuántas personas distintas han participado.
-8. Si quieres, limita lo que cuenta por **Papel** (solo quien juega, por ejemplo), por **Puesto máximo** en torneos o por un valor, como un sistema de juego.
+8. Si quieres, limita lo que cuenta por **Papel** (solo quien juega, por ejemplo), por **Puesto máximo** en torneos o por un valor: elige el dato en **Solo con** (un sistema de juego, por ejemplo) y después su **Valor**.
 9. Escribe el **Objetivo** y pulsa **Crear**.
 
-El reto se cuenta al guardarlo y otra vez cada vez que un módulo registra actividad nueva. También se cuenta cada noche, porque quién es socio puede cambiar sin que cambie nada más.
+El reto se cuenta al guardarlo y otra vez cada vez que un módulo registra actividad nueva. También se cuenta cada noche, a las 04:10, porque quién tiene el rol {{association_role}} puede cambiar sin que cambie nada más.
 
 ## Editar un reto
 
@@ -66,19 +66,19 @@ Como cualquier logro, la recompensa no se pierde. Si se la retiras a alguien a m
 
 ## Lo que ve la gente
 
-En la página **Logros** de la web salen los retos en marcha, los que empiezan en los próximos 30 días y los que terminaron hace menos de 30. Cada uno enseña su barra de progreso, sus fechas, su recompensa y cuántas personas han contribuido. Un reto que aún no se ha contado lo dice, en lugar de enseñar un 0. No sale un reto cuya actividad no registra ningún módulo o está apagada en *Sistema → Configuración → Logros*.
+En la página **Logros** de la web salen los retos en marcha, los que empiezan en los próximos 30 días y los que terminaron hace 30 días o menos. Cada uno enseña su barra de progreso, sus fechas, su recompensa y cuántas personas han contribuido. Un reto que aún no se ha contado lo dice, en lugar de enseñar un 0. No sale un reto cuya actividad no registra ningún módulo o está apagada en *Sistema → Configuración → Logros*.
 
-Solo se ven totales: un reto nunca dice qué partidas, sesiones o eventos han contado. Cada persona con la sesión iniciada ve además cuántas veces ha participado ella, al momento. En un reto para socios, solo los socios ven su parte.
+Solo se ven totales: un reto nunca dice qué partidas, sesiones o eventos han contado. Cada persona con la sesión iniciada ve además cuántas veces ha participado ella, al momento. En un reto para socios, solo quienes tienen el rol {{association_role}} ven su parte.
 
-En un reto para socios, el total, cuántas personas han contribuido y si se ha conseguido se actualizan una vez al día, con el recuento de la noche. Así, un total que sube una hora después de acabar una mesa no dice quién estaba en ella ni que es socio. Hasta la primera noche, el reto dice que aún no se ha contado. La recompensa se concede igualmente en cuanto se consigue. En el panel, quien puede conceder o gestionar logros ve el progreso del momento; quien solo puede ver los retos ve también el de la noche. Los retos para todas las personas se actualizan en cuanto se cuentan.
+En un reto para socios, el total, cuántas personas han contribuido y si se ha conseguido se actualizan una vez al día, con el recuento de la noche. Así, un total que sube una hora después de acabar una mesa no dice quién estaba en ella ni que tiene ese rol. Hasta la primera noche, el reto dice que aún no se ha contado. La recompensa se concede igualmente en cuanto se consigue. En el panel, quien puede conceder o gestionar logros ve el progreso del momento; quien solo puede ver los retos ve el de la noche, como la web. Los retos para todas las personas se actualizan en cuanto se cuentan.
 
-De un reto conseguido se nombra a algunas de las personas que tienen la recompensa, hasta doce. Solo salen perfiles que quien mira puede ver, con su nombre público y nunca quien oculta sus logros. En un reto para socios, además, solo salen quienes ya enseñan en su perfil que son socios. No se dice cuántas personas tienen la recompensa.
+De un reto conseguido se nombra a algunas de las personas que tienen la recompensa, hasta doce. Solo salen perfiles que quien mira puede ver, con su nombre público y nunca quien oculta sus logros. En un reto para socios, además, solo salen quienes ya enseñan en su perfil que tienen el rol {{association_role}}. No se dice cuántas personas tienen la recompensa.
 
-Esa lista se actualiza solo el día 1 de cada mes, a la misma hora que el resumen de anuncios. Al encender **Retos** se hace una vez en ese momento, y si la del día 1 falla, se repite una vez al día siguiente. Hasta entonces no aparece nadie nuevo, aunque ya tenga la recompensa, para que un nombre nuevo no diga cuándo la consiguió. Tampoco aparece quien la consiguió después de la foto de la noche anterior: sale el mes siguiente, igual que en su perfil la ven los demás al día siguiente. Así, un reto conseguido a mitad de mes no nombra a nadie hasta el día 1 siguiente. Sí desaparece antes quien pierde la recompensa u oculta sus logros o su perfil.
+Esa lista se actualiza solo el día 1 de cada mes, a la misma hora que el resumen de anuncios. Al encender **Retos** se hace una vez, unos 15 minutos después, tras el primer recuento. Si la del día 1 falla, se reintenta varias veces ese día y, si sigue fallando, una vez más al día siguiente. Hasta entonces no aparece nadie nuevo, aunque ya tenga la recompensa, para que un nombre nuevo no diga cuándo la consiguió. Tampoco aparece quien la consiguió después de la foto de la noche anterior: sale el mes siguiente, igual que en su perfil la ven los demás al día siguiente. Así, un reto conseguido a mitad de mes no nombra a nadie hasta el día 1 siguiente. Sí desaparece antes quien pierde la recompensa u oculta sus logros o su perfil.
 
 ## El bloque del reto
 
-El bloque **Reto de la asociación** enseña un reto con su barra de progreso y un enlace a la página **Logros**. En un reto para socios, el bloque enseña el total de la noche, como la página. Puedes ponerlo en el pie de página, en una ventana emergente o en la página de enlaces. En sus ajustes puedes elegir un reto. Si no eliges ninguno, enseña el reto en marcha que antes termina o, si no hay ninguno, el siguiente en empezar. Sin retos que enseñar, el bloque no se ve.
+El bloque **Reto de la asociación** enseña un reto con su barra de progreso y un enlace a la página **Logros**. En un reto para socios, el bloque enseña el total de la noche, como la página. Puedes ponerlo en el pie de página, en una ventana emergente o en la página de enlaces. En sus ajustes puedes elegir un reto de los que no están cerrados; uno que no sale en la página **Logros**, porque terminó hace más de 30 días o empieza más tarde, no se dibuja. Si no eliges ninguno, enseña el reto de hoy que antes termina, aunque ya se haya conseguido, o, si no hay ninguno, el siguiente en empezar. Sin retos que enseñar, el bloque no se ve.
 
 ## Cerrar o borrar un reto
 

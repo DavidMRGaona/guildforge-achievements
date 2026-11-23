@@ -6,6 +6,7 @@ namespace Modules\Achievements\Filament\Pages;
 
 use App\Filament\Clusters\SettingsCluster;
 use App\Filament\Concerns\ChecksPermissions;
+use App\Filament\Concerns\HasKnowledgeGuideAction;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\TextInput;
@@ -40,6 +41,7 @@ use Modules\Achievements\Jobs\ListChallengeCompletersJob;
 final class AchievementsSettingsPage extends Page implements HasForms
 {
     use ChecksPermissions;
+    use HasKnowledgeGuideAction;
     use InteractsWithForms;
 
     public const string PERMISSION = 'achievements:achievements.configure';
@@ -242,6 +244,14 @@ final class AchievementsSettingsPage extends Page implements HasForms
             ->title(__('achievements::messages.settings.saved'))
             ->success()
             ->send();
+    }
+
+    /**
+     * @return array<Action>
+     */
+    protected function getHeaderActions(): array
+    {
+        return array_filter([$this->knowledgeGuideAction('achievements.panel.settings')]);
     }
 
     /**

@@ -118,6 +118,7 @@ function progressText(progress: AchievementProgress): string {
         >
             <h2 id="achievements-challenges" class="text-xl font-bold text-base-primary">
                 {{ t('achievements.challenges.title') }}
+                <HelpLink guide="achievements.site.challenges" class="ml-1 align-middle" />
             </h2>
             <p class="mt-1 max-w-3xl text-sm text-base-secondary">
                 {{ t('achievements.challenges.subtitle') }}
