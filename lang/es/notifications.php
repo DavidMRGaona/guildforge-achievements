@@ -23,6 +23,7 @@ return [
         'received' => ':person te ha reconocido: «:type»',
         'received_anonymous' => 'Te han reconocido: «:type»',
         'received_grouped' => 'Te han dado reconocimientos',
+        'subject_type' => 'Reconocimiento',
         'prompt_one' => '¿Quieres reconocer a alguien de «:title»?',
         'prompt_many' => '¿Quieres reconocer a alguien de tus últimas partidas?',
         'prompt_grouped' => '¿Quieres reconocer a alguien de tus últimas partidas?',

@@ -36,7 +36,9 @@ final readonly class EloquentRecognitionRepository implements RecognitionReposit
     {
         $giverId = strtolower($giverId);
         $receiverId = strtolower($receiverId);
-        $id = Str::uuid7()->toString();
+        // Random (v4), never time-ordered (v7): the id reaches both people and the panel, and a v7
+        // id carries the exact instant it was given, which would point at the game
+        $id = Str::uuid()->toString();
         $stamp = $this->stamp($givenAt);
 
         try {
@@ -158,7 +160,7 @@ final readonly class EloquentRecognitionRepository implements RecognitionReposit
         return array_values(array_map(static fn (mixed $id): string => strtolower((string) $id), $query->pluck('receiver_id')->all()));
     }
 
-    public function keepOnlyParticipants(string $sourceType, string $subjectId, array $userIds): int
+    public function keepOnlyParticipants(string $sourceType, string $subjectId, array $userIds): array
     {
         $ids = $this->ids($userIds);
         $query = $this->db->table(self::TABLE)->where('source_type', $sourceType)->where('subject_id', $subjectId);
@@ -167,20 +169,35 @@ final readonly class EloquentRecognitionRepository implements RecognitionReposit
             $query->where(static fn (Builder $either): Builder => $either->whereNotIn('giver_id', $ids)->orWhereNotIn('receiver_id', $ids));
         }
 
-        return $query->delete();
+        return $this->deleteAndList($query);
     }
 
-    public function deleteForUser(string $userId): int
+    public function deleteForUser(string $userId): array
     {
         $userId = strtolower($userId);
 
-        return $this->db->transaction(function () use ($userId): int {
+        return $this->db->transaction(function () use ($userId): array {
             $this->db->table(self::PROMPTS_TABLE)->where('user_id', $userId)->delete();
 
-            return $this->db->table(self::TABLE)
-                ->where(static fn (Builder $either): Builder => $either->where('giver_id', $userId)->orWhere('receiver_id', $userId))
-                ->delete();
+            return $this->deleteAndList($this->db->table(self::TABLE)
+                ->where(static fn (Builder $either): Builder => $either->where('giver_id', $userId)->orWhere('receiver_id', $userId)));
         });
+    }
+
+    /**
+     * Deletes what the query finds and returns those ids (read under lock, then deleted by id).
+     *
+     * @return list<string>
+     */
+    private function deleteAndList(Builder $query): array
+    {
+        $ids = array_values(array_map(static fn (mixed $id): string => strtolower((string) $id), $query->lockForUpdate()->pluck('id')->all()));
+
+        if ($ids !== []) {
+            $this->db->table(self::TABLE)->whereIn('id', $ids)->delete();
+        }
+
+        return $ids;
     }
 
     public function prompted(string $userId, array $subjects): array

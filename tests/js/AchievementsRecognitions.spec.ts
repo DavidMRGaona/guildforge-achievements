@@ -139,27 +139,43 @@ describe('Achievements/Recognitions', () => {
         );
     });
 
-    it('takes one away only after confirming', async () => {
-        const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
-        Object.defineProperty(window, 'confirm', {
-            value: confirm,
-            configurable: true,
-            writable: true,
-        });
+    it('takes one away only from the dialog, once its box is ticked', async () => {
         const wrapper = mount(Recognitions, {
             props: { ...base, received: [own()] },
-            global: { stubs },
+            global: { stubs: { ...stubs, teleport: true } },
         });
 
+        expect(wrapper.find('[data-test="remove-confirm"]').exists()).toBe(false);
         await wrapper.find('[data-test="remove"]').trigger('click');
+
+        const confirm = wrapper.find('[data-test="remove-confirm"]');
+        expect(wrapper.find('[data-test="remove-dialog"]').text()).toContain('Gran narración');
+        expect(confirm.attributes('disabled')).toBeDefined();
+        await confirm.trigger('click');
         expect(router.delete).not.toHaveBeenCalled();
 
-        await wrapper.find('[data-test="remove"]').trigger('click');
+        await wrapper.find('[data-test="remove-understood"]').setValue(true);
+        expect(wrapper.find('[data-test="remove-confirm"]').attributes('disabled')).toBeUndefined();
+        await wrapper.find('[data-test="remove-confirm"]').trigger('click');
+
         expect(router.delete).toHaveBeenCalledWith(
             '/logros/reconocimientos/0195f3a2-0000-7000-8000-0000000000aa',
             expect.objectContaining({ preserveScroll: true })
         );
-        expect(confirm).toHaveBeenCalledTimes(2);
+    });
+
+    it('leaves it as it is when the dialog is cancelled', async () => {
+        const wrapper = mount(Recognitions, {
+            props: { ...base, received: [own()] },
+            global: { stubs: { ...stubs, teleport: true } },
+        });
+
+        await wrapper.find('[data-test="remove"]').trigger('click');
+        await wrapper.find('[data-test="remove-understood"]').setValue(true);
+        await wrapper.find('[data-test="remove-cancel"]').trigger('click');
+
+        expect(router.delete).not.toHaveBeenCalled();
+        expect(wrapper.find('[data-test="remove-confirm"]').exists()).toBe(false);
     });
 
     it('says when there is nothing to recognise and how many days there are', () => {

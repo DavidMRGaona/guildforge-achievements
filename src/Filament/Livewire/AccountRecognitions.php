@@ -21,6 +21,7 @@ use Modules\Achievements\Domain\Repositories\RecognitionRepositoryInterface;
 use Modules\Achievements\Filament\Support\GrantDisplay;
 use Modules\Achievements\Filament\Support\RecognitionModerationAccess;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\RecognitionModel;
+use Modules\Achievements\Infrastructure\Recognitions\RecognitionNotices;
 
 /**
  * «Reconocimientos» on the user page (#11): what the account gave and received, with the other
@@ -112,6 +113,10 @@ final class AccountRecognitions extends TableWidget
             ])
             ->action(function (RecognitionModel $record): void {
                 $deleted = app(RecognitionRepositoryInterface::class)->delete($record->id);
+
+                if ($deleted) {
+                    app(RecognitionNotices::class)->forget([strtolower($record->id)]);
+                }
                 $actor = auth()->user();
 
                 if ($deleted) {

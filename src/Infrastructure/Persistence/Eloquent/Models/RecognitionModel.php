@@ -6,14 +6,14 @@ namespace Modules\Achievements\Infrastructure\Persistence\Eloquent\Models;
 
 use App\Infrastructure\Persistence\Eloquent\Concerns\StoresInstantsInStorageTimezone;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
  * A recognition (#11), for the panel's moderation table only: the site reads them through
- * RecognitionRepositoryInterface. Written only by the repository.
+ * RecognitionRepositoryInterface. Written only by the repository, with random (v4) ids: never
+ * Laravel's time-ordered ones, which would carry the instant.
  *
  * @property string $id
  * @property string $type_id
@@ -31,7 +31,6 @@ use Illuminate\Support\Carbon;
  */
 final class RecognitionModel extends Model
 {
-    use HasUuids;
     use StoresInstantsInStorageTimezone;
 
     protected $table = 'achievements_recognitions';

@@ -51,7 +51,10 @@ Vienen apagados.
 
 ## Reconocimientos
 
-La sección **Reconocimientos** ya tiene su interruptor y su plazo, pero todavía no hay nada que los use: encenderlos no cambia nada por ahora.
+- **Reconocimientos entre personas**: quienes juegan juntos en una partida o una campaña (no en torneos) se reconocen lo bueno, como «Gran narración». Viene apagado. Apagado, desaparece de la web y nadie puede dar más, pero lo ya dado se guarda.
+- **Plazo para reconocer**: los días, contados desde el día de la partida o de la campaña, en los que se puede hacer. Son 14 por defecto.
+
+Los tipos y cómo borrar un reconocimiento están en la guía **Reconocimientos** del panel.
 
 ## Tipos de actividad
 

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { nextTick, ref } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import HelpLink from '@/components/knowledge/HelpLink.vue';
 import AchievementBadge from '../../components/AchievementBadge.vue';
+import RemoveRecognitionDialog from '../../components/RemoveRecognitionDialog.vue';
 import { formatChallengeDay } from '../../utils/challengeDays';
 import { formatRecognitionMonth } from '../../utils/recognitionDates';
 import type {
@@ -34,6 +35,9 @@ const { t, locale } = useI18n();
 
 const saving = ref<string | null>(null);
 const error = ref<string | null>(null);
+/** The received recognition the dialog asks about, and the button that opened it (focus goes back there) */
+const removing = ref<OwnRecognition | null>(null);
+let opener: HTMLElement | null = null;
 
 function key(subject: RecognitionSubject, person: RecognisablePerson): string {
     return `${subject.sourceType}|${subject.subjectId}|${person.handle}`;
@@ -99,8 +103,26 @@ function give(
     );
 }
 
-function remove(recognition: OwnRecognition): void {
-    if (saving.value !== null || !window.confirm(t('achievements.recognitions.removeConfirm'))) {
+function askToRemove(recognition: OwnRecognition, event: Event): void {
+    if (saving.value !== null) {
+        return;
+    }
+
+    opener = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+    removing.value = recognition;
+}
+
+async function closeDialog(): Promise<void> {
+    removing.value = null;
+    await nextTick();
+    opener?.focus();
+    opener = null;
+}
+
+function remove(): void {
+    const recognition = removing.value;
+
+    if (recognition === null || saving.value !== null) {
         return;
     }
 
@@ -121,6 +143,7 @@ function remove(recognition: OwnRecognition): void {
         },
         onFinish: () => {
             saving.value = null;
+            void closeDialog();
         },
     });
 }
@@ -289,7 +312,7 @@ function remove(recognition: OwnRecognition): void {
                         class="inline-flex min-h-[44px] items-center rounded-md px-3 text-sm font-medium text-base-secondary hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-50"
                         :disabled="saving !== null"
                         data-test="remove"
-                        @click="remove(item)"
+                        @click="askToRemove(item, $event)"
                     >
                         {{ t('achievements.recognitions.remove') }}
                     </button>
@@ -327,4 +350,12 @@ function remove(recognition: OwnRecognition): void {
             </ul>
         </section>
     </div>
+
+    <RemoveRecognitionDialog
+        :open="removing !== null"
+        :type-name="removing?.type.name ?? ''"
+        :busy="saving !== null"
+        @confirm="remove"
+        @cancel="closeDialog"
+    />
 </template>

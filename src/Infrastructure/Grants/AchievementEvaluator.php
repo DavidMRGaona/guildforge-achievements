@@ -81,6 +81,8 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
         $granted = [];
         $users = 0;
         $after = null;
+        /** @var array<string, true> $walked accounts already evaluated, recognition rules included */
+        $walked = [];
 
         while ($kinds !== []) {
             $chunk = $this->facts->userIdsWithKinds($kinds, $after, self::USERS_PER_CHUNK);
@@ -93,6 +95,7 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
             array_push($granted, ...$result->granted);
             $users += $result->users;
             $after = array_last($chunk);
+            $walked += array_fill_keys($chunk, true);
         }
 
         // Recognitions received come from no kind of activity: their own walk, over who received some
@@ -107,10 +110,12 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
                 break;
             }
 
-            $result = $this->evaluateUsers($chunk, $byRecognitions, $silent, $dryRun);
+            $after = array_last($chunk);
+            // Whoever the first walk evaluated already had these rules looked at: never twice
+            $fresh = array_values(array_filter($chunk, static fn (string $userId): bool => ! isset($walked[$userId])));
+            $result = $this->evaluateUsers($fresh, $byRecognitions, $silent, $dryRun);
             array_push($granted, ...$result->granted);
             $users += $result->users;
-            $after = array_last($chunk);
         }
 
         return new EvaluationResultDTO(EvaluationOutcome::Evaluated, $granted, $users, count($evaluable), $pending);

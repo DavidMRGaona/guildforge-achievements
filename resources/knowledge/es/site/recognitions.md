@@ -4,9 +4,9 @@ title: Reconocimientos
 summary: Cómo reconocer lo bueno de quienes han jugado contigo, quién ve cada cosa y cómo quitar uno que has recibido.
 category: community
 audience: site
-order: 41
+order: 46
 keywords: [reconocimientos, reconocer, reconocimiento, agradecer, gracias, gran narración, buen compañero, ayuda a quien empieza, gran ambiente, compañeros, mesa, partida, campaña, quién me ha reconocido, quitar reconocimiento, privacidad]
-related: [achievements.site.achievements, core.site.public-profile]
+related: [achievements.site.achievements, achievements.site.notices, achievements.site.privacy, core.site.public-profile]
 ---
 Después de una partida o una campaña puedes reconocer lo bueno de quienes jugaron contigo: «Gran narración», «Buen compañero», «Ayuda a quien empieza», «Gran ambiente»… Siempre es en positivo: no hay forma de dar nada malo.
 
@@ -23,7 +23,7 @@ No salen los torneos, ni quien ha ocultado sus logros, ni quien no tiene nombre 
 - **Quien recibe el reconocimiento** ve quién se lo dio, el tipo y el mes. No ve de qué partida: no hace falta, porque estuvo allí.
 - **Tú** ves lo que has dado y a quién.
 - **Los demás** solo ven, en el perfil de cada persona, cuántos reconocimientos tiene de cada tipo. Nunca ven quién se los dio ni de qué partida.
-- Esos totales se actualizan una vez al mes, el día 1, con lo recibido hasta el mes anterior. Así nadie puede adivinar con quién jugaste por un número que sube justo después de una partida. Tú ves los tuyos al momento.
+- Lo nuevo cuenta para los demás una vez al mes: el día 1 se suma lo recibido hasta el mes anterior. Así nadie puede adivinar con quién jugaste por un número que sube justo después de una partida. Lo que se quita, en cambio, desaparece al momento. Tú ves los tuyos siempre al momento.
 
 Si ocultas tus logros en tu perfil, tampoco se ven tus reconocimientos, y nadie puede reconocerte hasta que vuelvas a mostrarlos.
 
@@ -39,4 +39,4 @@ Algunos logros se consiguen con los reconocimientos recibidos. Se cuentan igual 
 
 ## Avisos
 
-Te llega un aviso cuando alguien te reconoce, y otro, como mucho una vez al día, para invitarte a reconocer a alguien de tus últimas partidas. Solo te llegan a ti. Puedes apagarlos en tus ajustes, en **Avisos → Logros → Reconocimientos**.
+Cuando alguien te reconoce, te llega un aviso al momento, con su nombre. Además, como mucho una vez al día, te puede llegar una invitación a reconocer a alguien de tus últimas partidas. Solo te llegan a ti. Para apagarlos, abre **Ajustes de la cuenta → Avisos**, entra en **Logros** y apaga **Reconocimientos**.

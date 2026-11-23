@@ -47,6 +47,7 @@ final class Recognitions implements RecognitionsInterface
         private readonly ActivityReaderInterface $reader,
         private readonly RecognisablePeople $people,
         private readonly TimezoneServiceInterface $time,
+        private readonly RecognitionNotices $notices,
     ) {}
 
     public function available(): bool
@@ -123,31 +124,37 @@ final class Recognitions implements RecognitionsInterface
             return GiveRecognitionOutcome::Refused;
         }
 
-        $participants = $this->participants($sourceType, $subjectId, $giverId);
+        $kind = $fact->kind;
 
-        if ($participants === null || ! $this->describe($sourceType, $subjectId, $giver) instanceof ActivitySubjectDTO) {
-            return GiveRecognitionOutcome::Refused;
-        }
+        // Read and stored under the subject's lock, as the ledger refreshes it: a refresh that takes
+        // either person off the subject waits for this one and then deletes it, never the other way
+        $outcome = $this->facts->withSubjectLock($sourceType, $subjectId, function () use ($sourceType, $subjectId, $giverId, $giver, $receiverHandle, $typeId, $kind): GiveRecognitionOutcome|Recognition {
+            $participants = $this->participants($sourceType, $subjectId, $giverId);
 
-        $receiverId = null;
-
-        foreach ($this->people->among($participants['others'], $giver) as $userId => $person) {
-            if ($person['handle'] === mb_strtolower(trim($receiverHandle))) {
-                $receiverId = (string) $userId;
+            if ($participants === null || ! $this->describe($sourceType, $subjectId, $giver) instanceof ActivitySubjectDTO) {
+                return GiveRecognitionOutcome::Refused;
             }
+
+            $receiverId = null;
+
+            foreach ($this->people->among($participants['others'], $giver) as $userId => $person) {
+                if ($person['handle'] === mb_strtolower(trim($receiverHandle))) {
+                    $receiverId = (string) $userId;
+                }
+            }
+
+            if ($receiverId === null) {
+                return GiveRecognitionOutcome::Refused;
+            }
+
+            return $this->recognitions->give($typeId, $giverId, $receiverId, $sourceType, $subjectId, $kind, $this->now()) ?? GiveRecognitionOutcome::AlreadyGiven;
+        });
+
+        if (! $outcome instanceof Recognition) {
+            return $outcome;
         }
 
-        if ($receiverId === null) {
-            return GiveRecognitionOutcome::Refused;
-        }
-
-        $recognition = $this->recognitions->give($typeId, $giverId, $receiverId, $sourceType, $subjectId, $fact->kind, $this->now());
-
-        if (! $recognition instanceof Recognition) {
-            return GiveRecognitionOutcome::AlreadyGiven;
-        }
-
-        NotifyRecognitionReceivedJob::dispatch($recognition->id);
+        NotifyRecognitionReceivedJob::dispatch($outcome->id);
 
         return GiveRecognitionOutcome::Given;
     }
@@ -170,9 +177,13 @@ final class Recognitions implements RecognitionsInterface
     {
         $recognition = $this->recognitions->find($recognitionId);
 
-        return $recognition instanceof Recognition
-            && $recognition->receiverId === strtolower((string) $owner->getAuthIdentifier())
-            && $this->recognitions->delete($recognition->id);
+        if (! $recognition instanceof Recognition || $recognition->receiverId !== strtolower((string) $owner->getAuthIdentifier()) || ! $this->recognitions->delete($recognition->id)) {
+            return false;
+        }
+
+        $this->notices->forget([$recognition->id]);
+
+        return true;
     }
 
     public function totals(string $ownerId, ?string $viewerId): array

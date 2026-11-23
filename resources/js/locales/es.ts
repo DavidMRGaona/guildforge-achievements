@@ -167,7 +167,11 @@ export default {
             to: 'Para {name}',
             someone: 'Una persona sin nombre público',
             remove: 'Quitar',
-            removeConfirm: '¿Quitar este reconocimiento? No se puede deshacer.',
+            removeTitle: 'Quitar el reconocimiento',
+            removeMessage:
+                'Se quita «{type}» para siempre: deja de contar y desaparece también para quien lo dio.',
+            removeUnderstood: 'Entiendo que no se puede deshacer',
+            cancel: 'Cancelar',
             privacy:
                 'Quien recibe un reconocimiento ve quién se lo dio. Los demás solo ven cuántos tiene de cada tipo, contados hasta el mes anterior, nunca de qué partida.',
             section: {

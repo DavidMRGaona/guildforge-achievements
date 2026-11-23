@@ -59,16 +59,19 @@ interface RecognitionRepositoryInterface
 
     /**
      * Deletes the recognitions of a subject given or received by somebody not among `$userIds` (the
-     * people with a fact in it now). Returns how many went.
+     * people with a fact in it now). Returns the ids that went.
      *
      * @param  list<string>  $userIds
+     * @return list<string>
      */
-    public function keepOnlyParticipants(string $sourceType, string $subjectId, array $userIds): int;
+    public function keepOnlyParticipants(string $sourceType, string $subjectId, array $userIds): array;
 
     /**
-     * Every recognition the account gave or received, and its prompts.
+     * Every recognition the account gave or received, and its prompts. Returns the ids that went.
+     *
+     * @return list<string>
      */
-    public function deleteForUser(string $userId): int;
+    public function deleteForUser(string $userId): array;
 
     /**
      * @param  list<array{string, string}>  $subjects  [source type, subject id]

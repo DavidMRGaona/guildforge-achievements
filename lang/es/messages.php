@@ -423,8 +423,8 @@ return [
             'leaderboard' => 'Página con la clasificación de quienes aparecen en ella, solo para cuentas con sesión. Necesita los puntos encendidos.',
             'levels_scale' => 'Cada nivel empieza en un número de puntos. El primero empieza en 0 y cada uno necesita más puntos que el anterior.',
             'challenges' => 'Objetivos colectivos con una recompensa para todas las personas que contribuyen.',
-            'recognitions' => 'Tras una partida, una campaña o un torneo, los participantes pueden reconocerse.',
-            'recognitions_window_days' => 'Días, desde que acaba la partida, la campaña o el torneo, en los que se puede reconocer.',
+            'recognitions' => 'Tras una partida o una campaña, quienes participaron pueden reconocerse. Los torneos no cuentan.',
+            'recognitions_window_days' => 'Días, contados desde el día de la partida o de la campaña, en los que se puede reconocer.',
         ],
 
         'metric_kinds' => [

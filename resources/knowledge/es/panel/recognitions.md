@@ -4,7 +4,7 @@ title: Reconocimientos
 summary: Enciende los reconocimientos entre quienes juegan, prepara sus tipos y borra uno desde la ficha de una persona.
 category: users-and-roles
 audience: panel
-order: 83
+order: 84
 keywords: [reconocimientos, reconocer, tipos de reconocimiento, gran narración, buen compañero, ayuda a quien empieza, gran ambiente, moderar, borrar reconocimiento, plazo, privacidad, ficha de usuario]
 related: [achievements.panel.catalogue, achievements.site.recognitions]
 conditions:
@@ -35,7 +35,7 @@ Quién jugó con quién no es público. Por eso:
 - Solo se puede reconocer a quien estuvo en la misma partida o campaña, y solo durante el plazo. Los torneos no cuentan.
 - No se ofrece a quien ha ocultado sus logros, a quien no tiene nombre público ni a nadie cuyo perfil no pueda ver quien reconoce.
 - Los totales del perfil y los logros que cuentan reconocimientos se actualizan el día 1 de cada mes, nunca justo después de una partida.
-- Nadie más que quien lo recibe sabe quién lo dio.
+- Quién dio cada uno solo lo saben quien lo da, quien lo recibe y quien tiene el permiso para moderarlos.
 
 ## Borrar un reconocimiento
 

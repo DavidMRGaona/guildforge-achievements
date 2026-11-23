@@ -21,6 +21,7 @@ use Modules\Achievements\Domain\Repositories\RecognitionRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\FactAttribute;
 use Modules\Achievements\Domain\ValueObjects\FactsReplacement;
 use Modules\Achievements\Domain\ValueObjects\RecordedFact;
+use Modules\Achievements\Infrastructure\Recognitions\RecognitionNotices;
 
 /**
  * The settings are not read here on purpose: a kind switched off is still recorded, and only the
@@ -36,6 +37,7 @@ final class ActivityLedger implements ActivityLedgerInterface
         private readonly AchievementFactRepositoryInterface $facts,
         private readonly Dispatcher $events,
         private readonly RecognitionRepositoryInterface $recognitions,
+        private readonly RecognitionNotices $recognitionNotices,
         private readonly int $maxPages = self::MAX_PAGES,
     ) {}
 
@@ -102,7 +104,7 @@ final class ActivityLedger implements ActivityLedgerInterface
 
             // A recognition says both people took part: once either is gone from it (made private,
             // removed, the subject gone), it goes too, in the same transaction
-            $this->recognitions->keepOnlyParticipants($type, $subjectId, $replacement->userIdsAfter);
+            $this->recognitionNotices->forget($this->recognitions->keepOnlyParticipants($type, $subjectId, $replacement->userIdsAfter));
 
             return new SubjectRefreshDTO(ActivityReadOutcome::Read, $replacement);
         };

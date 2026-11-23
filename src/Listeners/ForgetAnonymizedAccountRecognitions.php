@@ -7,6 +7,7 @@ namespace Modules\Achievements\Listeners;
 use App\Domain\Events\UserAnonymized;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Modules\Achievements\Domain\Repositories\RecognitionRepositoryInterface;
+use Modules\Achievements\Infrastructure\Recognitions\RecognitionNotices;
 
 /**
  * An anonymized account keeps no recognitions, given or received, and no prompts (#11).
@@ -22,10 +23,11 @@ final class ForgetAnonymizedAccountRecognitions implements ShouldQueue
 
     public function __construct(
         private readonly RecognitionRepositoryInterface $recognitions,
+        private readonly RecognitionNotices $notices,
     ) {}
 
     public function handle(UserAnonymized $event): void
     {
-        $this->recognitions->deleteForUser($event->userId);
+        $this->notices->forget($this->recognitions->deleteForUser($event->userId));
     }
 }

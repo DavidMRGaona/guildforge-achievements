@@ -167,7 +167,11 @@ export default {
             to: 'To {name}',
             someone: 'Somebody without a public name',
             remove: 'Remove',
-            removeConfirm: 'Remove this recognition? It cannot be undone.',
+            removeTitle: 'Remove the recognition',
+            removeMessage:
+                '“{type}” is removed for good: it stops counting and disappears for whoever gave it too.',
+            removeUnderstood: 'I understand it cannot be undone',
+            cancel: 'Cancel',
             privacy:
                 'Whoever gets a recognition sees who gave it. Everybody else only sees how many of each type, counted up to the month before, never from which game.',
             section: {
