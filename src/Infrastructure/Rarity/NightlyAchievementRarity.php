@@ -17,26 +17,25 @@ use stdClass;
 use Throwable;
 
 /**
- * The nightly photo (`achievements_snapshots`, key `daily`): taken by RefreshAchievementRarityJob
- * every night and never on a grant or a revoke, so the numbers others see change once a day and two
- * people who play together never give themselves away by rising at once. Reading never computes:
- * without a photo there is no rarity, and nobody else sees anybody's achievements yet.
+ * The nightly photo (`achievements_snapshots`, key `daily`): its instant (03:30 of the display day)
+ * and every rarity, taken only by RefreshAchievementRarityJob, never on a grant or a revoke, and never
+ * computed on reading. Without a readable photo there is no rarity and others see nothing new.
  *
- * Taking it is two aggregate queries over the ledger and the grants, answered from the indexes on
- * `achievements_facts (occurred_at, user_id)` and the grants' unique key:
- *
- * - active people: accounts with a fact since the same display day twelve months ago, joined to
- *   `users` (so an account deleted for good, whose facts stay without a foreign key, never counts)
- *   and neither deactivated (`deleted_at`) nor anonymized;
- * - holders: of those people, how many hold each achievement (any season).
- *
- * Bound "scoped", so a page reads the photo once per request.
+ * Active people: a fact in the twelve months before the photo, an account that still exists, not
+ * deactivated or anonymized. Holders: those of them holding each achievement (any season).
+ * Bound "scoped": a page reads the photo once.
  */
 final class NightlyAchievementRarity implements AchievementRarityInterface
 {
     public const string KEY = 'daily';
 
     public const int MONTHS_ACTIVE = 12;
+
+    /** The photo's time of day, in the display zone (the nightly schedule's) */
+    public const string TAKEN_AT = '03:30';
+
+    /** Older than this, the nightly job has stopped: warned once a day */
+    public const int STALE_AFTER_HOURS = 26;
 
     private const string TABLE = 'achievements_snapshots';
 
@@ -65,13 +64,16 @@ final class NightlyAchievementRarity implements AchievementRarityInterface
             return $this->read = AchievementRarityDTO::unknown();
         }
 
-        return $this->read = $row instanceof stdClass ? $this->fromRow($row) : AchievementRarityDTO::unknown();
+        $read = $row instanceof stdClass ? $this->fromRow($row) : AchievementRarityDTO::unknown();
+        $this->warnIfStale($read->takenAt);
+
+        return $this->read = $read;
     }
 
     public function refresh(): AchievementRarityDTO
     {
-        $zone = new DateTimeZone(date_default_timezone_get());
-        $stamp = DateTimeImmutable::createFromInterface(Date::now())->setTimezone($zone)->format(self::STORAGE_FORMAT);
+        $takenAt = $this->photoInstant();
+        $stamp = $takenAt->format(self::STORAGE_FORMAT);
         $since = $this->time->toStorage($this->time->today()->modify('-'.self::MONTHS_ACTIVE.' months'))->format(self::STORAGE_FORMAT);
         $activePeople = $this->activePeople($since)->distinct()->count('achievements_facts.user_id');
         $shares = [];
@@ -102,9 +104,36 @@ final class NightlyAchievementRarity implements AchievementRarityInterface
             ['taken_at', 'data', 'updated_at'],
         );
 
-        $takenAt = new DateTimeImmutable($stamp, $zone);
-
         return $this->read = new AchievementRarityDTO($activePeople, $shares, $this->time->iso($takenAt), $takenAt);
+    }
+
+    /**
+     * 03:30 of today in the display zone, as a storage instant (yesterday's before that time): a
+     * queue that runs late never moves the line to midday.
+     */
+    private function photoInstant(): DateTimeImmutable
+    {
+        [$hour, $minute] = array_map(intval(...), explode(':', self::TAKEN_AT));
+        $today = $this->time->today()->setTime($hour, $minute);
+        $now = DateTimeImmutable::createFromInterface(Date::now());
+
+        return $this->time->toStorage($today > $now ? $today->modify('-1 day') : $today);
+    }
+
+    private function warnIfStale(?DateTimeImmutable $takenAt): void
+    {
+        if (! $takenAt instanceof DateTimeImmutable) {
+            return;
+        }
+
+        $age = Date::now()->getTimestamp() - $takenAt->getTimestamp();
+
+        if ($age > self::STALE_AFTER_HOURS * 3600) {
+            $this->warnings->warn('snapshot_stale', '[Achievements] The nightly photo is older than a day: is the scheduler running?', [
+                'reason' => 'snapshot_stale',
+                'hours' => intdiv($age, 3600),
+            ]);
+        }
     }
 
     private function fromRow(stdClass $row): AchievementRarityDTO

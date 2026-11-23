@@ -69,6 +69,14 @@ describe('AchievementsProfileSection', () => {
         expect(wrapper.find('a[href="/logros"]').text()).toBe('Ver todos los logros');
     });
 
+    it('shows a rarity under one percent as «< 1 %»', () => {
+        const wrapper = mount(AchievementsProfileSection, {
+            props: { earned: [earned({ rarity: 0 })], showsRarity: true, catalogueUrl: '/logros' },
+        });
+
+        expect(wrapper.text()).toContain('Lo tiene el < 1 % de la gente activa');
+    });
+
     it('counts the secrets the viewer may not see, without listing them', () => {
         const withOthers = mount(AchievementsProfileSection, {
             props: { earned: [earned()], secretCount: 2, catalogueUrl: '/logros' },

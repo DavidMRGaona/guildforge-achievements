@@ -54,7 +54,12 @@ final readonly class ShowcasePresenter
             return null;
         }
 
-        return $share < 1.0 ? 0 : (int) round($share);
+        if ($share < 1.0) {
+            return 0;
+        }
+
+        // Only a share of exactly 100 reads «100 %»: 99.6 is not everybody
+        return $share < 100.0 ? min(99, (int) round($share)) : 100;
     }
 
     /**

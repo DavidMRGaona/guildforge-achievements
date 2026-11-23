@@ -8,9 +8,7 @@ use DateTimeImmutable;
 
 /**
  * How rare each achievement was at the last nightly photo (`takenAt`, null while there is none):
- * the share (in percent, 0 to 100) of the people active in the twelve months before it who held it. Active people are accounts with a fact in the ledger in that time,
- * neither deactivated nor anonymized, and only accounts that still exist (the facts of an account
- * deleted for good are left out).
+ * the percent of the people active in the twelve months before it who held it.
  */
 final readonly class AchievementRarityDTO
 {

@@ -78,7 +78,7 @@ interface AchievementShowcaseInterface
      * How many achievements the owner holds: now for the owner, as of the last nightly photo for
      * anybody else.
      */
-    public function heldCount(string $ownerId, ?string $viewerId = null): int;
+    public function heldCount(string $ownerId, ?string $viewerId): int;
 
     /**
      * Featured badges of each account, in one read for all of them: the held ones the owner chose,

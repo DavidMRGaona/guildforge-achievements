@@ -35,14 +35,18 @@ use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Policies\AchievementPolicy;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsActivityFacts;
+use Modules\Achievements\Tests\Support\BuildsShowcase;
 use RuntimeException;
 use Tests\Support\Activity\InMemoryActivitySource;
 use Tests\Support\Modules\ModuleTestCase;
+use Tests\Support\Time\UsesUtcStorage;
 
 final class AchievementResourceTest extends ModuleTestCase
 {
     use BuildsAchievements;
     use BuildsActivityFacts;
+    use BuildsShowcase;
+    use UsesUtcStorage;
 
     protected ?string $moduleName = 'achievements';
 
@@ -311,6 +315,32 @@ final class AchievementResourceTest extends ModuleTestCase
             ->searchTable('dormido')
             ->assertCanSeeTableRecords([$secret])
             ->assertCanNotSeeTableRecords([$plain]);
+    }
+
+    public function test_the_holders_column_is_live_only_for_whoever_sees_the_grants(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        $this->useUtcStorage();
+        $this->travelTo('2026-11-22 10:00:00');
+        $achievement = $this->achievement($this->countRule(), ['name' => 'Primera partida']);
+        $viewer = $this->userWith(AchievementPolicy::VIEW_ANY);
+
+        // Before the first night, whoever only views sees nobody yet
+        $this->actingAs($viewer);
+        Livewire::test(ListAchievements::class)->assertTableColumnStateSet('holders_count', 0, $achievement);
+
+        $this->grantAt($this->person('Ana'), (string) $achievement->id, '2026-10-01 18:00:00');
+        $this->refreshRarity();
+        // This morning, after the night's photo
+        $this->grantAt($this->person('Luis'), (string) $achievement->id, '2026-11-22 09:00:00');
+        $this->app->forgetScopedInstances();
+
+        Livewire::test(ListAchievements::class)->assertTableColumnStateSet('holders_count', 1, $achievement);
+
+        foreach ([AchievementPolicy::GRANT, AchievementPolicy::MANAGE] as $permission) {
+            $this->actingAs($this->userWith($permission));
+            Livewire::test(ListAchievements::class)->assertTableColumnStateSet('holders_count', 2, $achievement);
+        }
     }
 
     public function test_sorting_never_shows_where_a_secret_name_falls(): void

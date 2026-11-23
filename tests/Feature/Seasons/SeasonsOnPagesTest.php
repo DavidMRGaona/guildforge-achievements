@@ -75,6 +75,22 @@ final class SeasonsOnPagesTest extends ModuleTestCase
         $this->assertSame(['value' => 1, 'threshold' => 10, 'inMonths' => false], $own['locked'][0]['progress']);
     }
 
+    public function test_a_season_got_today_shows_to_others_only_after_the_next_photo(): void
+    {
+        $tenGames = $this->achievement($this->countRule(threshold: 10, extra: ['window' => ['type' => 'season']]), ['name' => 'Diez partidas al año']);
+        $this->grantAt($this->ana, (string) $tenGames->id, '2026-10-01 18:00:00', '2026');
+        $this->travelTo('2027-01-02 10:00:00');
+        $this->refreshRarity();
+        // Got again this morning, after the night's photo
+        $this->grantAt($this->ana, (string) $tenGames->id, '2027-01-02 09:00:00', '2027');
+
+        $others = $this->achievementsSection($this->render($this->ana, $this->luis))?->props;
+        $this->assertSame(['2026'], $others['earned'][0]['seasons'] ?? null);
+
+        $own = $this->achievementsSection($this->render($this->ana, $this->ana))?->props;
+        $this->assertSame(['2027', '2026'], $own['earned'][0]['seasons'] ?? null);
+    }
+
     public function test_a_streak_shows_its_progress_in_months(): void
     {
         $this->travelTo('2026-11-22 10:00:00');

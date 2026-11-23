@@ -239,7 +239,7 @@ final class AchievementsProfileSectionTest extends ModuleTestCase
         $this->grantAt($this->ana, (string) $kept->id, '2026-10-01 18:00:00');
         $grant = app(AchievementGranterInterface::class)->grant(new NewGrant((string) $this->ana->id, (string) $revoked->id, GrantSource::Manual, true));
         $this->assertNotNull($grant);
-        $this->travel(1)->minutes();
+        $this->travelTo('2026-11-23 04:00:00');
         $this->refreshRarity();
         $this->assertSame(2, $this->countStat($this->render($this->ana, $this->luis))?->value);
 
@@ -248,6 +248,55 @@ final class AchievementsProfileSectionTest extends ModuleTestCase
         $profile = $this->render($this->ana, $this->luis);
         $this->assertSame(['Primera partida'], array_column($this->achievementsSection($profile)?->props['earned'] ?? [], 'name'));
         $this->assertSame(1, $this->countStat($profile)?->value);
+    }
+
+    public function test_a_grant_in_the_photos_own_second_waits_for_the_next_night(): void
+    {
+        $old = $this->achievement($this->countRule(), ['name' => 'Primera partida']);
+        $same = $this->achievement($this->countRule(), ['name' => 'Justo a tiempo']);
+        $this->grantAt($this->ana, (string) $old->id, '2026-10-01 18:00:00');
+        // 03:30 in Madrid: the very second of the photo
+        $this->grantAt($this->ana, (string) $same->id, '2026-11-22 02:30:00');
+        $this->refreshRarity();
+
+        $profile = $this->render($this->ana, $this->luis);
+        $this->assertSame(['Primera partida'], array_column($this->achievementsSection($profile)?->props['earned'] ?? [], 'name'));
+        $this->assertSame(1, $this->countStat($profile)?->value);
+    }
+
+    public function test_a_secret_the_viewer_holds_and_the_owner_got_today_is_neither_shown_nor_counted(): void
+    {
+        $first = $this->achievement($this->countRule(), ['name' => 'Primera partida']);
+        $secret = $this->achievement($this->countRule(), ['name' => 'El secreto', 'is_secret' => true]);
+        $this->grantAt($this->ana, (string) $first->id, '2026-10-01 18:00:00');
+        $this->grantAt($this->luis, (string) $secret->id, '2026-10-01 18:00:00');
+        $this->refreshRarity();
+        // This morning, after the photo
+        $this->grantAt($this->ana, (string) $secret->id, '2026-11-22 09:00:00');
+
+        $profile = $this->render($this->ana, $this->luis);
+        $props = $this->achievementsSection($profile)?->props;
+
+        $this->assertSame(['Primera partida'], array_column($props['earned'] ?? [], 'name'));
+        $this->assertSame(0, $props['secretCount'] ?? null);
+        $this->assertSame(1, $this->countStat($profile)?->value);
+    }
+
+    public function test_the_owners_featured_mark_follows_their_choice_now(): void
+    {
+        $old = $this->achievement($this->countRule(), ['name' => 'Primera partida']);
+        $new = $this->achievement(['version' => 1, 'metric' => 'manual'], ['name' => 'Gran ayuda']);
+        $this->grantAt($this->ana, (string) $old->id, '2026-10-01 18:00:00');
+        $this->refreshRarity();
+        $this->grantAt($this->ana, (string) $new->id, '2026-11-22 09:00:00');
+        $this->choose($this->ana, featured: [(string) $new->id]);
+
+        $own = array_column($this->achievementsSection($this->render($this->ana, $this->ana))?->props['earned'] ?? [], 'featured', 'name');
+        $this->assertTrue($own['Gran ayuda'] ?? null);
+
+        // Others have not seen it yet: never featured to them
+        $others = array_column($this->achievementsSection($this->render($this->ana, $this->luis))?->props['earned'] ?? [], 'featured', 'name');
+        $this->assertArrayNotHasKey('Gran ayuda', $others);
     }
 
     public function test_rarity_goes_out_in_whole_percents(): void

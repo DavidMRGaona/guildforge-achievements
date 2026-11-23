@@ -11,6 +11,7 @@ use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Application\Services\AchievementRarityInterface;
@@ -122,7 +123,8 @@ final class AchievementRarityTest extends ModuleTestCase
 
         $photo = app(AchievementRarityInterface::class)->current();
         $this->assertSame(100.0, $photo->shareOf($achievement));
-        $this->assertSame('2026-11-22 10:00:00', $photo->takenAt?->format('Y-m-d H:i:s'));
+        // 03:30 of the display day (Madrid, UTC+1), whenever the job ran
+        $this->assertSame('2026-11-22 02:30:00', $photo->takenAt?->format('Y-m-d H:i:s'));
 
         // Without a photo there is nothing: never what is there now
         DB::table('achievements_snapshots')->delete();
@@ -157,13 +159,56 @@ final class AchievementRarityTest extends ModuleTestCase
         $this->factAt($ana, '2026-10-01 18:00:00');
         $grant = app(AchievementGranterInterface::class)->grant(new NewGrant((string) $ana->id, $achievement, GrantSource::Manual, true));
         $this->assertNotNull($grant);
-        $this->travel(1)->minutes();
+        $this->travelTo('2026-11-23 04:00:00');
         $this->refreshRarity();
 
         app(AchievementGranterInterface::class)->revoke($grant->id, (string) $this->person('Admin')->id, 'Concedido por error');
         $this->app->forgetScopedInstances();
 
         $this->assertSame(100.0, app(AchievementRarityInterface::class)->current()->shareOf($achievement));
+    }
+
+    public function test_before_the_nights_time_the_photo_is_of_the_night_before(): void
+    {
+        // 02:00 in Madrid: tonight's 03:30 has not come yet
+        $this->travelTo('2026-11-22 01:00:00');
+
+        $this->assertSame('2026-11-21 02:30:00', app(AchievementRarityInterface::class)->refresh()->takenAt?->format('Y-m-d H:i:s'));
+    }
+
+    public function test_a_grant_in_the_photos_own_second_waits_for_the_next_one(): void
+    {
+        $achievement = (string) $this->achievement($this->countRule())->id;
+        $ana = $this->person('Ana');
+        $this->factAt($ana, '2026-10-01 18:00:00');
+        $this->grantAt($ana, $achievement, '2026-11-22 02:30:00');
+
+        $this->assertSame(0.0, app(AchievementRarityInterface::class)->refresh()->shareOf($achievement));
+    }
+
+    public function test_a_photo_older_than_26_hours_is_warned_once_a_day(): void
+    {
+        $log = Log::spy();
+        // 27 hours before now: last night's photo was never taken
+        $this->photoTakenAt('2026-11-21 07:00:00');
+
+        app(AchievementRarityInterface::class)->current();
+        $this->app->forgetScopedInstances();
+        app(AchievementRarityInterface::class)->current();
+
+        $log->shouldHaveReceived('warning')->once()->withArgs(
+            static fn (string $message, array $context = []): bool => ($context['reason'] ?? null) === 'snapshot_stale' && ($context['hours'] ?? null) === 27,
+        );
+    }
+
+    public function test_last_nights_photo_is_not_warned(): void
+    {
+        $log = Log::spy();
+        $this->photoTakenAt('2026-11-22 02:30:00');
+
+        app(AchievementRarityInterface::class)->current();
+
+        $log->shouldNotHaveReceived('warning');
     }
 
     public function test_neither_grants_nor_revokes_queue_a_photo(): void
@@ -206,6 +251,17 @@ final class AchievementRarityTest extends ModuleTestCase
 
         $this->assertSame(0, $photo->activePeople);
         $this->assertNull($photo->takenAt);
+    }
+
+    private function photoTakenAt(string $takenAt): void
+    {
+        DB::table('achievements_snapshots')->insert([
+            'key' => NightlyAchievementRarity::KEY,
+            'taken_at' => $takenAt,
+            'data' => '{"activePeople": 1, "shares": {}}',
+            'created_at' => $takenAt,
+            'updated_at' => $takenAt,
+        ]);
     }
 
     public function test_the_active_people_query_has_an_index_of_its_own(): void

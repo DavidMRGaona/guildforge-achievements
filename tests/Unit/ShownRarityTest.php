@@ -25,7 +25,7 @@ final class ShownRarityTest extends TestCase
         yield 'one' => [1.0, 1];
         yield 'a third' => [33.33, 33];
         yield 'half rounds up' => [12.5, 13];
-        yield 'almost everybody' => [99.6, 100];
+        yield 'almost everybody' => [99.6, 99];
         yield 'everybody' => [100.0, 100];
     }
 

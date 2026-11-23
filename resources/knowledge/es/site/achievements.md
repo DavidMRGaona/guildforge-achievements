@@ -38,7 +38,7 @@ Quién ve tu perfil lo decides en **Editar perfil**. Tus logros solo los ve quie
 
 ## La rareza
 
-La rareza es la parte de la gente activa que tiene un logro: «Lo tiene el 4 % de la gente activa». Cuenta como activa quien ha participado en algo en los últimos doce meses. Si llevas más de un año sin participar, tus logros salen sin rareza. Se calcula una vez al día, por la noche, y sale en porcentajes enteros («menos del 1 %» para los más raros).
+La rareza es la parte de la gente activa que tiene un logro: «Lo tiene el 4 % de la gente activa». Cuenta como activa quien ha participado en algo en los últimos doce meses. Si llevas más de un año sin participar, tus logros salen sin rareza. Se calcula una vez al día, por la noche, y sale en porcentajes enteros («< 1 %» para los más raros).
 
 ## Lo que ven los demás cambia una vez al día
 

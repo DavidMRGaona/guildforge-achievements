@@ -100,8 +100,9 @@ final class AchievementShowcase implements AchievementShowcaseInterface
         $held = $isOwner ? $this->heldBy($ownerId) : $this->shownHeldBy($ownerId);
         $seasons = $isOwner ? $this->seasonsBy($ownerId) : $this->shownSeasonsBy($ownerId);
         $catalogue = $this->catalogue();
-        // Featured as everybody sees them under the name: from the photo
-        $featured = $this->featuredIds($this->shownHeldBy($ownerId), $this->preferences($ownerId), $this->rarity());
+        // Featured: the owner's pill follows their choices now; anybody else sees the photo's, as
+        // under the name
+        $featured = $this->featuredIds($held, $this->preferences($ownerId), $this->rarity());
         $viewerHolds = $isOwner || $viewerId === null ? [] : $this->heldBy(strtolower($viewerId));
         $rarity = $this->rarity();
         $items = [];
@@ -302,7 +303,7 @@ final class AchievementShowcase implements AchievementShowcaseInterface
         return $standings;
     }
 
-    public function heldCount(string $ownerId, ?string $viewerId = null): int
+    public function heldCount(string $ownerId, ?string $viewerId): int
     {
         $ownerId = strtolower($ownerId);
         $held = $this->isOwner($ownerId, $viewerId) ? $this->heldBy($ownerId) : $this->shownHeldBy($ownerId);
