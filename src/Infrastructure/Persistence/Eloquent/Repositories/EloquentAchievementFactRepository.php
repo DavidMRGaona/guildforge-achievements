@@ -201,6 +201,34 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
         return $facts;
     }
 
+    public function forKindBetween(string $kind, DateTimeImmutable $from, DateTimeImmutable $until): array
+    {
+        $zone = new DateTimeZone(date_default_timezone_get());
+        $facts = [];
+
+        // Uses the index on (occurred_at, user_id). Anonymized or deleted for good: never counted,
+        // even before the ledger forgets them (the same join as firstMeetings())
+        $query = $this->db->table(self::TABLE)
+            ->join('users', 'users.id', '=', self::TABLE.'.user_id')
+            ->whereNull('users.anonymized_at')
+            ->where(self::TABLE.'.occurred_at', '>=', $from->setTimezone($zone)->format(self::STORAGE_FORMAT))
+            ->where(self::TABLE.'.occurred_at', '<', $until->setTimezone($zone)->format(self::STORAGE_FORMAT))
+            ->where(self::TABLE.'.kind', $kind)
+            ->select(self::TABLE.'.*')
+            ->orderBy(self::TABLE.'.occurred_at')
+            ->orderBy(self::TABLE.'.source_type')
+            ->orderBy(self::TABLE.'.subject_id')
+            ->orderBy(self::TABLE.'.user_id')
+            ->orderBy(self::TABLE.'.role');
+
+        foreach ($query->cursor() as $row) {
+            /** @var stdClass $row */
+            $facts[] = $this->toEntity($row);
+        }
+
+        return $facts;
+    }
+
     public function userIdsWithKinds(array $kinds, ?string $afterUserId, int $limit): array
     {
         if ($kinds === [] || $limit < 1) {

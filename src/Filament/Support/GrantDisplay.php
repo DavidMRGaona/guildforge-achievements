@@ -57,7 +57,7 @@ final class GrantDisplay
             return self::seesAccount($actor) ? $actor->name : self::text('log.hidden_account');
         }
 
-        return in_array($source, [GrantSource::Rule->value, GrantSource::Challenge->value], true) ? self::text('log.automatic') : '—';
+        return in_array($source, [GrantSource::Rule->value, GrantSource::Challenge->value, GrantSource::MemberChallenge->value], true) ? self::text('log.automatic') : '—';
     }
 
     /**

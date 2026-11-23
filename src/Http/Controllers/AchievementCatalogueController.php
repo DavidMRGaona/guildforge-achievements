@@ -15,20 +15,22 @@ use Modules\Achievements\Application\DTOs\AchievementViewDTO;
 use Modules\Achievements\Application\Services\AchievementRarityInterface;
 use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Application\Services\ChallengeBoardInterface;
 use Modules\Achievements\Application\Services\SeasonClock;
+use Modules\Achievements\Infrastructure\Challenges\ChallengePresenter;
 use Modules\Achievements\Infrastructure\Profiles\ShowcasePresenter;
 
 /**
  * `/logros`: what the person holds and every achievement that can still be got, with how rare it
  * is (the features follow the modules installed: an achievement without a source is not offered). A
  * secret achievement the person does not hold keeps its name, look, id, points and rarity to itself;
- * nothing names who holds what.
+ * nothing names who holds what. The collective challenges come first, with their totals (#12).
  */
 final class AchievementCatalogueController extends Controller
 {
     /**
      * Resolved per call, never in the constructor: the route keeps its controller, and the showcase,
-     * the rarity and the settings are bound "scoped" (read once per request).
+     * the rarity, the challenges and the settings are bound "scoped" (read once per request).
      */
     public function __invoke(
         Request $request,
@@ -37,6 +39,8 @@ final class AchievementCatalogueController extends Controller
         AchievementsSettingsInterface $settings,
         ShowcasePresenter $presenter,
         SeoMetadataFactoryInterface $seo,
+        ChallengeBoardInterface $challenges,
+        ChallengePresenter $challengePresenter,
         SeasonClock $seasons,
     ): Response {
         $viewer = $request->user();
@@ -63,6 +67,11 @@ final class AchievementCatalogueController extends Controller
             'showsPoints' => $showsPoints,
             // Only signed-in accounts open it
             'leaderboardUrl' => $viewer !== null && $settings->leaderboardShown() ? route('achievements.leaderboard', absolute: false) : null,
+            // Collective challenges (#12): totals only, and who completed them as the viewer may see them
+            'challenges' => array_map(
+                $challengePresenter->challenge(...),
+                $challenges->shown($viewer),
+            ),
             'season' => $settings->seasonsAndStreaksEnabled() ? $seasons->current()->key() : null,
             'seo' => $seo->forPage(new SeoPageDTO(
                 title: __('achievements::messages.pages.index_title'),

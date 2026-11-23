@@ -34,9 +34,10 @@ interface PendingAchievementNoticeRepositoryInterface
 
     /**
      * Hands every grant got before the instant and waiting to be announced, keyed by holder in lower
-     * case, to the work, then forgets them, in one transaction. Nothing waiting: the work is not called.
+     * case, to the work, then forgets them, in one transaction, except the grant ids the work returns
+     * (they keep waiting for the next release). Nothing waiting: the work is not called.
      *
-     * @param  Closure(array<string, list<string>>): void  $work  receives holder id => grant ids
+     * @param  Closure(array<string, list<string>>): (list<string>|null)  $work  receives holder id => grant ids
      */
     public function releaseAnnouncements(DateTimeInterface $before, Closure $work): void;
 }

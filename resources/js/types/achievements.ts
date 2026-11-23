@@ -139,3 +139,42 @@ export interface AccountAchievements {
     /** The «Avisos» tab, where the bell's categories are chosen */
     noticesUrl: string;
 }
+
+/** Where a collective challenge is */
+export type ChallengeState = 'upcoming' | 'running' | 'completed' | 'ended' | 'closed';
+
+/** Somebody who completed a challenge, as the viewer may see them: public name and profile only */
+export interface ChallengeCompleter {
+    name: string;
+    url: string;
+    avatarUrl: string | null;
+}
+
+/** A collective challenge: totals only, never which tables or events anybody took part in */
+export interface Challenge {
+    id: string;
+    name: string;
+    description: string;
+    state: ChallengeState;
+    /** False while it was never counted: its 0 means nothing yet */
+    counted: boolean;
+    progress: number;
+    target: number;
+    /** What the total counts, agreed with the target («partidas») */
+    unit: string;
+    /** Calendar days of the association (`AAAA-MM-DD`), both included */
+    startsOn: string;
+    endsOn: string;
+    /** The days carry their year: they are not both of the current year */
+    showsYear: boolean;
+    /** Its last day is over */
+    ended: boolean;
+    membersOnly: boolean;
+    reward: AchievementSummary;
+    /** People who added to it */
+    contributors: number;
+    /** Some of whoever got the reward, whose profile the viewer may see (only on `/logros`); how many got it is never told */
+    people: ChallengeCompleter[];
+    /** The viewer's own contribution; null for a guest, and for whoever is not a member in a challenge of members */
+    contribution: number | null;
+}

@@ -42,6 +42,34 @@ export default {
             leaderboardOut: 'Ya no apareces en la clasificación.',
             seeAll: 'Ver todos los logros',
         },
+        challenges: {
+            title: 'Retos de la asociación',
+            subtitle:
+                'Objetivos entre todas las personas. Quien contribuye recibe el logro de recompensa cuando se consigue.',
+            progress: '{progress} de {target} {unit}',
+            days: 'Del {start} al {end}',
+            membersOnly: 'Solo socios',
+            states: {
+                upcoming: 'Próximamente',
+                running: 'En marcha',
+                completed: 'Conseguido',
+                ended: 'Terminado',
+                closed: 'Cerrado',
+            },
+            contributors:
+                'Nadie ha contribuido todavía | {count} persona ha contribuido | {count} personas han contribuido',
+            yourContribution: 'Has participado {count} vez | Has participado {count} veces',
+            noContribution: 'Todavía no has contribuido',
+            reward: 'Recompensa',
+            peopleTitle: 'Algunas de las personas que lo han conseguido:',
+            notCounted: 'Aún no se ha contado. Objetivo: {target} {unit}.',
+            block: {
+                until: 'Hasta el {day}',
+                startsOn: 'Empieza el {day}',
+                endedOn: 'Terminado el {day}',
+                seeAll: 'Ver los retos',
+            },
+        },
         account: {
             tabLabel: 'Logros',
             title: 'Logros',

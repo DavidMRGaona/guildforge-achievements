@@ -54,8 +54,10 @@ final readonly class EloquentPendingAchievementNoticeRepository implements Pendi
         $this->deliver(
             self::EARNED,
             static fn (Builder $query): Builder => $query->where('user_id', $userId),
-            static function (array $byHolder) use ($work, $userId): void {
+            static function (array $byHolder) use ($work, $userId): null {
                 $work($byHolder[$userId] ?? []);
+
+                return null;
             },
         );
     }
@@ -71,7 +73,7 @@ final readonly class EloquentPendingAchievementNoticeRepository implements Pendi
 
     /**
      * @param  Closure(Builder): Builder  $scope
-     * @param  Closure(array<string, list<string>>): void  $work
+     * @param  Closure(array<string, list<string>>): (list<string>|null)  $work  returns the grant ids to keep waiting
      */
     private function deliver(string $kind, Closure $scope, Closure $work): void
     {
@@ -96,7 +98,8 @@ final readonly class EloquentPendingAchievementNoticeRepository implements Pendi
             }
 
             // Told first: work that throws leaves them all waiting
-            $work($byHolder);
+            $kept = array_flip(array_map(strtolower(...), $work($byHolder) ?? []));
+            $grantIds = array_values(array_filter($grantIds, static fn (string $grantId): bool => ! isset($kept[$grantId])));
 
             foreach (array_chunk($grantIds, self::CHUNK) as $chunk) {
                 $this->table()->where('kind', $kind)->whereIn('grant_id', $chunk)->delete();
