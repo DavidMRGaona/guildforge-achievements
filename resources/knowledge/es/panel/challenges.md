@@ -23,14 +23,14 @@ La recompensa es un logro normal del catálogo. Antes de crear el reto, crea en 
 
 Mientras un reto lo use como recompensa, ese logro no se puede borrar. Mientras el reto se siga contando, tampoco se puede desactivar, hacer secreto ni darle una regla. Si el logro deja de cumplir estas condiciones, el reto no se enseña en la web y nadie recibe la recompensa hasta que vuelva a cumplirlas.
 
-En un reto para socios, quien vea la recompensa en el perfil de alguien puede deducir que esa persona es socia. Tenlo en cuenta al elegir el logro y su descripción.
+En un reto para socios, quien vea la recompensa en el perfil de alguien puede deducir que esa persona es socia. Tenlo en cuenta al elegir el logro y su descripción. Por eso el resumen mensual de anuncios solo la cuenta de quien ya enseña en su perfil que es socio.
 
 ## Crear un reto
 
 1. Abre **Personas** → **Logros** → **Retos** y pulsa **Nuevo reto**.
 2. Escribe el **Nombre** y, si quieres, una **Descripción**. Las dos se ven en la web.
 3. Elige el **Primer día** y el **Último día**. Cuentan los días enteros, de las 0:00 del primero a las 23:59 del último, en la hora de la asociación.
-4. En **Quién participa**, elige **Todas las personas** o **Solo socios**. Con «Solo socios» cuenta solo lo que hacen las personas que son socias. Mientras duran sus fechas, se mira cada vez que se cuenta. Pasado el último día, queda fijo quién era socio entonces: entrar o salir de la asociación después ya no cambia nada.
+4. En **Quién participa**, elige **Todas las personas** o **Solo socios**. Con «Solo socios» cuenta solo lo que hacen las personas que son socias. Mientras duran sus fechas, se mira cada vez que se cuenta. Pasado el último día, queda fijo quién era socio en el último recuento: entrar o salir de la asociación después ya no cambia nada. Si después llega un hecho tardío de alguien que aún no había contado, se mira una sola vez si es socio en ese momento, y se queda así.
 5. Elige el **Logro de recompensa**.
 6. En **Qué se cuenta**, elige la **Actividad** (partidas, eventos, torneos…). Solo salen las que registra algún módulo instalado.
 7. En **Cómo se suma**, elige una opción:

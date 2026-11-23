@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useSiteBlockPlacement } from '@/composables/useSiteBlockPlacement';
 import ChallengeProgressBar from './ChallengeProgressBar.vue';
-import { crossesYear, formatChallengeDay } from '../utils/challengeDays';
+import { formatChallengeDay } from '../utils/challengeDays';
 import type { Challenge } from '../types/achievements';
 
 /**
@@ -24,16 +24,19 @@ const placement = useSiteBlockPlacement();
 const dark = computed(() => placement.value === 'footer');
 
 const when = computed(() => {
-    const key = props.challenge.state === 'upcoming' ? 'startsOn' : 'until';
-    const day =
-        props.challenge.state === 'upcoming' ? props.challenge.startsOn : props.challenge.endsOn;
+    const { state, startsOn, endsOn, ended, showsYear } = props.challenge;
+    let key = 'until';
+    let day = endsOn;
+
+    if (state === 'upcoming') {
+        key = 'startsOn';
+        day = startsOn;
+    } else if (ended) {
+        key = 'endedOn';
+    }
 
     return t(`achievements.challenges.block.${key}`, {
-        day: formatChallengeDay(
-            day,
-            locale.value,
-            crossesYear(props.challenge.startsOn, props.challenge.endsOn)
-        ),
+        day: formatChallengeDay(day, locale.value, showsYear),
     });
 });
 </script>

@@ -13,7 +13,8 @@ use Modules\Achievements\Domain\Challenges\ChallengeState;
  * `people` lists some of whoever got the reward, those whose profile the viewer may see and who
  * show their achievements (and their membership, in a challenge of members), by public name only
  * (at most ChallengeBoardInterface::MAX_LISTED; empty for blocks). How many got the reward is not
- * told. Days are `Y-m-d` of the display zone.
+ * told. Days are `Y-m-d` of the display zone; `showsYear` when they are not both of the current
+ * year, `ended` once its last day is over.
  */
 final readonly class ChallengeViewDTO
 {
@@ -31,6 +32,8 @@ final readonly class ChallengeViewDTO
         public string $unit,
         public string $startsOn,
         public string $endsOn,
+        public bool $showsYear,
+        public bool $ended,
         public bool $membersOnly,
         public AchievementViewDTO $reward,
         public int $contributors,

@@ -114,7 +114,7 @@ final readonly class ChallengeEvaluator implements ChallengeEvaluatorInterface
 
             $progress = $this->calculator->progress($rule, $facts, $members);
             // Discarded when the challenge was saved from the panel meanwhile: it is counted again
-            $saved = $this->challenges->saveProgress($challenge->id, $progress, $now, $challenge->updatedAt);
+            $saved = $this->challenges->saveProgress($challenge->id, $progress, $now, $challenge->countVersion);
 
             if (! $saved instanceof Challenge) {
                 continue;
@@ -219,20 +219,29 @@ final readonly class ChallengeEvaluator implements ChallengeEvaluatorInterface
         }
 
         $granted = 0;
+        // A reward of a challenge for members says its holder is one: told apart in the summary
+        $source = $challenge->audience === ChallengeAudience::Members ? GrantSource::MemberChallenge : GrantSource::Challenge;
 
         foreach (array_chunk($progress->contributors(), self::CHUNK) as $chunk) {
-            $held = $this->grants->heldAchievementIds($chunk);
-            // A challenge's reward has no season: taken away by hand in that one ('')
-            $revoked = array_fill_keys($this->grants->revokedAmong($reward->id, $chunk), true);
+            // Under the challenge's row lock, while it is open: once closed, nobody else gets it
+            $open = $this->challenges->whileOpen($challenge->id, function () use ($chunk, $reward, $source, &$granted): void {
+                $held = $this->grants->heldAchievementIds($chunk);
+                // A challenge's reward has no season: taken away by hand in that one ('')
+                $revoked = array_fill_keys($this->grants->revokedAmong($reward->id, $chunk), true);
 
-            foreach ($chunk as $userId) {
-                if (in_array($reward->id, $held[$userId] ?? [], true) || isset($revoked[$userId])) {
-                    continue;
-                }
+                foreach ($chunk as $userId) {
+                    if (in_array($reward->id, $held[$userId] ?? [], true) || isset($revoked[$userId])) {
+                        continue;
+                    }
 
-                if ($this->granter->grant(new NewGrant($userId, $reward->id, GrantSource::Challenge, false)) instanceof AchievementGrant) {
-                    $granted++;
+                    if ($this->granter->grant(new NewGrant($userId, $reward->id, $source, false)) instanceof AchievementGrant) {
+                        $granted++;
+                    }
                 }
+            });
+
+            if (! $open) {
+                break;
             }
         }
 

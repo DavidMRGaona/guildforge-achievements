@@ -35,6 +35,8 @@ final readonly class ChallengePresenter
             'unit' => $view->unit,
             'startsOn' => $view->startsOn,
             'endsOn' => $view->endsOn,
+            'showsYear' => $view->showsYear,
+            'ended' => $view->ended,
             'membersOnly' => $view->membersOnly,
             'reward' => $this->achievements->achievement($view->reward),
             'contributors' => $view->contributors,

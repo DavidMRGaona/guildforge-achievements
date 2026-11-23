@@ -59,6 +59,7 @@ export default {
             block: {
                 until: 'Hasta el {day}',
                 startsOn: 'Empieza el {day}',
+                endedOn: 'Terminado el {day}',
                 seeAll: 'Ver los retos',
             },
         },

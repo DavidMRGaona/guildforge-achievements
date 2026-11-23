@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories;
 
+use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use Closure;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
@@ -91,21 +93,22 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
             ->all());
     }
 
-    public function saveProgress(string $id, ChallengeProgress $progress, DateTimeImmutable $countedAt, ?DateTimeImmutable $loadedUpdatedAt): ?Challenge
+    public function saveProgress(string $id, ChallengeProgress $progress, DateTimeImmutable $countedAt, int $loadedVersion): ?Challenge
     {
         if (! AchievementIds::isWellFormed($id)) {
             return null;
         }
 
-        return $this->db->transaction(function () use ($id, $progress, $countedAt, $loadedUpdatedAt): ?Challenge {
+        return $this->db->transaction(function () use ($id, $progress, $countedAt, $loadedVersion): ?Challenge {
             $model = ChallengeModel::query()->whereKey(strtolower($id))->lockForUpdate()->first();
 
             if (! $model instanceof ChallengeModel || $model->closed_at !== null) {
                 return null;
             }
 
-            // Saved from the panel since it was loaded: this count is of a rule that no longer exists
-            if ($this->second(self::instant($model->updated_at)) !== $this->second($loadedUpdatedAt)) {
+            // What it counts changed since it was loaded: this count is of a version that no longer
+            // exists (saving the new one queued another count); a new name changes nothing
+            if ($model->count_version !== $loadedVersion) {
                 return null;
             }
 
@@ -117,10 +120,7 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
                 $model->completed_at = Carbon::instance($progress->completedAt);
             }
 
-            // A count is not an edit: `updated_at` keeps telling when the panel last changed it
-            $model->timestamps = false;
             $model->save();
-            $model->timestamps = true;
             $this->replaceContributions($model->id, $progress, $countedAt);
 
             return self::toEntity($model);
@@ -133,14 +133,39 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
             return false;
         }
 
-        return ChallengeModel::query()
-            ->whereKey(strtolower($id))
-            ->whereNull('closed_at')
-            ->update([
+        return (bool) $this->db->transaction(function () use ($id, $actorId, $at): bool {
+            // Under the row lock: a count granting its rewards holds it too (whileOpen())
+            $model = ChallengeModel::query()->whereKey(strtolower($id))->lockForUpdate()->first();
+
+            if (! $model instanceof ChallengeModel || $model->closed_at !== null) {
+                return false;
+            }
+
+            return ChallengeModel::query()->whereKey($model->id)->update([
                 'closed_at' => $this->stored($at),
                 'closed_by' => $actorId === null ? null : strtolower($actorId),
                 'updated_at' => $this->stored($at),
             ]) > 0;
+        });
+    }
+
+    public function whileOpen(string $id, Closure $work): bool
+    {
+        if (! AchievementIds::isWellFormed($id)) {
+            return false;
+        }
+
+        return (bool) $this->db->transaction(static function () use ($id, $work): bool {
+            $model = ChallengeModel::query()->whereKey(strtolower($id))->lockForUpdate()->first();
+
+            if (! $model instanceof ChallengeModel || $model->closed_at !== null) {
+                return false;
+            }
+
+            $work();
+
+            return true;
+        });
     }
 
     public function contributionsOf(string $userId, array $challengeIds): array
@@ -248,9 +273,23 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
                 $table->clone()->where('challenge_id', $challengeId)->delete();
             }
 
+            // An account anonymized meanwhile leaves no row: its accounts are read under a shared
+            // lock, so an anonymization that starts now waits, and its listener then deletes them
+            $present = [];
+
+            foreach (array_chunk(array_map(strval(...), array_keys($audience)), self::CHUNK) as $chunk) {
+                foreach (UserModel::withTrashed()->whereIn('id', $chunk)->whereNull('anonymized_at')->sharedLock()->pluck('id') as $id) {
+                    $present[strtolower((string) $id)] = true;
+                }
+            }
+
             $rows = [];
 
             foreach ($audience as $userId => $isMember) {
+                if (! isset($present[strtolower((string) $userId)])) {
+                    continue;
+                }
+
                 $rows[] = [
                     'challenge_id' => $challengeId,
                     'user_id' => strtolower((string) $userId),
@@ -300,7 +339,7 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
             completedAt: self::instant($model->completed_at),
             closedAt: self::instant($model->closed_at),
             progressAt: self::instant($model->progress_at),
-            updatedAt: self::instant($model->updated_at),
+            countVersion: $model->count_version,
         );
     }
 
@@ -345,14 +384,6 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
         return DateTimeImmutable::createFromInterface($instant)
             ->setTimezone(new DateTimeZone(date_default_timezone_get()))
             ->format(self::STORAGE_FORMAT);
-    }
-
-    /**
-     * An instant to the second, in UTC, for comparing two reads of one column.
-     */
-    private function second(?DateTimeImmutable $instant): ?string
-    {
-        return $instant?->setTimezone(new DateTimeZone('UTC'))->format(self::STORAGE_FORMAT);
     }
 
     private static function instant(?Carbon $value): ?DateTimeImmutable

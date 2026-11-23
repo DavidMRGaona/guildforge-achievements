@@ -117,6 +117,10 @@ export interface Challenge {
     /** Calendar days of the association (`AAAA-MM-DD`), both included */
     startsOn: string;
     endsOn: string;
+    /** The days carry their year: they are not both of the current year */
+    showsYear: boolean;
+    /** Its last day is over */
+    ended: boolean;
     membersOnly: boolean;
     reward: AchievementSummary;
     /** People who added to it */

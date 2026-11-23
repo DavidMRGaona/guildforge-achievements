@@ -60,6 +60,7 @@ export default {
             block: {
                 until: 'Until {day}',
                 startsOn: 'Starts on {day}',
+                endedOn: 'Ended on {day}',
                 seeAll: 'See the challenges',
             },
         },

@@ -292,6 +292,8 @@ final class ChallengeResourceTest extends ModuleTestCase
             'is_secret' => ['is_secret' => true],
             'is_active' => ['is_active' => false],
             'rule_metric' => ['rule_metric' => 'count', 'rule_kind' => 'game_session', 'rule_threshold' => 1],
+            // Once per season: the challenge would grant it without one
+            'rule_window' => ['rule_window' => 'season'],
         ] as $field => $change) {
             Livewire::test(EditAchievement::class, ['record' => $reward->id])
                 ->fillForm($change)
@@ -310,6 +312,27 @@ final class ChallengeResourceTest extends ModuleTestCase
             ->call('save')
             ->assertHasNoFormErrors();
         $this->assertTrue($reward->refresh()->is_secret);
+    }
+
+    public function test_bringing_back_a_challenge_needs_a_reward_that_is_still_one(): void
+    {
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+        // Past its late facts' days: its reward was free to stop being one meanwhile
+        $challenge = $this->challenge([], ['starts_on' => '2026-01-01', 'ends_on' => '2026-01-31']);
+        AchievementModel::query()->whereKey($challenge->reward_achievement_id)->update(['is_secret' => true]);
+
+        Livewire::test(EditChallenge::class, ['record' => $challenge->id])
+            ->fillForm(['ends_on' => '2027-01-31'])
+            ->call('save')
+            ->assertHasFormErrors(['reward_achievement_id']);
+        $this->assertSame('2026-01-31', $challenge->refresh()->ends_on->format('Y-m-d'));
+
+        // Its name alone may still change
+        Livewire::test(EditChallenge::class, ['record' => $challenge->id])
+            ->fillForm(['name' => 'Enero'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+        $this->assertSame('Enero', $challenge->refresh()->name);
     }
 
     public function test_an_achievement_that_rewards_a_challenge_is_not_deleted(): void

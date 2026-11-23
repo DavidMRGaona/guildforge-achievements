@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Tests\Feature\Challenges;
 
+use App\Application\Authorization\Services\AssociationMembersAmongInterface;
+use App\Application\Profiles\Services\ProfileMembershipDisplayInterface;
 use App\Application\SiteNotifications\DTOs\SiteNotificationItemDTO;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
+use Modules\Achievements\Domain\Enums\GrantSource;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Jobs\EvaluateChallengesJob;
 use Modules\Achievements\Jobs\ReleaseAchievementAnnouncementsJob;
@@ -16,6 +20,7 @@ use Modules\Achievements\Tests\Support\BuildsActivityFacts;
 use Modules\Achievements\Tests\Support\BuildsChallenges;
 use Modules\Achievements\Tests\Support\BuildsNotices;
 use Modules\Achievements\Tests\Support\BuildsShowcase;
+use Modules\Achievements\Tests\Support\MembershipShown;
 use Tests\Support\Activity\InMemoryActivitySource;
 use Tests\Support\Modules\ModuleTestCase;
 use Tests\Support\Time\UsesUtcStorage;
@@ -114,6 +119,54 @@ final class ChallengeAnnouncementTest extends ModuleTestCase
 
         $this->release();
         $this->assertCount(1, $this->announcementsOf($this->bea));
+    }
+
+    public function test_a_reward_of_a_challenge_for_members_is_told_only_when_the_owner_shows_the_membership(): void
+    {
+        $this->played($this->ana, '2026-12-10 18:00:00');
+        $challenge = $this->challenge(['target' => 1], ['audience' => 'members']);
+        $ana = strtolower((string) $this->ana->id);
+        $this->app->instance(AssociationMembersAmongInterface::class, new readonly class($ana) implements AssociationMembersAmongInterface
+        {
+            public function __construct(private string $member) {}
+
+            public function among(array $userIds): array
+            {
+                return in_array($this->member, $userIds, true) ? [$this->member => true] : [];
+            }
+        });
+        $display = new MembershipShown(false);
+        $this->app->instance(ProfileMembershipDisplayInterface::class, $display);
+
+        $this->challenges()->evaluate(null, silent: false);
+
+        $this->assertSame(GrantSource::MemberChallenge->value, DB::table('achievements_grants')->where('achievement_id', $challenge->reward_achievement_id)->value('source'));
+        // The owner hears of it; others not, while the profile does not show the membership
+        $this->assertCount(1, $this->bellOf($this->ana, AchievementNoticeCategories::EARNED));
+        $this->release();
+        $this->assertSame([], $this->announcementsOf($this->bea));
+    }
+
+    public function test_a_reward_of_a_challenge_for_members_is_told_when_the_profile_shows_the_membership(): void
+    {
+        $this->played($this->ana, '2026-12-10 18:00:00');
+        $this->challenge(['target' => 1], ['audience' => 'members']);
+        $ana = strtolower((string) $this->ana->id);
+        $this->app->instance(AssociationMembersAmongInterface::class, new readonly class($ana) implements AssociationMembersAmongInterface
+        {
+            public function __construct(private string $member) {}
+
+            public function among(array $userIds): array
+            {
+                return in_array($this->member, $userIds, true) ? [$this->member => true] : [];
+            }
+        });
+        $this->app->instance(ProfileMembershipDisplayInterface::class, new MembershipShown(true));
+
+        $this->challenges()->evaluate(null, silent: false);
+        $this->release();
+
+        $this->assertSame('Ana consiguió un logro de un reto en diciembre', $this->announcementsOf($this->bea)[0]->title ?? null);
     }
 
     private function played(UserModel $user, string $when): void

@@ -25,8 +25,3 @@ export function challengeShare(progress: number, target: number): number {
 
     return Math.max(0, Math.min(100, Math.round((progress / target) * 100)));
 }
-
-/** Whether the two days fall in different years (the days then say which year each is) */
-export function crossesYear(start: string, end: string): boolean {
-    return start.slice(0, 4) !== end.slice(0, 4);
-}

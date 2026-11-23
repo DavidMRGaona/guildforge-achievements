@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Jobs;
 
+use App\Application\Profiles\Services\ProfileMembershipDisplayInterface;
 use App\Application\Services\TimezoneServiceInterface;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Illuminate\Bus\Queueable;
@@ -25,6 +26,7 @@ use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInt
 use Modules\Achievements\Domain\Repositories\PendingAchievementNoticeRepositoryInterface;
 use Modules\Achievements\Domain\Rules\AnnouncementRule;
 use Modules\Achievements\Notifications\AchievementsAnnouncedNotification;
+use Throwable;
 
 /**
  * The monthly summary of announcements (achievements#6): on the first day of each month
@@ -93,7 +95,7 @@ final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, Should
                 foreach ($this->announced((string) $ownerId, $grantIds, $grants, $preferences, $settings, $rarity) as $grant) {
                     $month = $timezone->toDisplay($grant->grantedAt)->format('Y-m');
                     $achievementId = strtolower($grant->achievementId);
-                    $kind = $grant->source === GrantSource::Challenge ? AchievementsAnnouncedNotification::CHALLENGE : AchievementsAnnouncedNotification::RARE;
+                    $kind = $grant->source->isChallenge() ? AchievementsAnnouncedNotification::CHALLENGE : AchievementsAnnouncedNotification::RARE;
                     // Got in several seasons of one month: once, as a challenge one if any was
                     $known = $byMonth[$month][(string) $ownerId][$achievementId] ?? null;
                     $byMonth[$month][(string) $ownerId][$achievementId] = $known === AchievementsAnnouncedNotification::CHALLENGE ? $known : $kind;
@@ -152,17 +154,35 @@ final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, Should
         }
 
         $wanted = array_flip($grantIds);
+        $mine = array_values(array_filter($grants->forUser($ownerId), static fn (AchievementGrant $grant): bool => isset($wanted[strtolower($grant->id)])));
+        // Asked only when a reward of a challenge for members waits (#12)
+        $showsMembership = array_any($mine, static fn (AchievementGrant $grant): bool => $grant->source === GrantSource::MemberChallenge)
+            && $this->showsMembership($ownerId);
 
         // Any season: a repeatable achievement got again is told again
         return array_values(array_filter(
-            $grants->forUser($ownerId),
-            static fn (AchievementGrant $grant): bool => isset($wanted[strtolower($grant->id)]) && AnnouncementRule::announces(
+            $mine,
+            static fn (AchievementGrant $grant): bool => AnnouncementRule::announces(
                 $grant->source,
                 $grant->silent,
                 $rarity->shareOf($grant->achievementId),
                 $settings->announcementsRarityThreshold,
+                $showsMembership,
             ),
         ));
+    }
+
+    /**
+     * Whether the owner's profile already shows the membership badge (the core's rule, never the
+     * reader's). Fails closed: a read that fails says no.
+     */
+    private function showsMembership(string $ownerId): bool
+    {
+        try {
+            return app(ProfileMembershipDisplayInterface::class)->showsMembership([strtolower($ownerId)])[strtolower($ownerId)] ?? false;
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     /**

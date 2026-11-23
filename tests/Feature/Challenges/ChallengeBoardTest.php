@@ -73,6 +73,8 @@ final class ChallengeBoardTest extends ModuleTestCase
                 ->where('challenges.0.unit', 'partidas')
                 ->where('challenges.0.startsOn', '2026-12-01')
                 ->where('challenges.0.endsOn', '2026-12-31')
+                ->where('challenges.0.showsYear', false)
+                ->where('challenges.0.ended', false)
                 ->where('challenges.0.contributors', 5)
                 ->where('challenges.0.contribution', 3)
                 ->where('challenges.0.people', [])
@@ -106,8 +108,11 @@ final class ChallengeBoardTest extends ModuleTestCase
                 ->has('challenges', 2)
                 ->where('challenges.0.name', 'Reciente')
                 ->where('challenges.0.state', 'ended')
+                ->where('challenges.0.ended', true)
                 ->where('challenges.1.name', 'Pronto')
-                ->where('challenges.1.state', 'upcoming'));
+                ->where('challenges.1.state', 'upcoming')
+                // Of another year than the current one
+                ->where('challenges.1.showsYear', true));
     }
 
     public function test_only_visible_people_who_show_their_achievements_are_named(): void

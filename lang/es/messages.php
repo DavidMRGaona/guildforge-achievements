@@ -260,6 +260,7 @@ return [
             'manual' => 'A mano',
             'bulk' => 'En lote',
             'challenge' => 'Por reto',
+            'member_challenge' => 'Por reto de socios',
         ],
         'grant' => [
             'label' => 'Conceder',
@@ -491,7 +492,7 @@ return [
             'description' => 'Se ve en la web. Habla del objetivo común («40 partidas entre todos»), nunca de una partida concreta.',
             'ends_on' => 'Los días van de 0:00 del primero a 23:59 del último, en la hora de la asociación. Lo que se registre tarde aún cuenta durante 30 días.',
             'audience' => 'Solo con socios, cuenta solo lo que hacen las personas que son socias cuando se cuenta.',
-            'reward' => 'Un logro activo, no secreto y que se conceda a mano. Al cumplirse el reto, lo recibe cada persona que contribuyó. En un reto para socios, verlo en un perfil ya insinúa que esa persona es socia.',
+            'reward' => 'Un logro activo, no secreto, que se conceda a mano y no se repita cada temporada. Al cumplirse el reto, lo recibe cada persona que contribuyó. En un reto para socios, verlo en un perfil ya insinúa que esa persona es socia.',
             'kind' => 'Solo se ofrece la actividad que registra algún módulo instalado.',
             'metric' => 'Cada partida una vez, cada persona en cada partida, o personas distintas.',
             'role' => 'Opcional: solo cuenta quien participa con este papel.',
@@ -571,7 +572,8 @@ return [
             'invalid_rule' => 'Esta combinación no forma un reto que se pueda contar.',
         ],
 
-        'reward_in_use' => 'Es la recompensa de un reto que aún se cuenta: tiene que seguir activo, no secreto y concediéndose a mano.',
+        'reward_in_use' => 'Es la recompensa de un reto que aún se cuenta: tiene que seguir activo, no secreto, concediéndose a mano y sin repetirse cada temporada.',
+        'reward_not_usable' => 'La recompensa ya no es válida: elige un logro activo, no secreto, que se conceda a mano y no se repita cada temporada.',
 
         'block' => [
             'label' => 'Reto de la asociación',

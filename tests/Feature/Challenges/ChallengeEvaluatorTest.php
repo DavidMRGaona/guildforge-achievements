@@ -141,24 +141,56 @@ final class ChallengeEvaluatorTest extends ModuleTestCase
         Event::assertDispatched(AchievementGranted::class, static fn (AchievementGranted $event): bool => ! $event->silent);
     }
 
-    public function test_a_count_of_a_challenge_saved_meanwhile_is_discarded(): void
+    public function test_a_count_of_a_version_changed_meanwhile_is_discarded_but_a_new_name_is_not_one(): void
     {
         $ana = $this->account();
         $this->ledgerSubject(self::SESSIONS, 't1', 'game_session', [$this->recordedFact($ana, when: '2026-12-02 18:00:00')]);
         $model = $this->challenge(['target' => 1]);
         $repository = $this->app->make(ChallengeRepositoryInterface::class);
+        $progress = new ChallengeCalculator()->progress(ChallengeRule::make(ChallengeMetric::Subjects, 'game_session', 1) ?? $this->fail('rule'), $this->app->make(AchievementFactRepositoryInterface::class)->forKindBetween('game_session', new DateTimeImmutable('2026-12-01'), new DateTimeImmutable('2027-01-01')));
         $loaded = $repository->find($model->id);
         $this->assertNotNull($loaded);
-        // Saved from the panel after the count loaded it
-        ChallengeModel::query()->whereKey($model->id)->update(['updated_at' => '2026-12-20 12:00:05']);
 
-        $progress = new ChallengeCalculator()->progress(ChallengeRule::make(ChallengeMetric::Subjects, 'game_session', 1) ?? $this->fail('rule'), $this->app->make(AchievementFactRepositoryInterface::class)->forKindBetween('game_session', new DateTimeImmutable('2026-12-01'), new DateTimeImmutable('2027-01-01')));
+        // A new name: the count of what was loaded still stands
+        $model->update(['name' => 'Otro nombre']);
+        $this->assertSame($loaded->countVersion, $model->refresh()->count_version);
+        $this->assertNotNull($repository->saveProgress($model->id, $progress, new DateTimeImmutable('2026-12-20 12:00:10'), $loaded->countVersion));
 
-        $this->assertNull($repository->saveProgress($model->id, $progress, new DateTimeImmutable('2026-12-20 12:00:10'), $loaded->updatedAt));
+        // Its days changed after the count loaded it: discarded (the change queued a count of its own)
+        new UniqueLock($this->app->make(Repository::class))->release(new EvaluateChallengesJob([$model->id], false));
+        Bus::fake([EvaluateAchievementsJob::class, EvaluateChallengesJob::class]);
+        $model->update(['ends_on' => '2027-01-15']);
+        $this->assertSame($loaded->countVersion + 1, $model->refresh()->count_version);
+        ChallengeModel::query()->whereKey($model->id)->update(['completed_at' => null]);
+        $this->assertNull($repository->saveProgress($model->id, $progress, new DateTimeImmutable('2026-12-20 12:00:20'), $loaded->countVersion));
         $this->assertNull($model->refresh()->completed_at);
-        $this->assertNotNull($repository->saveProgress($model->id, $progress, new DateTimeImmutable('2026-12-20 12:00:10'), $repository->find($model->id)?->updatedAt));
-        // A count is not an edit
-        $this->assertSame('2026-12-20 12:00:05', $model->refresh()->updated_at?->toDateTimeString());
+        Bus::assertDispatched(EvaluateChallengesJob::class, static fn (EvaluateChallengesJob $job): bool => $job->challengeIds === [$model->id]);
+    }
+
+    public function test_once_closed_nobody_else_gets_the_reward(): void
+    {
+        $ana = $this->account();
+        $this->ledgerSubject(self::SESSIONS, 't1', 'game_session', [$this->recordedFact($ana, when: '2026-12-02 18:00:00')]);
+        $challenge = $this->challenge(['target' => 1]);
+        $repository = $this->app->make(ChallengeRepositoryInterface::class);
+
+        $this->assertTrue($repository->close($challenge->id, null, new DateTimeImmutable('2026-12-20 12:00:00')));
+        $this->assertFalse($repository->close($challenge->id, null, new DateTimeImmutable('2026-12-20 12:00:01')));
+        $this->assertFalse($repository->whileOpen($challenge->id, static fn (): null => null));
+
+        $this->assertSame(0, $this->challenges()->evaluate([$challenge->id], silent: false)->granted);
+        $this->assertSame(0, DB::table('achievements_grants')->count());
+    }
+
+    public function test_no_membership_is_remembered_for_an_anonymized_account(): void
+    {
+        $ana = $this->account();
+        $gone = $this->account(anonymized: true);
+        $challenge = $this->challenge([], ['audience' => 'members']);
+
+        $this->app->make(ChallengeRepositoryInterface::class)->rememberAudience($challenge->id, [$ana => true, $gone => true], replace: true, at: new DateTimeImmutable('2026-12-20 12:00:00'));
+
+        $this->assertSame([$ana], DB::table('achievements_challenge_audience')->pluck('user_id')->all());
     }
 
     public function test_an_anonymized_account_never_counts(): void

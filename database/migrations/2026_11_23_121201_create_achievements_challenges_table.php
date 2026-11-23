@@ -28,6 +28,9 @@ return new class extends Migration
             $table->date('ends_on');
             // A reward somebody may hold is never deleted under a challenge
             $table->foreignUuid('reward_achievement_id')->constrained('achievements_catalogue')->restrictOnDelete();
+            // Goes up whenever what it counts, its days, who takes part or its reward change: a count
+            // made of an older version is discarded (a new count is queued for the new one)
+            $table->unsignedInteger('count_version')->default(1);
             // The last total worked out, and how many people added to it
             $table->unsignedInteger('progress')->default(0);
             $table->unsignedInteger('contributors')->default(0);

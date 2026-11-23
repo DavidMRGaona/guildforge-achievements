@@ -20,6 +20,8 @@ function challenge(overrides: Partial<Challenge> = {}): Challenge {
         unit: 'partidas',
         startsOn: '2026-12-01',
         endsOn: '2026-12-31',
+        showsYear: false,
+        ended: false,
         membersOnly: false,
         reward: {
             id: 'r1',
@@ -81,7 +83,13 @@ describe('ChallengeCard', () => {
 
     it('gives the year of each day when it crosses New Year', () => {
         const wrapper = mount(ChallengeCard, {
-            props: { challenge: challenge({ startsOn: '2026-12-15', endsOn: '2027-01-15' }) },
+            props: {
+                challenge: challenge({
+                    startsOn: '2026-12-15',
+                    endsOn: '2027-01-15',
+                    showsYear: true,
+                }),
+            },
         });
 
         expect(wrapper.text()).toContain('Del 15 de diciembre de 2026 al 15 de enero de 2027');
@@ -136,6 +144,14 @@ describe('ChallengeBlock', () => {
         expect(wrapper.text()).toContain('Hasta el 31 de diciembre');
         expect(wrapper.get('a').attributes('href')).toBe('/logros');
         expect(wrapper.get('a').classes()).not.toContain('text-white');
+    });
+
+    it('says it is over once its last day has passed', () => {
+        const wrapper = mount(ChallengeBlock, {
+            props: { challenge: challenge({ state: 'ended', ended: true }), url: '/logros' },
+        });
+
+        expect(wrapper.text()).toContain('Terminado el 31 de diciembre');
     });
 
     it('is dark in the footer and says when an upcoming one starts', () => {

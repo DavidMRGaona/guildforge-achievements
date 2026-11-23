@@ -13,6 +13,7 @@ use Filament\Resources\Pages\EditRecord;
 use Illuminate\Validation\ValidationException;
 use Modules\Achievements\Domain\Challenges\ChallengeRewardRule;
 use Modules\Achievements\Domain\Repositories\ChallengeRepositoryInterface;
+use Modules\Achievements\Domain\Rules\AchievementRule;
 use Modules\Achievements\Filament\Resources\AchievementResource;
 use Modules\Achievements\Filament\Support\AchievementRuleForm;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
@@ -94,6 +95,8 @@ final class EditAchievement extends EditRecord
         $field = match (true) {
             ! $active => 'data.is_active',
             $secret => 'data.is_secret',
+            // Granted by hand, but once per season
+            AchievementRule::tryFrom($data['rule'] ?? null)?->isManual() === true => 'data.'.AchievementRuleForm::WINDOW,
             default => 'data.'.AchievementRuleForm::METRIC,
         };
 

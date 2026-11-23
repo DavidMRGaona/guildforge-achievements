@@ -14,8 +14,6 @@ use Modules\Achievements\Jobs\EvaluateChallengesJob;
  */
 final class CountChangedChallenge
 {
-    private const array COUNTED = ['rule', 'audience', 'starts_on', 'ends_on', 'reward_achievement_id'];
-
     public function created(ChallengeModel $challenge): void
     {
         EvaluateChallengesJob::dispatch([$challenge->id], false);
@@ -23,7 +21,7 @@ final class CountChangedChallenge
 
     public function updated(ChallengeModel $challenge): void
     {
-        if ($challenge->closed_at === null && $challenge->wasChanged(self::COUNTED)) {
+        if ($challenge->closed_at === null && $challenge->wasChanged(ChallengeModel::COUNTED)) {
             EvaluateChallengesJob::dispatch([$challenge->id], false);
         }
     }

@@ -25,6 +25,7 @@ use Illuminate\Support\Carbon;
  * @property string $reward_achievement_id
  * @property int $progress
  * @property int $contributors
+ * @property int $count_version
  * @property Carbon|null $progress_at
  * @property Carbon|null $completed_at
  * @property Carbon|null $closed_at
@@ -52,7 +53,20 @@ final class ChallengeModel extends Model
         'audience' => 'everybody',
         'progress' => 0,
         'contributors' => 0,
+        'count_version' => 1,
     ];
+
+    /** What a count is made of: changing any of it makes counts of the older version stale */
+    public const array COUNTED = ['rule', 'audience', 'starts_on', 'ends_on', 'reward_achievement_id'];
+
+    protected static function booted(): void
+    {
+        self::updating(static function (ChallengeModel $challenge): void {
+            if ($challenge->isDirty(self::COUNTED)) {
+                $challenge->count_version += 1;
+            }
+        });
+    }
 
     /**
      * What the panel's form writes; the counts, the completion and the closing are written by the
@@ -90,6 +104,7 @@ final class ChallengeModel extends Model
             'ends_on' => 'date',
             'progress' => 'integer',
             'contributors' => 'integer',
+            'count_version' => 'integer',
             'progress_at' => 'datetime',
             'completed_at' => 'datetime',
             'closed_at' => 'datetime',

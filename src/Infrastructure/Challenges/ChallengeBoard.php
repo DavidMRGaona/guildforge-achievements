@@ -161,6 +161,9 @@ final class ChallengeBoard implements ChallengeBoardInterface
                 unit: $this->unit($rule),
                 startsOn: $challenge->startsOn,
                 endsOn: $challenge->endsOn,
+                // The year unless both days are of this one
+                showsYear: substr($challenge->startsOn, 0, 4) !== substr($today, 0, 4) || substr($challenge->endsOn, 0, 4) !== substr($today, 0, 4),
+                ended: $challenge->hasEnded($today),
                 membersOnly: $membersOnly,
                 reward: $this->catalogue->present($reward, $viewerId !== null && $this->grants->holds($viewerId, $reward->id)),
                 contributors: $challenge->contributors,

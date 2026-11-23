@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { Users } from '@lucide/vue';
 import AchievementBadge from './AchievementBadge.vue';
 import ChallengeProgressBar from './ChallengeProgressBar.vue';
-import { crossesYear, formatChallengeDay } from '../utils/challengeDays';
+import { formatChallengeDay } from '../utils/challengeDays';
 import type { Challenge } from '../types/achievements';
 
 /**
@@ -22,8 +22,8 @@ const props = defineProps<Props>();
 const { t, n, locale } = useI18n();
 
 const days = computed(() => {
-    // A challenge across New Year says which year each day is
-    const withYear = crossesYear(props.challenge.startsOn, props.challenge.endsOn);
+    // The year when the challenge is not of the current one
+    const withYear = props.challenge.showsYear;
 
     return t('achievements.challenges.days', {
         start: formatChallengeDay(props.challenge.startsOn, locale.value, withYear),

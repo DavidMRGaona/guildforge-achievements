@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Domain\Repositories;
 
+use Closure;
 use DateTimeImmutable;
 use Modules\Achievements\Domain\Challenges\ChallengeProgress;
 use Modules\Achievements\Domain\Entities\Challenge;
@@ -44,11 +45,19 @@ interface ChallengeRepositoryInterface
      * Stores a new count, under the challenge's row lock: the total, the number of people and each
      * person's contribution (rows of people who no longer add are removed). The completion is only
      * ever set, never cleared: a total that later drops keeps the challenge complete. Null (nothing
-     * written) when the challenge is gone, was closed meanwhile, or was saved from the panel since
-     * it was loaded (`$loadedUpdatedAt` differs: the count is of a rule that no longer exists). A
-     * count never changes `updated_at`.
+     * written) when the challenge is gone, was closed meanwhile, or what it counts changed since it
+     * was loaded (`$loadedVersion` is not its count version any more; that change queued a count).
      */
-    public function saveProgress(string $id, ChallengeProgress $progress, DateTimeImmutable $countedAt, ?DateTimeImmutable $loadedUpdatedAt): ?Challenge;
+    public function saveProgress(string $id, ChallengeProgress $progress, DateTimeImmutable $countedAt, int $loadedVersion): ?Challenge;
+
+    /**
+     * Runs `$work` holding the challenge's row lock, only while it is not closed; false otherwise.
+     * Rewards are granted inside it, so closing (which takes the same lock) and granting never
+     * cross: after a challenge is closed, nobody else gets its reward.
+     *
+     * @param  Closure(): void  $work
+     */
+    public function whileOpen(string $id, Closure $work): bool;
 
     /**
      * Deletes a challenge that never completed, deciding under its row lock; false otherwise.
@@ -79,7 +88,7 @@ interface ChallengeRepositoryInterface
     public function rememberAudience(string $challengeId, array $audience, bool $replace, DateTimeImmutable $at): void;
 
     /**
-     * Closes it by hand; false when it was already closed or is gone.
+     * Closes it by hand under its row lock; false when it was already closed or is gone.
      */
     public function close(string $id, ?string $actorId, DateTimeImmutable $at): bool;
 

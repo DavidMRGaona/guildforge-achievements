@@ -12,9 +12,9 @@ use Modules\Achievements\Domain\Challenges\ChallengeState;
 /**
  * A collective challenge. `startsOn` and `endsOn` are calendar days of the display zone (`Y-m-d`),
  * both included; `rule` is null when the stored one cannot be read (never evaluated). `progress`
- * and `contributors` are the last count (`progressAt`, null while never counted); `updatedAt`
- * changes only when the panel saves it, so a count can tell its rule changed meanwhile. Instants
- * are in the storage zone.
+ * and `contributors` are the last count (`progressAt`, null while never counted); `countVersion`
+ * goes up whenever what it counts, its days, who takes part or its reward change, so a count can
+ * tell it is of an older version. Instants are in the storage zone.
  */
 final readonly class Challenge
 {
@@ -38,7 +38,7 @@ final readonly class Challenge
         public ?DateTimeImmutable $completedAt,
         public ?DateTimeImmutable $closedAt,
         public ?DateTimeImmutable $progressAt = null,
-        public ?DateTimeImmutable $updatedAt = null,
+        public int $countVersion = 1,
     ) {}
 
     /**
