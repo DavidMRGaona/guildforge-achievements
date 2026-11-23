@@ -5,7 +5,7 @@ summary: Qué son los logros, cómo se consiguen, cuánto te falta, las temporad
 category: community
 audience: site
 order: 40
-keywords: [logros, insignias, medallas, trofeos, conseguir, cómo se consigue, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, catálogo, temporada, cada año, racha, meses seguidos, constancia, comunidad, personas distintas, perfil, fecha]
+keywords: [logros, insignias, medallas, trofeos, conseguir, cómo se consigue, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, catálogo, temporada, cada año, racha, meses seguidos, constancia, comunidad, personas distintas, mentor, primera partida, perfil, fecha]
 related: [achievements.site.privacy, achievements.site.showcase, achievements.site.notices, achievements.site.points, achievements.site.challenges, core.site.public-profile]
 ---
 Un logro es una insignia que se consigue con lo que haces en {{site_name}}: jugar o dirigir partidas, probar sistemas distintos, ir a eventos, participar en torneos, cumplir años en la web… Cada logro dice lo que pide, por ejemplo «Juega 10 partidas».
@@ -47,6 +47,8 @@ Los días, los meses y los años se cuentan con la hora de {{site_name}}: una pa
 Algunos logros premian a quien trae y cuida gente: jugar con 10 personas distintas o dirigir partidas a 20 personas distintas. Solo cuentan personas: ni el logro ni tu progreso dicen quiénes son. Cada persona cuenta una vez, aunque hayáis coincidido muchas veces. Si alguien anonimiza su cuenta, deja de contar, pero un logro que ya conseguiste no se pierde.
 
 Tu progreso en estos logros puede tardar unos minutos en reflejar una partida nueva.
+
+**Mentor** premia a quien dirige la primera partida de alguien. No llega al acabar la partida: se revisa cada noche, cuando esa primera partida tiene más de 14 días, y se concede con la fecha de esa noche. Si la mesa tenía varias personas en la dirección, es para quien la creó. Los demás solo ven que lo tienes, nunca a quién diste la bienvenida.
 
 ## La rareza
 

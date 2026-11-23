@@ -64,7 +64,7 @@ final class StarterCatalogueTest extends ModuleTestCase
             'games_played_1', 'games_played_10', 'games_played_50', 'games_played_100',
             'games_run_1', 'games_run_10', 'systems_3', 'systems_10', 'campaign_completed',
             'tournament_first', 'tournament_podium', 'events_5', 'years_1', 'years_3', 'years_5',
-            'first_proposal', 'first_table_played', 'people_played_10', 'people_run_20',
+            'first_proposal', 'first_table_played', 'people_played_10', 'people_run_20', 'mentor',
         ], $this->catalogue()->keys());
 
         foreach (AchievementModel::query()->get() as $achievement) {
@@ -91,6 +91,7 @@ final class StarterCatalogueTest extends ModuleTestCase
             ['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['role' => 'director', 'with_role' => 'player'], 'threshold' => 20, 'window' => ['type' => 'all_time']],
             $this->byKey('people_run_20')->rule,
         );
+        $this->assertSame(['version' => 1, 'metric' => 'mentor', 'threshold' => 1, 'window' => ['type' => 'all_time']], $this->byKey('mentor')->rule);
     }
 
     public function test_only_achievements_whose_kind_has_a_source_start_active(): void
@@ -147,11 +148,11 @@ final class StarterCatalogueTest extends ModuleTestCase
     public function test_the_command_reports_what_it_created(): void
     {
         $this->install()
-            ->expectsOutputToContain('22 logros creados · 0 ya estaban')
+            ->expectsOutputToContain('23 logros creados · 0 ya estaban')
             ->assertExitCode(Command::SUCCESS);
 
         $this->install()
-            ->expectsOutputToContain('0 logros creados · 22 ya estaban')
+            ->expectsOutputToContain('0 logros creados · 23 ya estaban')
             ->assertExitCode(Command::SUCCESS);
     }
 

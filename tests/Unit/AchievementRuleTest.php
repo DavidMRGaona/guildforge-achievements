@@ -111,6 +111,23 @@ final class AchievementRuleTest extends TestCase
         $this->assertNotSame($ten?->peopleShape(), $directed?->peopleShape());
     }
 
+    public function test_a_mentor_rule_counts_first_games_run_and_is_left_to_the_nightly_batch(): void
+    {
+        $rule = AchievementRule::mentor(3);
+
+        $this->assertInstanceOf(AchievementRule::class, $rule);
+        $this->assertSame(MetricType::Mentor, $rule->metric);
+        $this->assertSame('game_session', $rule->evaluatedKind());
+        $this->assertSame(3, $rule->threshold);
+        $this->assertTrue($rule->isCommunity());
+        $this->assertTrue($rule->isNightly());
+        $this->assertSame(['version' => 1, 'metric' => 'mentor', 'threshold' => 3, 'window' => ['type' => 'all_time']], $rule->toArray());
+        $this->assertNotSame($rule->peopleShape(), AchievementRule::people('game_session', 3, 'director', 'player')?->peopleShape());
+        $this->assertFalse(AchievementRule::people('game_session', 3, 'director', 'player')?->isNightly());
+        $this->assertFalse(AchievementRule::years(YearsBasis::Account, 1)?->isNightly());
+        $this->assertNull(AchievementRule::mentor(0));
+    }
+
     public function test_a_manual_rule_has_nothing_to_evaluate(): void
     {
         $rule = AchievementRule::tryFrom(['version' => 1, 'metric' => 'manual']);
@@ -158,6 +175,7 @@ final class AchievementRuleTest extends TestCase
         yield 'manual per season' => [['version' => 1, 'metric' => 'manual', 'window' => ['type' => 'season']]];
         yield 'people' => [['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['role' => 'director', 'with_role' => 'player'], 'threshold' => 20]];
         yield 'people without roles' => [['version' => 1, 'metric' => 'people', 'kind' => 'event', 'threshold' => 3]];
+        yield 'mentor' => [['version' => 1, 'metric' => 'mentor', 'threshold' => 1]];
     }
 
     public function test_a_rule_without_a_window_counts_every_fact_once(): void
@@ -246,8 +264,10 @@ final class AchievementRuleTest extends TestCase
         yield 'people with an attribute' => [['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['attribute' => ['key' => 'game_system', 'value' => 'pf2']], 'threshold' => 3]];
         yield 'people with a placement' => [['version' => 1, 'metric' => 'people', 'kind' => 'tournament', 'filters' => ['placement_max' => 3], 'threshold' => 3]];
         yield 'with_role on a count' => [['filters' => ['with_role' => 'player']] + $count];
-        // Left out of this release (#24): unreadable, so never evaluated
-        yield 'mentor' => [['version' => 1, 'metric' => 'mentor', 'threshold' => 1]];
+        yield 'mentor with a kind' => [['version' => 1, 'metric' => 'mentor', 'kind' => 'game_session', 'threshold' => 1]];
+        yield 'mentor with filters' => [['version' => 1, 'metric' => 'mentor', 'filters' => ['role' => 'director'], 'threshold' => 1]];
+        yield 'mentor per season' => [['version' => 1, 'metric' => 'mentor', 'threshold' => 1, 'window' => ['type' => 'season']]];
+        yield 'mentor without threshold' => [['version' => 1, 'metric' => 'mentor']];
         yield 'unknown kind' => [['kind' => 'dragon_slaying'] + $count];
         yield 'no kind' => [array_diff_key($count, ['kind' => true])];
         yield 'unknown role' => [['filters' => ['role' => 'wizard']] + $count];
