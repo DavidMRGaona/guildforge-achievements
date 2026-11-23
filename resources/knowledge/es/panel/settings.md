@@ -29,7 +29,7 @@ Pulsa **Guardar** para aplicar los cambios.
 - **Rareza**: enseña qué parte de la gente activa tiene cada logro. Apagada no se enseña en ningún sitio, pero se sigue calculando cada noche, porque esa misma foto decide lo que ven los demás de cada perfil.
 - **Logros secretos**: apagados, los logros secretos no se conceden y siguen saliendo como «Logro secreto».
 - **Temporadas y rachas**: logros que se repiten cada año y rachas de meses seguidos. Apagadas, esos logros no se conceden, ni solos ni a mano.
-- **Logros de comunidad**: jugar con muchas personas distintas o dirigir a muchas. Solo se cuentan personas.
+- **Logros de comunidad**: jugar con muchas personas distintas, dirigir a muchas o dirigir la primera partida de alguien (**Mentor**). Solo se cuentan personas.
 - **Concesión en lote**: viene apagada. Encendida, quien puede conceder logros puede darlos a todas las personas que participaron en algo, y por tanto ve quién participó. Lo explica la guía «Conceder y retirar logros a mano».
 - **Retos**: vienen apagados. Lo explica la guía «Retos de la asociación».
 
@@ -63,6 +63,7 @@ Un tipo solo cuenta si algún módulo instalado lo registra. Sin ese módulo, su
 
 Estas tareas van solas, a la hora de {{site_name}}:
 
+- **A las 03:00**, se decide quién es **Mentor**: las primeras partidas de hace más de 14 días. Lo concedido entra en la foto de esa misma noche.
 - **A las 03:30**, la foto de la noche: se calcula la rareza y se fija lo que los demás ven de cada perfil (logros, contador, destacados, puntos, nivel y clasificación). Lo conseguido después sale a los demás la noche siguiente.
 - **A las 04:10**, se cuentan los retos. Es lo que actualiza el total de los retos **Solo socios**.
 - **Cada día**, se conceden los logros de años en la web.

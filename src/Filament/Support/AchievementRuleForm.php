@@ -180,7 +180,7 @@ final class AchievementRuleForm
                 // Locked once somebody holds it, and still sent, so the save keeps the stored one
                 ->disabled(static fn (?Model $record): bool => self::windowLocked($record))
                 ->dehydrated()
-                ->visible(static fn (Get $get, ?Model $record): bool => ! in_array($get(self::METRIC), [MetricType::Years->value, MetricType::People->value], true) && self::offersWindows($record))
+                ->visible(static fn (Get $get, ?Model $record): bool => ! in_array($get(self::METRIC), [MetricType::Years->value, MetricType::People->value, MetricType::Mentor->value], true) && self::offersWindows($record))
                 ->live(),
 
             TextInput::make(self::STREAK_MONTHS)
@@ -294,6 +294,10 @@ final class AchievementRuleForm
             $basis = YearsBasis::tryFrom((string) self::string($data[self::BASIS] ?? null));
 
             return $basis instanceof YearsBasis ? AchievementRule::years($basis, $threshold) : null;
+        }
+
+        if ($metric === MetricType::Mentor) {
+            return AchievementRule::mentor($threshold);
         }
 
         $kind = self::string($data[self::KIND] ?? null);

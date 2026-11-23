@@ -96,4 +96,8 @@ return [
         'name' => 'Mesa abierta',
         'description' => 'Dirige partidas a 20 personas distintas.',
     ],
+    'mentor' => [
+        'name' => 'Mentor',
+        'description' => 'Dirige la primera partida de alguien.',
+    ],
 ];

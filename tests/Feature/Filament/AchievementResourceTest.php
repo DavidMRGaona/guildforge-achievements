@@ -206,6 +206,28 @@ final class AchievementResourceTest extends ModuleTestCase
             ->assertFormSet(['rule_metric' => 'people', 'rule_kind' => 'game_session', 'rule_role' => 'director', 'rule_with_role' => 'player', 'rule_threshold' => 20]);
     }
 
+    public function test_a_mentor_rule_is_built_with_its_threshold_alone(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+
+        Livewire::test(CreateAchievement::class)
+            ->fillForm(['name' => 'Mentor', 'icon' => 'hand-heart', 'colour' => 'green', 'points' => 0, 'rule_metric' => 'mentor', 'rule_threshold' => 1])
+            ->assertFormFieldIsHidden('rule_kind')
+            ->assertFormFieldIsHidden('rule_role')
+            ->assertFormFieldIsHidden('rule_with_role')
+            ->assertFormFieldIsHidden('rule_window')
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $mentor = AchievementModel::query()->where('name', 'Mentor')->firstOrFail();
+        $this->assertSame(['version' => 1, 'metric' => 'mentor', 'threshold' => 1, 'window' => ['type' => 'all_time']], $mentor->rule);
+        $this->assertSame('Primeras partidas dirigidas: 1', AchievementPanelView::ruleSummary($mentor));
+
+        Livewire::test(EditAchievement::class, ['record' => $mentor->getKey()])
+            ->assertFormSet(['rule_metric' => 'mentor', 'rule_threshold' => 1]);
+    }
+
     public function test_a_people_rule_of_a_kind_done_alone_is_refused(): void
     {
         $this->actingAs($this->userWith(AchievementPolicy::MANAGE));

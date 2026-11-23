@@ -23,7 +23,9 @@ use Modules\Achievements\Application\Services\ActivityMetricsInterface;
  *   achievements are switched on again (silent);
  * - after a module is enabled, for the achievements of the kinds its sources offer (silent);
  * - every night for the years of account, which change with the date alone (not silent: only the
- *   anniversaries of the last days are announced, AnnouncementWindow).
+ *   anniversaries of the last days are announced, AnnouncementWindow);
+ * - every night for the rules left to the nightly batch («Mentor», `onlyNightly`; not silent: only
+ *   the newcomers decided in the last days are announced).
  *
  * Unique only while it waits in the queue (same achievements, module, silence and scope): the lock
  * goes when it starts, since it reads the rules and the settings then. A dispatch made while it runs
@@ -58,12 +60,14 @@ final class EvaluateAchievementsJob implements ShouldBeUniqueUntilProcessing, Sh
     /**
      * @param  list<string>|null  $achievementIds  null for every achievement
      * @param  string|null  $module  a module just enabled: only the kinds its sources offer
+     * @param  bool  $onlyNightly  the nightly batch: only the rules left to it (MetricType::isNightly())
      */
     public function __construct(
         public readonly ?array $achievementIds = null,
         public readonly bool $silent = true,
         public readonly bool $onlyAccountYears = false,
         public readonly ?string $module = null,
+        public readonly bool $onlyNightly = false,
     ) {
         $this->afterCommit();
     }
@@ -77,7 +81,7 @@ final class EvaluateAchievementsJob implements ShouldBeUniqueUntilProcessing, Sh
             sort($ids, SORT_STRING);
         }
 
-        return sha1((string) json_encode([$ids, $this->silent, $this->onlyAccountYears, $this->module]));
+        return sha1((string) json_encode([$ids, $this->silent, $this->onlyAccountYears, $this->module, $this->onlyNightly]));
     }
 
     public function handle(AchievementEvaluatorInterface $evaluator, ActivityMetricsInterface $metrics, ModuleLoader $modules): void
@@ -100,7 +104,7 @@ final class EvaluateAchievementsJob implements ShouldBeUniqueUntilProcessing, Sh
             }
         }
 
-        $result = $evaluator->evaluateEverybody($this->achievementIds, $this->silent, onlyAccountYears: $this->onlyAccountYears, onlyKinds: $kinds);
+        $result = $evaluator->evaluateEverybody($this->achievementIds, $this->silent, onlyAccountYears: $this->onlyAccountYears, onlyKinds: $kinds, onlyNightly: $this->onlyNightly);
 
         if (! $result->isEvaluated()) {
             if ($this->job !== null && $this->attempts() >= $this->tries) {

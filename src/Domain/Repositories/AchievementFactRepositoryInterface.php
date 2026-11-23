@@ -8,6 +8,7 @@ use Closure;
 use DateTimeImmutable;
 use Modules\Achievements\Domain\Entities\AchievementFact;
 use Modules\Achievements\Domain\ValueObjects\FactsReplacement;
+use Modules\Achievements\Domain\ValueObjects\FirstFact;
 use Modules\Achievements\Domain\ValueObjects\RecordedFact;
 
 /**
@@ -129,6 +130,27 @@ interface AchievementFactRepositoryInterface
      * @return array<string, list<DateTimeImmutable>>
      */
     public function firstMeetings(array $userIds, string $kind, ?string $role, ?string $withRole): array;
+
+    /**
+     * The other accounts that had `$othersRole` in a subject of `$kind` in which any of these
+     * accounts had `$role` (whose games they ran, say), sorted. Nobody is listed for their own
+     * facts, and accounts that are anonymized or no longer exist never are; deactivated ones are.
+     * Aggregate queries, in chunks.
+     *
+     * @param  list<string>  $userIds
+     * @return list<string>
+     */
+    public function othersSharingSubjects(array $userIds, string $kind, string $role, string $othersRole): array;
+
+    /**
+     * Each account's earliest fact of `$kind` in `$role` (their first game as a player, say), with
+     * who had `$hostRole` and `$creatorRole` in each subject they had a fact in at that instant.
+     * Accounts without one are missing. Read to decide, never to show. Aggregate queries, in chunks.
+     *
+     * @param  list<string>  $userIds
+     * @return array<string, FirstFact>
+     */
+    public function firstFacts(array $userIds, string $kind, string $role, string $hostRole, string $creatorRole): array;
 
     /**
      * The other accounts that share any subject with this one, sorted: whose community counts it

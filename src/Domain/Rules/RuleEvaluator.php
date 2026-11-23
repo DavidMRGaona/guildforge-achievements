@@ -19,9 +19,9 @@ use Modules\Achievements\Domain\ValueObjects\Season;
  * - years, account: full years from the day of the earliest account fact to today, both as
  *   calendar dates in the display zone (the anniversary counts from its first minute); membership:
  *   membership year subjects.
- * - people (community): the people the rule counts, which come from other people's
+ * - people and mentor (community): the people the rule counts, which come from other people's
  *   facts and so from outside (`$people`: one instant per different person, when they were first
- *   met); without them, 0.
+ *   met, or when a newcomer's first game was decided, MentorRule); without them, 0.
  * - manual: always 0, never met.
  *
  * Windows (RuleWindow), with days, months and years always as calendar dates in the display zone:
@@ -75,7 +75,7 @@ final class RuleEvaluator
     private function measure(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone, ?array $people): int
     {
         return match ($rule->metric) {
-            MetricType::People => count($people ?? []),
+            MetricType::People, MetricType::Mentor => count($people ?? []),
             MetricType::Count => count($this->subjects($rule, $facts)),
             MetricType::Distinct => $this->distinctValues($rule, $facts),
             MetricType::Years => $rule->basis === YearsBasis::Account

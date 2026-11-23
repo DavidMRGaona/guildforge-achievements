@@ -20,6 +20,10 @@ use Modules\Achievements\Application\DTOs\EvaluationResultDTO;
  * just now (AnnouncementWindow, on RuleEvaluator::metAt()): what was met long ago is granted
  * silently whatever triggered the evaluation. Silent grants never send a notice (#6). Granting twice
  * grants nothing, also from two jobs at once.
+ *
+ * Rules left to the nightly batch («Mentor», MetricType::isNightly()) are evaluated only by
+ * evaluateEverybody() with `$onlyNightly`, never by evaluate() nor by any other evaluation, so a
+ * grant never follows a change of facts.
  */
 interface AchievementEvaluatorInterface
 {
@@ -41,12 +45,13 @@ interface AchievementEvaluatorInterface
      * Evaluates every account with facts of the kinds the achievements read, from the ledger (the
      * sources are not read again), in chunks. `$onlyAccountYears` keeps only the achievements of
      * account years, which change with the date alone (the daily run); `$onlyKinds` only the
-     * achievements of those kinds (a module just enabled).
+     * achievements of those kinds (a module just enabled); `$onlyNightly` only (and the only way to
+     * reach) the rules left to the nightly batch.
      *
      * @param  list<string>|null  $achievementIds  null for every achievement
      * @param  list<string>|null  $onlyKinds  null for every kind
      *
      * @phpstan-impure
      */
-    public function evaluateEverybody(?array $achievementIds, bool $silent, bool $dryRun = false, bool $onlyAccountYears = false, ?array $onlyKinds = null): EvaluationResultDTO;
+    public function evaluateEverybody(?array $achievementIds, bool $silent, bool $dryRun = false, bool $onlyAccountYears = false, ?array $onlyKinds = null, bool $onlyNightly = false): EvaluationResultDTO;
 }
