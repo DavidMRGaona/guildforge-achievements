@@ -22,6 +22,13 @@ enum MetricType: string
     /** Different people met in subjects of a kind («jugar con 10 personas distintas») */
     case People = 'people';
 
+    /**
+     * Recognitions received (#11), of any type or of one: counted only up to the start of the
+     * month in the display zone, as everybody else sees them, so the achievement never tells
+     * when one arrived
+     */
+    case Recognitions = 'recognitions';
+
     /** Never granted by the evaluator: only by hand */
     case Manual = 'manual';
 

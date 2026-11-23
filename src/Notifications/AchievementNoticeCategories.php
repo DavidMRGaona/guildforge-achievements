@@ -18,7 +18,12 @@ final class AchievementNoticeCategories
     /** «Ana, Bob y 3 más consiguieron…»: the monthly summary of rare and challenge achievements of people whose profile one may see */
     public const string ANNOUNCEMENTS = 'achievements.announcements';
 
+    /** «Ana te ha reconocido…» and «¿Quieres reconocer a alguien de…?» (#11): only about one's own games */
+    public const string RECOGNITIONS = 'achievements.recognitions';
+
     public const string ICON = 'trophy';
+
+    public const string RECOGNITION_ICON = 'heart';
 
     /**
      * @return list<MailCategoryDTO>
@@ -28,17 +33,18 @@ final class AchievementNoticeCategories
         return [
             self::category(self::EARNED, 'earned'),
             self::category(self::ANNOUNCEMENTS, 'announcements'),
+            self::category(self::RECOGNITIONS, 'recognitions', self::RECOGNITION_ICON),
         ];
     }
 
-    private static function category(string $key, string $name): MailCategoryDTO
+    private static function category(string $key, string $name, string $icon = self::ICON): MailCategoryDTO
     {
         return MailCategoryDTO::optional(
             key: $key,
             section: 'achievements::notifications.categories.section',
             label: 'achievements::notifications.categories.'.$name.'.label',
             description: 'achievements::notifications.categories.'.$name.'.description',
-            icon: self::ICON,
+            icon: $icon,
             site: true,
             mail: false,
         );

@@ -13,6 +13,20 @@ return [
             'label' => 'Logros poco comunes de otras personas',
             'description' => 'Una vez al mes, un resumen de los logros que tiene poca gente o de los de retos que consiguieron el mes anterior las personas cuyo perfil puedes ver, si quieren anunciarlos.',
         ],
+        'recognitions' => [
+            'label' => 'Reconocimientos',
+            'description' => 'Cuando alguien con quien has jugado te reconoce algo, y una invitación a reconocer a otras personas tras tus partidas y campañas. Solo te llegan a ti.',
+        ],
+    ],
+
+    'recognitions' => [
+        'received' => ':person te ha reconocido: «:type»',
+        'received_anonymous' => 'Te han reconocido: «:type»',
+        'received_grouped' => 'Te han dado reconocimientos',
+        'prompt_one' => '¿Quieres reconocer a alguien de «:title»?',
+        'prompt_many' => '¿Quieres reconocer a alguien de tus últimas partidas?',
+        'prompt_grouped' => '¿Quieres reconocer a alguien de tus últimas partidas?',
+        'prompt_body' => 'Puedes hacerlo hasta el :date.',
     ],
 
     'earned' => [

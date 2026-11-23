@@ -48,6 +48,7 @@ use Modules\Achievements\Application\Services\ChallengeBoardInterface;
 use Modules\Achievements\Application\Services\ChallengeEvaluatorInterface;
 use Modules\Achievements\Application\Services\CommunityMetricsInterface;
 use Modules\Achievements\Application\Services\PointsCutoffInterface;
+use Modules\Achievements\Application\Services\RecognitionsInterface;
 use Modules\Achievements\Application\Services\StarterCatalogueInterface;
 use Modules\Achievements\Application\Services\StarterRecognitionTypesInterface;
 use Modules\Achievements\Console\Commands\InstallStarterCatalogueCommand;
@@ -61,8 +62,10 @@ use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInt
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\ChallengeRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\PendingAchievementNoticeRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\RecognitionRepositoryInterface;
 use Modules\Achievements\Filament\Livewire\AccountAchievements;
 use Modules\Achievements\Filament\Livewire\AccountGrantLog;
+use Modules\Achievements\Filament\Livewire\AccountRecognitions;
 use Modules\Achievements\Filament\Media\AchievementBadgeImageMediaSource;
 use Modules\Achievements\Filament\Pages\AchievementsSettingsPage;
 use Modules\Achievements\Filament\SiteBlocks\ChallengeSiteBlock;
@@ -90,6 +93,7 @@ use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\Eloque
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentChallengeRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentPendingAchievementNoticeRepository;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentRecognitionRepository;
 use Modules\Achievements\Infrastructure\Points\AchievementPoints;
 use Modules\Achievements\Infrastructure\Points\NightlyPhotoPointsCutoff;
 use Modules\Achievements\Infrastructure\Profiles\AccountAchievementsTab;
@@ -98,16 +102,21 @@ use Modules\Achievements\Infrastructure\Profiles\AchievementShowcase;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsLevelProfileStat;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsProfileSection;
 use Modules\Achievements\Infrastructure\Profiles\FeaturedAchievementBadges;
+use Modules\Achievements\Infrastructure\Profiles\RecognitionsProfileSection;
+use Modules\Achievements\Infrastructure\Profiles\RecognitionsProfileStat;
 use Modules\Achievements\Infrastructure\Rarity\NightlyAchievementRarity;
+use Modules\Achievements\Infrastructure\Recognitions\Recognitions;
 use Modules\Achievements\Infrastructure\Recognitions\StarterRecognitionTypes;
 use Modules\Achievements\Infrastructure\Services\ActivityLedger;
 use Modules\Achievements\Infrastructure\Settings\ModuleAchievementsSettings;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Jobs\EvaluateChallengesJob;
+use Modules\Achievements\Jobs\EvaluateRecognitionAchievementsJob;
 use Modules\Achievements\Jobs\ListChallengeCompletersJob;
 use Modules\Achievements\Jobs\RefreshAchievementRarityJob;
 use Modules\Achievements\Jobs\ReleaseAchievementAnnouncementsJob;
+use Modules\Achievements\Jobs\SendRecognitionPromptsJob;
 use Modules\Achievements\Listeners\CountChallengesForChangedFacts;
 use Modules\Achievements\Listeners\EvaluateAchievementsForChangedFacts;
 use Modules\Achievements\Listeners\EvaluateAchievementsOfEnabledModule;
@@ -115,6 +124,7 @@ use Modules\Achievements\Listeners\ForgetAnonymizedAccountContributions;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountFacts;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountGrants;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountPreferences;
+use Modules\Achievements\Listeners\ForgetAnonymizedAccountRecognitions;
 use Modules\Achievements\Listeners\ForgetCommunityProgress;
 use Modules\Achievements\Listeners\QueueAchievementNotice;
 use Modules\Achievements\Listeners\RecordActivityFacts;
@@ -138,6 +148,13 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
     public const string LEADERBOARD_LIMITER = 'achievements-leaderboard';
 
     private const int LEADERBOARD_PER_MINUTE = 30;
+
+    /** Giving and taking away recognitions (#11), per account */
+    public const string RECOGNITIONS_LIMITER = 'achievements-recognitions';
+
+    private const int RECOGNITIONS_PER_MINUTE = 20;
+
+    private const int RECOGNITIONS_PER_HOUR = 100;
 
     private const int PROFILE_CHOICES_PER_MINUTE = 20;
 
@@ -196,6 +213,10 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         $this->app->bind(ChallengeEvaluatorInterface::class, ChallengeEvaluator::class);
         $this->app->scoped(ChallengeBoardInterface::class, ChallengeBoard::class);
 
+        // Recognitions between people who played together (#11); the types read once per request or job
+        $this->app->bind(RecognitionRepositoryInterface::class, EloquentRecognitionRepository::class);
+        $this->app->scoped(RecognitionsInterface::class, Recognitions::class);
+
         // Grants waiting to be told to their holders, a little later and together (#6)
         $this->app->bind(PendingAchievementNoticeRepositoryInterface::class, EloquentPendingAchievementNoticeRepository::class);
     }
@@ -214,6 +235,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         Event::listen(ModuleEnabled::class, EvaluateAchievementsOfEnabledModule::class);
         Event::listen(AchievementFactsChanged::class, CountChallengesForChangedFacts::class);
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountContributions::class);
+        Event::listen(UserAnonymized::class, ForgetAnonymizedAccountRecognitions::class);
 
         AchievementModel::observe(EvaluateChangedAchievements::class);
         AchievementModel::observe(ForgetFeaturedWhenMadeSecret::class);
@@ -224,6 +246,10 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         ]);
         RateLimiter::for(self::LEADERBOARD_LIMITER, static fn (Request $request): Limit => Limit::perMinute(self::LEADERBOARD_PER_MINUTE)
             ->by('achievements-leaderboard:'.self::requesterKey($request)));
+        RateLimiter::for(self::RECOGNITIONS_LIMITER, static fn (Request $request): array => [
+            Limit::perMinute(self::RECOGNITIONS_PER_MINUTE)->by('achievements-recognitions:'.self::requesterKey($request)),
+            Limit::perHour(self::RECOGNITIONS_PER_HOUR)->by('achievements-recognitions-hour:'.self::requesterKey($request)),
+        ]);
         $this->showOnTheUserPage();
         $this->shareAccountTab();
         $this->keepMediaUsagesUpToDate();
@@ -261,6 +287,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
     {
         Livewire::component(AccountAchievements::NAME, AccountAchievements::class);
         Livewire::component(AccountGrantLog::NAME, AccountGrantLog::class);
+        Livewire::component(AccountRecognitions::NAME, AccountRecognitions::class);
 
         FilamentView::registerRenderHook(
             PanelsRenderHook::PAGE_END,
@@ -347,6 +374,17 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
                 ->monthlyOn(ReleaseAchievementAnnouncementsJob::RELEASE_DAY, ReleaseAchievementAnnouncementsJob::RELEASE_AT)
                 ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
                 ->name('achievements:challenge-lists');
+            // Recognitions count for others from the 1st of each month (#11): so do the achievements
+            // that count them, granted then and told like any other
+            $schedule->job(new EvaluateRecognitionAchievementsJob)
+                ->monthlyOn(1, EvaluateRecognitionAchievementsJob::RUN_AT)
+                ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
+                ->name('achievements:recognitions');
+            // One «¿Quieres reconocer a alguien de…?» a day at most, about one's own games
+            $schedule->job(new SendRecognitionPromptsJob)
+                ->dailyAt('10:00')
+                ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
+                ->name('achievements:recognition-prompts');
         });
     }
 
@@ -400,7 +438,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
      */
     public function registerProfileSections(): array
     {
-        return [AchievementsProfileSection::class];
+        return [AchievementsProfileSection::class, RecognitionsProfileSection::class];
     }
 
     /**
@@ -408,7 +446,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
      */
     public function registerProfileStats(): array
     {
-        return [AchievementsCountProfileStat::class, AchievementsLevelProfileStat::class];
+        return [AchievementsCountProfileStat::class, AchievementsLevelProfileStat::class, RecognitionsProfileStat::class];
     }
 
     /**
@@ -491,6 +529,13 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
                 label: __('achievements::messages.permissions.achievements.grant'),
                 group: __('achievements::messages.title'),
                 description: __('achievements::messages.permissions.achievements.grant_description'),
+                module: $this->moduleName(),
+            ),
+            new PermissionDTO(
+                name: 'achievements.moderate_recognitions',
+                label: __('achievements::messages.permissions.achievements.moderate_recognitions'),
+                group: __('achievements::messages.title'),
+                description: __('achievements::messages.permissions.achievements.moderate_recognitions_description'),
                 module: $this->moduleName(),
             ),
             new PermissionDTO(

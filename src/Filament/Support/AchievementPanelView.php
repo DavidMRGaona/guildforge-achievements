@@ -14,6 +14,7 @@ use Modules\Achievements\Domain\Rules\RuleWindow;
 use Modules\Achievements\Domain\Rules\WindowType;
 use Modules\Achievements\Domain\Rules\YearsBasis;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\RecognitionTypeModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementRepository;
 
 /**
@@ -48,11 +49,25 @@ final class AchievementPanelView
             MetricType::Years => self::text($rule->basis === YearsBasis::Membership ? 'summary.membership_years' : 'summary.account_years', ['threshold' => (string) $rule->threshold]),
             MetricType::Count, MetricType::Distinct => self::activitySummary($rule),
             MetricType::People => self::peopleSummary($rule),
+            MetricType::Recognitions => self::recognitionsSummary($rule),
         };
 
         $window = self::windowSummary($rule->window);
 
         return $window === null ? $summary : $summary.' · '.$window;
+    }
+
+    /**
+     * «Reconocimientos recibidos: 10», or of one type by its name now (a type deleted since, or
+     * never known, counts any).
+     */
+    private static function recognitionsSummary(AchievementRule $rule): string
+    {
+        $type = $rule->recognitionType === null ? null : RecognitionTypeModel::query()->whereKey($rule->recognitionType)->value('name');
+
+        return is_string($type)
+            ? self::text('summary.recognitions_of_type', ['type' => $type, 'threshold' => (string) $rule->threshold])
+            : self::text('summary.recognitions', ['threshold' => (string) $rule->threshold]);
     }
 
     /**

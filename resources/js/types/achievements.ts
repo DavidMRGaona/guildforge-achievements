@@ -178,3 +178,50 @@ export interface Challenge {
     /** The viewer's own contribution; null for a guest, and for whoever is not a member in a challenge of members */
     contribution: number | null;
 }
+
+/** A recognition type (#11): its name and the core's badge icon and colour */
+export interface RecognitionType {
+    id: string;
+    name: string;
+    icon: string;
+    colour: string;
+}
+
+/** Somebody the viewer may recognise for one of their games: never an account id */
+export interface RecognisablePerson {
+    handle: string;
+    publicName: string;
+    profileUrl: string;
+    avatarUrl: string | null;
+    /** The type already given to this person for this game, if any */
+    givenTypeId: string | null;
+}
+
+/** A session or campaign the viewer took part in and may still recognise people of */
+export interface RecognitionSubject {
+    sourceType: string;
+    subjectId: string;
+    title: string;
+    url: string | null;
+    /** Last day it can be done (`AAAA-MM-DD`, the association's calendar) */
+    closesOn: string;
+    people: RecognisablePerson[];
+}
+
+/** One of the viewer's own recognitions: never which game, the month and year alone */
+export interface OwnRecognition {
+    id: string;
+    type: RecognitionType;
+    /** The other person's public name; null when they have none */
+    personName: string | null;
+    /** Their profile, only while the viewer may see it */
+    personUrl: string | null;
+    /** `AAAA-MM` */
+    month: string;
+}
+
+/** How many of one type somebody received */
+export interface RecognitionTotal {
+    type: RecognitionType;
+    count: number;
+}

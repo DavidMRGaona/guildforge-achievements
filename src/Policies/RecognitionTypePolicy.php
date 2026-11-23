@@ -6,6 +6,7 @@ namespace Modules\Achievements\Policies;
 
 use App\Infrastructure\Authorization\Policies\AuthorizesWithPermissions;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use Modules\Achievements\Domain\Repositories\RecognitionRepositoryInterface;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\RecognitionTypeModel;
 
 /**
@@ -36,9 +37,12 @@ final class RecognitionTypePolicy
         return $this->authorize($user, AchievementPolicy::MANAGE);
     }
 
+    /**
+     * Only a type nobody was given: one in use is switched off instead (the totals keep it).
+     */
     public function delete(UserModel $user, RecognitionTypeModel $type): bool
     {
-        return $this->authorize($user, AchievementPolicy::MANAGE);
+        return $this->authorize($user, AchievementPolicy::MANAGE) && ! app(RecognitionRepositoryInterface::class)->typeInUse($type->id);
     }
 
     public function deleteAny(UserModel $user): bool

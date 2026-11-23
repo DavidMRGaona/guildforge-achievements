@@ -22,6 +22,7 @@ use Modules\Achievements\Domain\Rules\YearsBasis;
 use Modules\Achievements\Domain\ValueObjects\MetricKinds;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementGrantModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\RecognitionTypeModel;
 
 /**
  * The rule builder of the achievement form: flat fields (`rule_*`) that the pages turn into the
@@ -56,6 +57,8 @@ final class AchievementRuleForm
 
     public const string THRESHOLD = 'rule_threshold';
 
+    public const string RECOGNITION_TYPE = 'rule_recognition_type';
+
     public const string WINDOW = 'rule_window';
 
     public const string STREAK_MONTHS = 'rule_streak_months';
@@ -66,7 +69,7 @@ final class AchievementRuleForm
     public const array FIELDS = [
         self::METRIC, self::KIND, self::ROLE, self::WITH_ROLE, self::ATTRIBUTE_KEY, self::ATTRIBUTE_VALUE,
         self::PLACEMENT_MAX, self::DISTINCT_KEY, self::BASIS, self::THRESHOLD,
-        self::WINDOW, self::STREAK_MONTHS, self::STREAK_PER_SEASON,
+        self::WINDOW, self::STREAK_MONTHS, self::STREAK_PER_SEASON, self::RECOGNITION_TYPE,
     ];
 
     /**
@@ -78,6 +81,7 @@ final class AchievementRuleForm
         $streak = static fn (Get $get): bool => $get(self::METRIC) === MetricType::Count->value && $get(self::WINDOW) === WindowType::Streak->value;
         $people = static fn (Get $get): bool => $get(self::METRIC) === MetricType::People->value;
         $withKind = static fn (Get $get): bool => $activity($get) || $people($get);
+        $recognitions = static fn (Get $get): bool => $get(self::METRIC) === MetricType::Recognitions->value;
 
         return [
             Select::make(self::METRIC)
@@ -121,6 +125,14 @@ final class AchievementRuleForm
                 ->placeholder(self::text('placeholders.any_role'))
                 ->native(false)
                 ->visible($people),
+
+            Select::make(self::RECOGNITION_TYPE)
+                ->label(self::text('fields.recognition_type'))
+                ->helperText(self::text('helpers.recognition_type'))
+                ->options(static fn (): array => RecognitionTypeModel::query()->orderBy('name')->pluck('name', 'id')->map(strval(...))->all())
+                ->placeholder(self::text('placeholders.any_recognition_type'))
+                ->native(false)
+                ->visible($recognitions),
 
             Select::make(self::DISTINCT_KEY)
                 ->label(self::text('fields.distinct_key'))
@@ -180,7 +192,7 @@ final class AchievementRuleForm
                 // Locked once somebody holds it, and still sent, so the save keeps the stored one
                 ->disabled(static fn (?Model $record): bool => self::windowLocked($record))
                 ->dehydrated()
-                ->visible(static fn (Get $get, ?Model $record): bool => ! in_array($get(self::METRIC), [MetricType::Years->value, MetricType::People->value], true) && self::offersWindows($record))
+                ->visible(static fn (Get $get, ?Model $record): bool => ! in_array($get(self::METRIC), [MetricType::Years->value, MetricType::People->value, MetricType::Recognitions->value], true) && self::offersWindows($record))
                 ->live(),
 
             TextInput::make(self::STREAK_MONTHS)
@@ -240,6 +252,7 @@ final class AchievementRuleForm
             self::WINDOW => $rule->window->type->value,
             self::STREAK_MONTHS => $rule->window->months,
             self::STREAK_PER_SEASON => $rule->window->perSeason,
+            self::RECOGNITION_TYPE => $rule->recognitionType,
         ];
     }
 
@@ -294,6 +307,10 @@ final class AchievementRuleForm
             $basis = YearsBasis::tryFrom((string) self::string($data[self::BASIS] ?? null));
 
             return $basis instanceof YearsBasis ? AchievementRule::years($basis, $threshold) : null;
+        }
+
+        if ($metric === MetricType::Recognitions) {
+            return $window->isAllTime() ? AchievementRule::recognitions($threshold, self::string($data[self::RECOGNITION_TYPE] ?? null)) : null;
         }
 
         $kind = self::string($data[self::KIND] ?? null);

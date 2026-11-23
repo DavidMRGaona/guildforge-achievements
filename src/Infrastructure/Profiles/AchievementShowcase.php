@@ -25,11 +25,14 @@ use Modules\Achievements\Application\Services\CommunityMetricsInterface;
 use Modules\Achievements\Application\Services\SeasonClock;
 use Modules\Achievements\Domain\Entities\Achievement;
 use Modules\Achievements\Domain\Entities\AchievementGrant;
+use Modules\Achievements\Domain\Recognitions\RecognitionCut;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\RecognitionRepositoryInterface;
 use Modules\Achievements\Domain\Rules\AchievementRule;
+use Modules\Achievements\Domain\Rules\MetricType;
 use Modules\Achievements\Domain\Rules\RuleEvaluator;
 use Modules\Achievements\Domain\ValueObjects\AchievementPreferences;
 use Modules\Achievements\Domain\ValueObjects\Season;
@@ -72,6 +75,7 @@ final class AchievementShowcase implements AchievementShowcaseInterface
         private readonly TimezoneServiceInterface $time,
         private readonly SeasonClock $clock,
         private readonly CommunityMetricsInterface $community,
+        private readonly RecognitionRepositoryInterface $recognitions,
     ) {}
 
     public function preferences(string $userId): AchievementPreferences
@@ -199,10 +203,13 @@ final class AchievementShowcase implements AchievementShowcaseInterface
                 continue;
             }
 
-            // Community rules count other people: the number only, from the cache; unknown shows nothing
-            $value = $rule->isCommunity()
-                ? $this->community->progress($rule, $ownerId)
-                : $this->rules->value($rule, $facts, $now, $zone);
+            // Community rules count other people: the number only, from the cache; unknown shows nothing.
+            // Recognitions count as the rule will: only those given before the start of the month
+            $value = match (true) {
+                $rule->isCommunity() => $this->community->progress($rule, $ownerId),
+                $rule->metric === MetricType::Recognitions => count($this->recognitions->receivedInstants([$ownerId], $rule->recognitionType, RecognitionCut::at($now, $zone))[strtolower($ownerId)] ?? []),
+                default => $this->rules->value($rule, $facts, $now, $zone),
+            };
 
             $items[] = new ShowcaseItemDTO(
                 achievement: $view,

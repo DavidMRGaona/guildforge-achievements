@@ -100,6 +100,7 @@ export default {
             rarityExplained:
                 'La rareza es la parte de la gente activa (quien ha participado en algo en los últimos doce meses) que tiene cada logro. Se actualiza una vez al día, por la noche.',
             seeLeaderboard: 'Ver la clasificación',
+            seeRecognitions: 'Reconocimientos',
             youHoldIt: 'Lo tienes',
             seasonExplained:
                 'Algunos logros se pueden volver a conseguir cada temporada, que dura un año natural. Ahora es la temporada {season}.',
@@ -147,6 +148,36 @@ export default {
             next: 'Siguiente',
             pageOf: 'Página {page} de {last}',
             seeCatalogue: 'Ver todos los logros',
+        },
+        recognitions: {
+            title: 'Reconocimientos',
+            subtitle:
+                'Reconoce lo bueno de quienes han jugado contigo. Siempre en positivo: quien lo recibe sabe que se lo has dado tú.',
+            giveTitle: 'Reconocer a alguien',
+            giveEmpty:
+                'Ahora no tienes partidas ni campañas en las que reconocer a nadie. Tras cada una tienes {days} días.',
+            closesOn: 'Hasta el {date}',
+            choose: 'Reconocer a {name}',
+            given: 'Le diste «{type}»',
+            receivedTitle: 'Lo que has recibido',
+            receivedEmpty: 'Todavía no has recibido ningún reconocimiento.',
+            givenTitle: 'Lo que has dado',
+            givenEmpty: 'Todavía no has dado ningún reconocimiento.',
+            from: 'De {name}',
+            to: 'Para {name}',
+            someone: 'Una persona sin nombre público',
+            remove: 'Quitar',
+            removeConfirm: '¿Quitar este reconocimiento? No se puede deshacer.',
+            privacy:
+                'Quien recibe un reconocimiento ve quién se lo dio. Los demás solo ven cuántos tiene de cada tipo, contados hasta el mes anterior, nunca de qué partida.',
+            section: {
+                ownerEmpty: 'Todavía no has recibido reconocimientos.',
+                ownerNote: 'Tú ves lo recibido al momento; los demás, hasta el mes anterior.',
+                seeAll: 'Ver los tuyos',
+            },
+            saveFailed: 'No se ha podido guardar. Inténtalo de nuevo.',
+            readOnly: 'Mientras se mira la web como otra persona no se guarda nada.',
+            tooMany: 'Demasiados cambios seguidos. Espera un momento y vuelve a probar.',
         },
     },
 };

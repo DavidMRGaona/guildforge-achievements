@@ -100,6 +100,7 @@ export default {
             rarityExplained:
                 'Rarity is the share of active people (who took part in something in the last twelve months) holding each achievement. It is updated once a day, at night.',
             seeLeaderboard: 'See the leaderboard',
+            seeRecognitions: 'Recognitions',
             youHoldIt: 'You hold it',
             seasonExplained:
                 'Some achievements can be got again every season, which lasts a calendar year. This is season {season}.',
@@ -147,6 +148,36 @@ export default {
             next: 'Next',
             pageOf: 'Page {page} of {last}',
             seeCatalogue: 'See every achievement',
+        },
+        recognitions: {
+            title: 'Recognitions',
+            subtitle:
+                'Recognise the good in people who played with you. Always positive: whoever gets it knows it came from you.',
+            giveTitle: 'Recognise somebody',
+            giveEmpty:
+                'You have no games or campaigns to recognise anybody in right now. After each one you have {days} days.',
+            closesOn: 'Until {date}',
+            choose: 'Recognise {name}',
+            given: 'You gave “{type}”',
+            receivedTitle: 'What you received',
+            receivedEmpty: 'You have not received any recognition yet.',
+            givenTitle: 'What you gave',
+            givenEmpty: 'You have not given any recognition yet.',
+            from: 'From {name}',
+            to: 'To {name}',
+            someone: 'Somebody without a public name',
+            remove: 'Remove',
+            removeConfirm: 'Remove this recognition? It cannot be undone.',
+            privacy:
+                'Whoever gets a recognition sees who gave it. Everybody else only sees how many of each type, counted up to the month before, never from which game.',
+            section: {
+                ownerEmpty: 'You have not received any recognition yet.',
+                ownerNote: 'You see what you got at once; others, up to the month before.',
+                seeAll: 'See yours',
+            },
+            saveFailed: 'It could not be saved. Try again.',
+            readOnly: 'Nothing is saved while looking at the site as somebody else.',
+            tooMany: 'Too many changes in a row. Wait a moment and try again.',
         },
     },
 };

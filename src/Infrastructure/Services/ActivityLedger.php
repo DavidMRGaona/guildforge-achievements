@@ -17,6 +17,7 @@ use Modules\Achievements\Application\Enums\RecalculationOutcome;
 use Modules\Achievements\Application\Services\ActivityLedgerInterface;
 use Modules\Achievements\Domain\Events\AchievementFactsChanged;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\RecognitionRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\FactAttribute;
 use Modules\Achievements\Domain\ValueObjects\FactsReplacement;
 use Modules\Achievements\Domain\ValueObjects\RecordedFact;
@@ -34,6 +35,7 @@ final class ActivityLedger implements ActivityLedgerInterface
         private readonly ActivityReaderInterface $reader,
         private readonly AchievementFactRepositoryInterface $facts,
         private readonly Dispatcher $events,
+        private readonly RecognitionRepositoryInterface $recognitions,
         private readonly int $maxPages = self::MAX_PAGES,
     ) {}
 
@@ -91,9 +93,16 @@ final class ActivityLedger implements ActivityLedgerInterface
             }
 
             $facts = $this->recorded($result->facts);
-            $replacement = $dryRun
-                ? $this->facts->previewReplacement($type, $subjectId, $kind, $facts)
-                : $this->facts->replaceSubject($type, $subjectId, $kind, $facts);
+
+            if ($dryRun) {
+                return new SubjectRefreshDTO(ActivityReadOutcome::Read, $this->facts->previewReplacement($type, $subjectId, $kind, $facts));
+            }
+
+            $replacement = $this->facts->replaceSubject($type, $subjectId, $kind, $facts);
+
+            // A recognition says both people took part: once either is gone from it (made private,
+            // removed, the subject gone), it goes too, in the same transaction
+            $this->recognitions->keepOnlyParticipants($type, $subjectId, $replacement->userIdsAfter);
 
             return new SubjectRefreshDTO(ActivityReadOutcome::Read, $replacement);
         };

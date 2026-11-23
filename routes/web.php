@@ -9,6 +9,7 @@ use Modules\Achievements\Http\Controllers\AccountAchievementsController;
 use Modules\Achievements\Http\Controllers\AchievementCatalogueController;
 use Modules\Achievements\Http\Controllers\LeaderboardController;
 use Modules\Achievements\Http\Controllers\ProfileAchievementsController;
+use Modules\Achievements\Http\Controllers\RecognitionsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -41,4 +42,16 @@ Route::prefix('logros')
         Route::put('preferencias', [AccountAchievementsController::class, 'update'])
             ->middleware(['auth', ThrottleWhereListed::class.':'.AchievementsServiceProvider::PROFILE_CHOICES_LIMITER])
             ->name('account.update');
+
+        // Recognitions between people who played together (#11): signed-in accounts only; 404
+        // while they are off. Only the receiver deletes one from here
+        Route::get('reconocimientos', [RecognitionsController::class, 'index'])
+            ->middleware('auth')
+            ->name('recognitions');
+        Route::post('reconocimientos', [RecognitionsController::class, 'store'])
+            ->middleware(['auth', ThrottleWhereListed::class.':'.AchievementsServiceProvider::RECOGNITIONS_LIMITER])
+            ->name('recognitions.store');
+        Route::delete('reconocimientos/{recognition}', [RecognitionsController::class, 'destroy'])
+            ->middleware(['auth', ThrottleWhereListed::class.':'.AchievementsServiceProvider::RECOGNITIONS_LIMITER])
+            ->name('recognitions.destroy');
     });

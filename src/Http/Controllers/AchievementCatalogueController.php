@@ -67,6 +67,7 @@ final class AchievementCatalogueController extends Controller
             'showsPoints' => $showsPoints,
             // Only signed-in accounts open it
             'leaderboardUrl' => $viewer !== null && $settings->leaderboardShown() ? route('achievements.leaderboard', absolute: false) : null,
+            'recognitionsUrl' => $viewer !== null && $settings->recognitionsEnabled() ? route('achievements.recognitions', absolute: false) : null,
             // Collective challenges (#12): totals only, and who completed them as the viewer may see them
             'challenges' => array_map(
                 $challengePresenter->challenge(...),

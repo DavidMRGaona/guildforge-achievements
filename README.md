@@ -43,6 +43,7 @@ JSON versionado en la columna `rule`, leído por `AchievementRule::tryFrom()`:
 {"version": 1, "metric": "distinct", "kind": "game_session", "key": "game_system", "threshold": 3}
 {"version": 1, "metric": "years", "basis": "account", "threshold": 5}
 {"version": 1, "metric": "people", "kind": "game_session", "filters": {"role": "director", "with_role": "player"}, "threshold": 20}
+{"version": 1, "metric": "recognitions", "filters": {"type": "<id del tipo>"}, "threshold": 10}
 {"version": 1, "metric": "manual"}
 {"version": 1, "metric": "count", "kind": "game_session", "threshold": 10, "window": {"type": "season"}}
 {"version": 1, "metric": "count", "kind": "game_session", "threshold": 1, "window": {"type": "streak", "months": 3, "per_season": true}}
@@ -53,6 +54,7 @@ JSON versionado en la columna `rule`, leído por `AchievementRule::tryFrom()`:
 - `distinct`: valores distintos del atributo `key` entre esos hechos.
 - `years`: `account`, años completos desde el primer hecho de tipo `account`, contados en la zona de visualización; `membership`, cosas de tipo `membership_year`.
 - `people` (comunidad): personas distintas con las que se coincidió en cosas del tipo de actividad, solo `game_session`, `campaign`, `tournament` y `event`. `filters.role` es el papel propio y `filters.with_role`, el de las demás: solo `player` o `director` (otro papel deja la regla ilegible); sin ellos, cualquiera. Nadie se cuenta a sí mismo.
+- `recognitions`: reconocimientos recibidos, de cualquier tipo o del de `filters.type`, dados antes del día 1 del mes en curso en la zona de visualización (el corte de los totales del perfil). Se evalúa el día 1 de cada mes (`achievements:recognitions`, 00:30) y se avisa entonces. Sin ventana.
 - `manual`: nunca se concede solo.
 - La lectura nunca lanza excepciones, y lo que no entiende deja la regla **ilegible**, nunca «cumplida por todo el mundo»: otra versión, una métrica, tipo, papel, base o ventana desconocidos, una clave inesperada, un valor del tipo equivocado o fuera de rango. Un logro con la regla ilegible no se evalúa y se avisa una vez al día.
 - `window` (`RuleWindow`) dice qué hechos cuentan. Sin ella, o con `all_time`, todos, y el logro se concede una vez. Con `season`, solo los de una temporada (un año natural en la zona de visualización), y se concede una vez en cada temporada en que se cumpla. Con `streak`, `months` meses naturales seguidos (de 2 a 36) con al menos `threshold` cosas cada uno; un mes sin ellas corta la racha. Se concede una vez, o una vez por temporada con `per_season` (la racha no pasa de una temporada a la siguiente, y entonces tiene 12 meses como mucho). La racha solo vale para `count`, los años nunca tienen ventana y un logro `manual` puede ser por temporada (se concede a mano una vez cada año).
@@ -284,6 +286,17 @@ Nada de esto nombra una mesa, una sesión o un evento, pero un total que cambia 
 
 Al anonimizar una cuenta se borran sus aportaciones, lo guardado sobre si era socia y su sitio en la lista mensual, y deja de figurar como quien creó o cerró un reto; el total se recalcula en la siguiente cuenta.
 
+## Reconocimientos (#11)
+
+Quienes juegan juntos se reconocen lo bueno («Gran narración», «Buen compañero», «Ayuda a quien empieza», «Gran ambiente»; tipos en *Personas → Logros → Tipos de reconocimiento*, `achievements_recognition_types`, iniciales con `StarterRecognitionTypesSeeder`). Un tipo dado no se borra: se apaga. Quién jugó con quién no es público, y eso decide todo lo demás (`RecognitionsInterface`):
+
+- **Quién se ofrece**: en `/logros/reconocimientos`, las sesiones de mesa y campañas (`game_session`, `campaign`; nunca torneos) de la persona dentro del plazo (`recognitions_window_days`, 14 por defecto, hasta el final del último día en la zona de visualización). Los participantes salen del lector del core (`ActivityReaderInterface::facts()`, solo con `Read`) y el título, de `describe()` para quien da. Solo se ofrecen perfiles que quien da puede ver (`ProfileAccessRule::visibleAmong()`), con nombre público, sin desactivar y sin los logros ocultos. La persona viaja por su dirección, nunca por su id, y cualquier rechazo responde lo mismo.
+- **Uno por quien da, cosa y quien recibe**, nunca a sí misma (`achievements_recognitions`, clave única).
+- **Quien recibe** ve quién se lo dio, el tipo y el mes y año, nunca la cosa, y puede quitarlo (`DELETE /logros/reconocimientos/{id}`). **Quien da** ve lo suyo. **Los demás**, en la sección `achievements.recognitions` del perfil y en el contador del mismo nombre, solo totales por tipo, contados hasta el día 1 del mes en curso (`RecognitionCut`). El dueño, al momento. Con los logros ocultos, nada.
+- **Avisos** (categoría opcional `achievements.recognitions`, solo campana): «Ana te ha reconocido: «Gran narración»» a quien lo recibe, y una invitación al día como mucho (`achievements:recognition-prompts`, 10:00) a quien participó, una vez por cosa. Nada a los demás.
+- **Se borran** cuando el registro deja de tener a cualquiera de los dos en esa cosa (`ActivityLedger`, bajo el bloqueo de la cosa), al anonimizar a cualquiera de los dos (`ForgetAnonymizedAccountRecognitions`) y desde la ficha de la persona en el panel, con `achievements.moderate_recognitions` y `UserPolicy::view()` (tabla `AccountRecognitions`, nombres enmascarados, sin la cosa, con mes y año, diálogo y casilla). No hay lista general.
+- Límite `achievements-recognitions`: 20 por minuto y 100 por hora por cuenta, al dar y al quitar.
+
 ## Catálogo inicial
 
 Al habilitar el módulo por primera vez, su seeder crea un catálogo que cada sitio puede editar y borrar: bienvenida (primera partida, perfil completo, primer mensaje en el foro), partidas jugadas (1, 10, 50 y 100), dirigidas (1 y 10), primera mesa creada que llega a jugarse, sistemas distintos (3 y 10), campaña completada, primer torneo, podio, 5 eventos, 1, 3 y 5 años de cuenta, primera propuesta aceptada y comunidad (jugar con 10 personas distintas y dirigir a 20). Solo empiezan activos los que tienen fuente; los demás salen como *Sin fuente*.
@@ -301,6 +314,7 @@ Es idempotente: crea solo los que faltan (por su `starter_key`) y deja como est�
 | `achievements.view_any` | Ver los logros en el panel |
 | `achievements.manage` | Catálogo, retos (crear, editar, cerrar y borrar) y tipos de reconocimiento (sugerido para el rol `editor`). Ve quién tiene cada logro, también tras un lote, es decir, quién participó: dalo solo a quien ya ve esas participaciones en su módulo |
 | `achievements.grant` | Conceder, conceder en lote y retirar logros (sin rol por defecto). Ve a quién se concede en lote, es decir, quién participó: dalo solo a quien ya ve esas participaciones en su módulo |
+| `achievements.moderate_recognitions` | Ver y borrar los reconocimientos de una persona desde su ficha (sin rol por defecto). Dice con quién jugó, sin la partida y con mes y año: dalo solo a quien modera |
 | `achievements.configure` | La página de ajustes (sin rol por defecto) |
 
 ## Ajustes
