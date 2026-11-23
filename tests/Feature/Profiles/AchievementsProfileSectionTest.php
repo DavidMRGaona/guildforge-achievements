@@ -9,6 +9,7 @@ use App\Application\Profiles\Services\ProfileStatRegistryInterface;
 use App\Application\Services\EmailVerificationPolicyInterface;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
+use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsCountProfileStat;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsProfileSection;
@@ -59,7 +60,7 @@ final class AchievementsProfileSectionTest extends ModuleTestCase
         $this->assertSame(AchievementsCountProfileStat::class, app(ProfileStatRegistryInterface::class)->find(AchievementsCountProfileStat::KEY)?->class);
     }
 
-    public function test_anybody_who_sees_the_profile_sees_the_earned_ones_with_date_and_rarity(): void
+    public function test_anybody_who_sees_the_profile_sees_the_earned_ones_with_month_and_rarity(): void
     {
         $first = $this->achievement($this->countRule(), ['name' => 'Primera partida']);
         $ten = $this->achievement($this->countRule(threshold: 10), ['name' => 'Diez partidas']);
@@ -75,11 +76,102 @@ final class AchievementsProfileSectionTest extends ModuleTestCase
 
             $this->assertNotNull($props);
             $this->assertSame(['Diez partidas', 'Primera partida'], array_column($props['earned'], 'name'));
-            $this->assertSame('2026-10-01T20:00:00+02:00', $this->isoInMadrid($props['earned'][0]['grantedAt']));
+            $this->assertNull($props['earned'][0]['grantedAt']);
+            $this->assertSame(['2026-10', '2026-09'], array_column($props['earned'], 'grantedMonth'));
             $this->assertSame([50.0, 100.0], array_column($props['earned'], 'rarity'));
             $this->assertSame([], $props['locked']);
             $this->assertNull($props['owner']);
         }
+    }
+
+    public function test_anybody_but_the_owner_gets_the_month_alone(): void
+    {
+        $first = $this->achievement($this->countRule(), ['name' => 'Primera partida']);
+        $ten = $this->achievement($this->countRule(threshold: 10), ['name' => 'Diez partidas']);
+        $this->grantAt($this->ana, (string) $first->id, '2026-11-14 19:31:07');
+        $this->grantAt($this->ana, (string) $ten->id, '2026-11-21 10:12:45');
+
+        foreach ([null, $this->luis] as $viewer) {
+            $props = $this->achievementsSection($this->render($this->ana, $viewer))?->props;
+            $json = (string) json_encode($props);
+
+            // Neither the day nor the time of any grant travels, in any form
+            foreach (['14', '21', '19:31', '20:31', '10:12', '11:12', ':07', ':45', 'T'] as $piece) {
+                $this->assertStringNotContainsString('2026-11-'.$piece, $json);
+            }
+
+            $this->assertStringNotContainsString('31:07', $json);
+            $this->assertStringNotContainsString('12:45', $json);
+            $earned = $props['earned'] ?? [];
+            $this->assertSame([null, null], array_column($earned, 'grantedAt'));
+            $this->assertSame(['2026-11', '2026-11'], array_column($earned, 'grantedMonth'));
+            // Within a month by name, so the order never tells which came first
+            $this->assertSame(['Diez partidas', 'Primera partida'], array_column($earned, 'name'));
+        }
+
+        $own = $this->achievementsSection($this->render($this->ana, $this->ana))?->props['earned'] ?? [];
+        $this->assertSame(['Diez partidas', 'Primera partida'], array_column($own, 'name'));
+        $this->assertSame(['2026-11-21T11:12:45+01:00', '2026-11-14T20:31:07+01:00'], array_map($this->isoInMadrid(...), array_column($own, 'grantedAt')));
+    }
+
+    public function test_the_month_is_the_display_zones_at_the_turn_of_a_month(): void
+    {
+        // Storage in UTC (setUp); the display zone is Madrid: +1 in winter, +2 in summer
+        $winter = $this->achievement($this->countRule(), ['name' => 'Invierno']);
+        $summerBefore = $this->achievement($this->countRule(), ['name' => 'Verano antes']);
+        $summerAfter = $this->achievement($this->countRule(), ['name' => 'Verano después']);
+        $this->grantAt($this->ana, (string) $winter->id, '2026-11-30 23:30:00');
+        $this->grantAt($this->ana, (string) $summerBefore->id, '2026-08-31 21:30:00');
+        $this->grantAt($this->ana, (string) $summerAfter->id, '2026-08-31 22:30:00');
+
+        $months = array_column($this->achievementsSection($this->render($this->ana, $this->luis))?->props['earned'] ?? [], 'grantedMonth', 'name');
+
+        $this->assertSame(['Invierno' => '2026-12', 'Verano después' => '2026-09', 'Verano antes' => '2026-08'], $months);
+    }
+
+    public function test_accents_sort_where_people_expect_them(): void
+    {
+        foreach (['Zorro', 'Árbol', 'Barco'] as $name) {
+            $this->grantAt($this->ana, (string) $this->achievement($this->countRule(), ['name' => $name])->id, '2026-11-10 18:00:00');
+        }
+
+        $this->assertSame(['Árbol', 'Barco', 'Zorro'], array_column($this->achievementsSection($this->render($this->ana, $this->luis))?->props['earned'] ?? [], 'name'));
+    }
+
+    public function test_nobody_but_the_owner_gets_the_instant_even_on_the_server(): void
+    {
+        $this->grantAt($this->ana, (string) $this->achievement($this->countRule())->id, '2026-11-10 18:00:07');
+        $this->app->forgetScopedInstances();
+        $showcase = app(AchievementShowcaseInterface::class);
+        $anaId = strtolower((string) $this->ana->id);
+
+        foreach ([null, strtolower((string) $this->luis->id)] as $viewerId) {
+            $item = $showcase->earned($anaId, $viewerId)[0] ?? null;
+            $this->assertNotNull($item);
+            $this->assertNull($item->grantedAt);
+            $this->assertNull($item->grantedOrder);
+            $this->assertSame('2026-11', $item->grantedMonth);
+        }
+
+        $own = $showcase->earned($anaId, $anaId)[0] ?? null;
+        $this->assertNotNull($own?->grantedAt);
+        $this->assertNotNull($own->grantedOrder);
+    }
+
+    public function test_within_a_month_others_see_them_by_name_not_by_time(): void
+    {
+        $zeta = $this->achievement($this->countRule(), ['name' => 'Zeta']);
+        $alfa = $this->achievement($this->countRule(), ['name' => 'Alfa']);
+        $october = $this->achievement($this->countRule(), ['name' => 'Beta']);
+        $this->grantAt($this->ana, (string) $alfa->id, '2026-11-02 18:00:00');
+        $this->grantAt($this->ana, (string) $zeta->id, '2026-11-20 18:00:00');
+        $this->grantAt($this->ana, (string) $october->id, '2026-10-30 18:00:00');
+
+        $others = $this->achievementsSection($this->render($this->ana, $this->luis))?->props['earned'] ?? [];
+        $own = $this->achievementsSection($this->render($this->ana, $this->ana))?->props['earned'] ?? [];
+
+        $this->assertSame(['Alfa', 'Zeta', 'Beta'], array_column($others, 'name'));
+        $this->assertSame(['Zeta', 'Alfa', 'Beta'], array_column($own, 'name'));
     }
 
     public function test_the_owner_also_sees_what_is_left_with_their_progress(): void

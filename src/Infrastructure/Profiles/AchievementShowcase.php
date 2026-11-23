@@ -8,6 +8,7 @@ use App\Application\Services\TimezoneServiceInterface;
 use App\Domain\Activity\ActivityIdentifierRule;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Str;
 use Modules\Achievements\Application\DTOs\AchievementRarityDTO;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\DTOs\AchievementViewDTO;
@@ -107,16 +108,26 @@ final class AchievementShowcase implements AchievementShowcaseInterface
 
             $items[] = new ShowcaseItemDTO(
                 achievement: $this->presenter->present($achievement, $revealed),
-                grantedAt: $grant->grantedAt,
+                // Only the owner gets the instant: grants of one evaluation share their second, so
+                // anybody else comparing two profiles would learn who played or went somewhere
+                // together. Everybody else gets the display month alone.
+                grantedAt: $isOwner ? $grant->grantedAt : null,
                 // Held by the owner, so a share of 0 only says they are not active: not shown
                 rarity: $revealed ? self::knownShare($rarity?->shareOf($achievementId)) : null,
                 featured: $revealed && in_array($achievementId, $featured, true),
+                grantedMonth: $this->time->format($grant->grantedAt, 'Y-m'),
+                // The instant to sort the owner's list; never kept for anybody else
+                grantedOrder: $isOwner ? $grant->grantedAt : null,
                 // Which seasons, never what was played in them; none on a masked one
                 seasons: $revealed ? ($this->seasonsBy($ownerId)[$achievementId] ?? []) : [],
             );
         }
 
-        usort($items, static fn (ShowcaseItemDTO $a, ShowcaseItemDTO $b): int => [$b->grantedAt, $a->achievement->id] <=> [$a->grantedAt, $b->achievement->id]);
+        // The owner: newest first. Anybody else: by month, then by the name shown, so the order
+        // never tells which came first within a month
+        usort($items, $isOwner
+            ? static fn (ShowcaseItemDTO $a, ShowcaseItemDTO $b): int => [$b->grantedOrder, $a->achievement->id] <=> [$a->grantedOrder, $b->achievement->id]
+            : static fn (ShowcaseItemDTO $a, ShowcaseItemDTO $b): int => [$b->grantedMonth, self::nameKey($a->achievement->name), $a->achievement->id] <=> [$a->grantedMonth, self::nameKey($b->achievement->name), $b->achievement->id]);
 
         return $items;
     }
@@ -193,12 +204,12 @@ final class AchievementShowcase implements AchievementShowcaseInterface
         usort($items, static fn (ShowcaseItemDTO $a, ShowcaseItemDTO $b): int => [
             $a->achievement->masked,
             -self::completion($a),
-            mb_strtolower($a->achievement->name),
+            self::nameKey($a->achievement->name),
             $a->achievement->id,
         ] <=> [
             $b->achievement->masked,
             -self::completion($b),
-            mb_strtolower($b->achievement->name),
+            self::nameKey($b->achievement->name),
             $b->achievement->id,
         ]);
 
@@ -227,7 +238,7 @@ final class AchievementShowcase implements AchievementShowcaseInterface
 
         // By the name shown, then id: the catalogue's order (by the real name) would tell where a
         // masked one falls
-        usort($views, static fn (AchievementViewDTO $a, AchievementViewDTO $b): int => [mb_strtolower($a->name), $a->id] <=> [mb_strtolower($b->name), $b->id]);
+        usort($views, static fn (AchievementViewDTO $a, AchievementViewDTO $b): int => [self::nameKey($a->name), $a->id] <=> [self::nameKey($b->name), $b->id]);
 
         return $views;
     }
@@ -327,7 +338,8 @@ final class AchievementShowcase implements AchievementShowcaseInterface
     /**
      * The achievements featured for one account: the held ones it chose, in its order; when it
      * chose none (or none it chose is held any longer), the rarest held ones that are not secret,
-     * the newest first among equals (and only by date while rarity is off).
+     * among equals (and alone while rarity is off) the newest month first, then by name and id: never
+     * by the instant, since the three newest in order would tell the order of grants within a month.
      *
      * @param  array<string, AchievementGrant>  $held
      * @return list<string>
@@ -350,14 +362,21 @@ final class AchievementShowcase implements AchievementShowcaseInterface
             $achievement = $catalogue[$id] ?? null;
 
             if ($achievement instanceof Achievement && ! $achievement->secret) {
-                // An unknown share (rarity off, or 0: nobody active holds it) goes after every known one
-                $candidates[] = [self::knownShare($rarity?->shareOf($id)) ?? 101.0, -$grant->grantedAt->getTimestamp(), $id];
+                // An unknown share (rarity off, or 0: nobody active holds it) goes after every known
+                // one; among equals the newest month first, then the name: never the instant, which
+                // would tell the order of grants within a month
+                $candidates[] = [
+                    self::knownShare($rarity?->shareOf($id)) ?? 101.0,
+                    -(int) $this->time->format($grant->grantedAt, 'Ym'),
+                    self::nameKey($achievement->name),
+                    $id,
+                ];
             }
         }
 
         sort($candidates);
 
-        return array_map(static fn (array $candidate): string => $candidate[2], array_slice($candidates, 0, AchievementPreferences::MAX_FEATURED));
+        return array_map(static fn (array $candidate): string => $candidate[3], array_slice($candidates, 0, AchievementPreferences::MAX_FEATURED));
     }
 
     /**
@@ -500,6 +519,15 @@ final class AchievementShowcase implements AchievementShowcaseInterface
     public static function knownShare(?float $share): ?float
     {
         return $share === null || $share <= 0.0 ? null : $share;
+    }
+
+    /**
+     * A name as it sorts for people: without case or accents, so «Árbol» sits among the A and not
+     * after the Z (ñ sorts with n).
+     */
+    public static function nameKey(string $name): string
+    {
+        return mb_strtolower(Str::ascii($name));
     }
 
     /**
