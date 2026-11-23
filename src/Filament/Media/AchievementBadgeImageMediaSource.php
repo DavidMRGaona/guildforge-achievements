@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Achievements\Filament\Media;
 
 use App\Application\Media\Contracts\ReleasesMediaThroughCoreInterface;
+use App\Application\Media\Contracts\ShowsMediaPreviews;
 use App\Infrastructure\Media\Sources\EloquentColumnMediaSource;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
@@ -16,11 +17,13 @@ use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementM
  * chosen from the media library. The model releases a replaced or deleted image through the core,
  * which keeps it while anyone else uses it.
  *
- * A secret achievement's usage is titled «Logro secreto». Its thumbnail still shows in the media
- * library (open to the team, `media.view_any`): the core can only hide whole folders, and a hidden
- * folder's files are never deleted. Hiding one usage needs a core change.
+ * Badges show their previews in the media library, except a secret achievement's: its usage is
+ * hidden (a placeholder instead of the image, never offered for reuse) and titled «Logro secreto», so
+ * the team that manages the library never learns the secret by accident. It guards against spoilers,
+ * not access: the file stays public in Cloudinary. Changing the secrecy refreshes the usage (the
+ * provider's observer).
  */
-final class AchievementBadgeImageMediaSource extends EloquentColumnMediaSource implements ReleasesMediaThroughCoreInterface
+final class AchievementBadgeImageMediaSource extends EloquentColumnMediaSource implements ReleasesMediaThroughCoreInterface, ShowsMediaPreviews
 {
     /** Stored with each usage: never rename it */
     public const string TYPE = 'achievements.badge-image';
@@ -66,6 +69,11 @@ final class AchievementBadgeImageMediaSource extends EloquentColumnMediaSource i
     protected function role(): string
     {
         return __('achievements::messages.media.role');
+    }
+
+    protected function isHidden(Model $record): bool
+    {
+        return (bool) $record->getAttribute('is_secret');
     }
 
     protected function titleOf(Model $record): string
