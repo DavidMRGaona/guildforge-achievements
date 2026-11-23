@@ -428,7 +428,7 @@ final class AchievementResourceTest extends ModuleTestCase
 
         $visibleFrom = array_map(static fn (Column $column): ?string => $column->getVisibleFrom(), $table->getColumns());
         $this->assertSame(
-            ['name' => null, 'status' => null, 'grants_count' => 'sm', 'rule_summary' => 'md', 'points' => 'xl', 'is_secret' => 'xl'],
+            ['name' => null, 'status' => null, 'holders_count' => 'sm', 'rule_summary' => 'md', 'points' => 'xl', 'is_secret' => 'xl'],
             $visibleFrom,
         );
     }

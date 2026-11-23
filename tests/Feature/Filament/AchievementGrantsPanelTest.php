@@ -222,8 +222,8 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
 
         $visibleFrom = static fn (array $columns): array => array_map(static fn ($column): ?string => $column->getVisibleFrom(), $columns);
 
-        $this->assertSame(['account' => null, 'source' => 'sm', 'granted_at' => 'md', 'actor' => 'xl'], $visibleFrom($holders));
-        $this->assertSame(['created_at' => 'sm', 'action' => null, 'account' => null, 'source' => 'md', 'actor' => 'xl', 'reason' => 'xl'], $visibleFrom($log));
+        $this->assertSame(['account' => null, 'source' => 'sm', 'season' => 'xl', 'granted_at' => 'md', 'actor' => 'xl'], $visibleFrom($holders));
+        $this->assertSame(['created_at' => 'sm', 'action' => null, 'account' => null, 'season_key' => 'xl', 'source' => 'md', 'actor' => 'xl', 'reason' => 'xl'], $visibleFrom($log));
         $this->assertInstanceOf(TextColumn::class, $holders['account']);
         $this->assertTrue($holders['account']->canWrap());
     }

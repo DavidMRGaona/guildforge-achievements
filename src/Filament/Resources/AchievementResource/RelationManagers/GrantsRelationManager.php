@@ -79,6 +79,13 @@ final class GrantsRelationManager extends RelationManager
                     ->badge()
                     ->visibleFrom('sm'),
 
+                TextColumn::make('season')
+                    ->label($this->text('fields.season'))
+                    ->formatStateUsing(static fn (?string $state): ?string => GrantDisplay::seasonLabel($state))
+                    ->placeholder('—')
+                    ->sortable()
+                    ->visibleFrom('xl'),
+
                 TextColumn::make('granted_at')
                     ->label($this->text('fields.granted_at'))
                     ->dateTime('d/m/Y H:i')

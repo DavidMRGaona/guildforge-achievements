@@ -60,6 +60,14 @@ final class GrantDisplay
         return in_array($source, [GrantSource::Rule->value, GrantSource::Challenge->value], true) ? self::text('log.automatic') : '—';
     }
 
+    /**
+     * «Temporada 2027» for a grant of an achievement that repeats; null for one without a season.
+     */
+    public static function seasonLabel(?string $seasonKey): ?string
+    {
+        return $seasonKey === null || $seasonKey === '' ? null : (string) __('achievements::messages.seasons.label', ['season' => $seasonKey]);
+    }
+
     public static function sourceLabel(string $source): string
     {
         $key = 'achievements::messages.grants.sources.'.$source;

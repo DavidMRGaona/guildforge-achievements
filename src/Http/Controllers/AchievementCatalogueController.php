@@ -15,6 +15,7 @@ use Modules\Achievements\Application\DTOs\AchievementViewDTO;
 use Modules\Achievements\Application\Services\AchievementRarityInterface;
 use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Application\Services\SeasonClock;
 use Modules\Achievements\Infrastructure\Profiles\AchievementShowcase;
 use Modules\Achievements\Infrastructure\Profiles\ShowcasePresenter;
 
@@ -32,6 +33,7 @@ final class AchievementCatalogueController extends Controller
         private readonly AchievementsSettingsInterface $settings,
         private readonly ShowcasePresenter $presenter,
         private readonly SeoMetadataFactoryInterface $seo,
+        private readonly SeasonClock $seasons,
     ) {}
 
     public function __invoke(Request $request): Response
@@ -40,10 +42,13 @@ final class AchievementCatalogueController extends Controller
         $viewerId = $viewer === null ? null : (string) $viewer->getAuthIdentifier();
         $showsRarity = $this->settings->rarityEnabled();
         $rarity = $showsRarity ? $this->rarity->current() : null;
+        // The viewer's own seasons only: nobody else's standing is ever built
+        $standings = $this->showcase->seasonStandings($viewerId);
 
         return Inertia::render('Achievements/Index', [
             'achievements' => array_map(fn (AchievementViewDTO $view): array => $this->presenter->achievement($view) + [
                 'held' => $view->held,
+                'standing' => $view->masked || ! isset($standings[strtolower($view->id)]) ? null : $this->presenter->standing($standings[strtolower($view->id)]),
                 // 0 of what the viewer holds only says they are not active: not shown
                 'rarity' => match (true) {
                     $view->masked => null,
@@ -53,6 +58,7 @@ final class AchievementCatalogueController extends Controller
             ], $this->showcase->catalogueFor($viewerId)),
             'showsRarity' => $showsRarity && $rarity instanceof AchievementRarityDTO && $rarity->activePeople > 0,
             'signedIn' => $viewer !== null,
+            'season' => $this->settings->seasonsAndStreaksEnabled() ? $this->seasons->current()->key() : null,
             'seo' => $this->seo->forPage(new SeoPageDTO(
                 title: __('achievements::messages.pages.index_title'),
                 description: __('achievements::messages.pages.index_description'),
