@@ -115,6 +115,19 @@ final class MentorClosedMonthsTest extends ModuleTestCase
         $this->assertContains('Mentor de dos', $this->earned($this->render($this->ana, $this->ana)));
     }
 
+    public function test_a_mentor_rule_that_cannot_be_read_is_held_back_alike_in_the_list_and_the_points(): void
+    {
+        // Another version, say: unreadable whole, but its metric still says mentor, as SQL reads it
+        $broken = (string) $this->achievement('{"version":2,"metric":"mentor","threshold":1}', ['name' => 'Mentor roto', 'points' => 7])->id;
+        $this->grantAt($this->ana, $broken, '2026-11-20 03:00:00');
+        $this->photoAt('2026-11-23 03:30:00');
+
+        $others = $this->render($this->ana, $this->luis);
+
+        $this->assertNotContains('Mentor roto', $this->earned($others));
+        $this->assertSame(35, $this->achievementsSection($others)?->props['points']['total'] ?? null);
+    }
+
     private function photoAt(string $when): void
     {
         $this->travelTo($when);

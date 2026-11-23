@@ -10,7 +10,9 @@ use Modules\Achievements\Domain\Rules\AchievementRule;
  * An achievement of the catalogue. `rule` is null when the stored rule cannot be read: such an
  * achievement is never evaluated. `icon` is one of the core's ProfileBadgeIcons::NAMES and
  * `colour` a ProfileBadgeColour value, kept as text so a value the core drops later never breaks
- * the read (the core checks both again when it draws a badge).
+ * the read (the core checks both again when it draws a badge). `showsByClosedMonths` comes from
+ * the stored rule's metric, read on its own, so it holds also for a rule that cannot be read whole
+ * (ShownToOthersRule::byClosedMonths()).
  */
 final readonly class Achievement
 {
@@ -26,5 +28,6 @@ final readonly class Achievement
         public bool $active,
         public ?AchievementRule $rule,
         public ?string $starterKey = null,
+        public bool $showsByClosedMonths = false,
     ) {}
 }

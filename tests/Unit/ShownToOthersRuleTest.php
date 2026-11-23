@@ -29,16 +29,25 @@ final class ShownToOthersRuleTest extends TestCase
 
     public function test_any_grant_before_the_photo_shows_and_none_after(): void
     {
-        $rule = AchievementRule::count('game_session', 1);
+        $this->assertTrue(ShownToOthersRule::shows(false, $this->photo->modify('-1 second'), $this->photo, $this->madrid));
+        $this->assertFalse(ShownToOthersRule::shows(false, $this->photo, $this->photo, $this->madrid));
+    }
 
-        $this->assertTrue(ShownToOthersRule::shows($rule, $this->photo->modify('-1 second'), $this->photo, $this->madrid));
-        $this->assertFalse(ShownToOthersRule::shows($rule, $this->photo, $this->photo, $this->madrid));
-        $this->assertTrue(ShownToOthersRule::shows(null, $this->photo->modify('-1 day'), $this->photo, $this->madrid));
+    public function test_the_metric_is_read_from_the_stored_rule_alone_as_sql_reads_it(): void
+    {
+        $this->assertTrue(ShownToOthersRule::byClosedMonths('{"version":1,"metric":"mentor","threshold":1}'));
+        // Unreadable as a whole (another version, an unknown key): still held back
+        $this->assertTrue(ShownToOthersRule::byClosedMonths(['version' => 2, 'metric' => 'mentor', 'extra' => true]));
+        $this->assertFalse(ShownToOthersRule::byClosedMonths(AchievementRule::count('game_session', 1)?->toArray()));
+        $this->assertFalse(ShownToOthersRule::byClosedMonths('{not json'));
+        $this->assertFalse(ShownToOthersRule::byClosedMonths(['metric' => 7]));
+        $this->assertFalse(ShownToOthersRule::byClosedMonths(null));
     }
 
     public function test_a_mentor_shows_only_once_its_month_is_over(): void
     {
-        $mentor = AchievementRule::mentor(1);
+        $mentor = ShownToOthersRule::byClosedMonths(AchievementRule::mentor(1)?->toArray());
+        $this->assertTrue($mentor);
 
         $this->assertFalse(ShownToOthersRule::shows($mentor, new DateTimeImmutable('2026-11-20 02:00:00', new DateTimeZone('UTC')), $this->photo, $this->madrid));
         // 23:30 UTC on 31 October is already November in Madrid

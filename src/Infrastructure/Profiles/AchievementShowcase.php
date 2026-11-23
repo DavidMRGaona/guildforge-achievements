@@ -486,8 +486,9 @@ final class AchievementShowcase implements AchievementShowcaseInterface
         $catalogue = $this->catalogue();
 
         // Strictly before, as the photo counts them: one written in its own second waits a night
+        // An achievement missing from the catalogue read is held back like a mentor: fails closed
         return array_values(array_filter($grants, static fn (AchievementGrant $grant): bool => ShownToOthersRule::shows(
-            ($catalogue[strtolower($grant->achievementId)] ?? null)?->rule,
+            isset($catalogue[strtolower($grant->achievementId)]) ? $catalogue[strtolower($grant->achievementId)]->showsByClosedMonths : true,
             $grant->grantedAt,
             $takenAt,
             $zone,

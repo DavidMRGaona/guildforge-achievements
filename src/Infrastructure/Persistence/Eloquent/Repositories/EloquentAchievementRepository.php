@@ -7,6 +7,7 @@ namespace Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories;
 use Modules\Achievements\Domain\Entities\Achievement;
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
 use Modules\Achievements\Domain\Rules\AchievementRule;
+use Modules\Achievements\Domain\Rules\ShownToOthersRule;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 
 final readonly class EloquentAchievementRepository implements AchievementRepositoryInterface
@@ -47,6 +48,7 @@ final readonly class EloquentAchievementRepository implements AchievementReposit
             active: $model->is_active,
             rule: AchievementRule::tryFrom($model->getRawOriginal('rule')),
             starterKey: $model->starter_key,
+            showsByClosedMonths: ShownToOthersRule::byClosedMonths($model->getRawOriginal('rule')),
         );
     }
 
