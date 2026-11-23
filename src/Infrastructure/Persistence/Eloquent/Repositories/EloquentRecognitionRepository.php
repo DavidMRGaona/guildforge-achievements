@@ -43,7 +43,7 @@ final readonly class EloquentRecognitionRepository implements RecognitionReposit
             return $this->db->transaction(function () use ($id, $typeId, $giverId, $receiverId, $sourceType, $subjectId, $kind, $stamp): ?Recognition {
                 // Under a shared lock, so an anonymization waits for this one and then deletes it
                 // The rows themselves (PostgreSQL refuses FOR SHARE on an aggregate)
-                $live = UserModel::withTrashed()->whereKey([$giverId, $receiverId])->whereNull('anonymized_at')->sharedLock()->get(['id'])->count();
+                $live = count(UserModel::withTrashed()->whereKey([$giverId, $receiverId])->whereNull('anonymized_at')->sharedLock()->pluck('id')->all());
 
                 if ($live !== 2 || $this->exists($giverId, $receiverId, $sourceType, $subjectId)) {
                     return null;
