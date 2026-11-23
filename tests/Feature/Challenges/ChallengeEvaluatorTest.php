@@ -464,11 +464,13 @@ final class ChallengeEvaluatorTest extends ModuleTestCase
         ChallengeModel::query()->whereKey($challenge->id)->update(['created_by' => $ana, 'closed_by' => $ana]);
         $this->app->instance(AssociationMembersAmongInterface::class, new MutableMembers([$ana, $luis]));
         $this->challenges()->evaluate(null, silent: false);
+        $this->app->make(ChallengeRepositoryInterface::class)->replaceListed($challenge->id, [$ana, $luis], new DateTimeImmutable);
 
         $this->app->make(ForgetAnonymizedAccountContributions::class)->handle(new UserAnonymized($ana));
 
         $this->assertSame([$luis], DB::table('achievements_challenge_contributors')->pluck('user_id')->all());
         $this->assertSame([$luis], DB::table('achievements_challenge_audience')->pluck('user_id')->all());
+        $this->assertSame([$luis], DB::table('achievements_challenge_listed')->pluck('user_id')->all());
         $challenge->refresh();
         $this->assertNull($challenge->created_by);
         $this->assertNull($challenge->closed_by);

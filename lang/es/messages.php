@@ -490,7 +490,7 @@ return [
 
         'helpers' => [
             'description' => 'Se ve en la web. Habla del objetivo común («40 partidas entre todos»), nunca de una partida concreta.',
-            'ends_on' => 'Los días van de 0:00 del primero a 23:59 del último, en la hora de la asociación. Lo que se registre tarde aún cuenta durante 30 días.',
+            'ends_on' => 'Al menos 28 días, contando el primero y el último. Los días van de 0:00 del primero a 23:59 del último, en la hora de la asociación. Lo que se registre tarde aún cuenta durante 30 días.',
             'audience' => 'Solo con socios, cuenta solo lo que hacen las personas que son socias cuando se cuenta.',
             'reward' => 'Un logro activo, no secreto, que se conceda a mano y no se repita cada temporada. Al cumplirse el reto, lo recibe cada persona que contribuyó. En un reto para socios, verlo en un perfil ya insinúa que esa persona es socia.',
             'kind' => 'Solo se ofrece la actividad que registra algún módulo instalado.',
@@ -570,6 +570,7 @@ return [
 
         'validation' => [
             'invalid_rule' => 'Esta combinación no forma un reto que se pueda contar.',
+            'too_short' => 'Un reto dura al menos :days días, contando el primero y el último: el total de uno más corto diría quién estuvo en una mesa o un evento concreto.',
         ],
 
         'reward_in_use' => 'Es la recompensa de un reto que aún se cuenta: tiene que seguir activo, no secreto, concediéndose a mano y sin repetirse cada temporada.',

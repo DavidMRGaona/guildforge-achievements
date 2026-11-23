@@ -28,6 +28,10 @@ use Illuminate\Support\Carbon;
  * @property int $count_version
  * @property Carbon|null $progress_at
  * @property Carbon|null $completed_at
+ * @property int $shown_progress
+ * @property int $shown_contributors
+ * @property Carbon|null $shown_completed_at
+ * @property Carbon|null $shown_at
  * @property Carbon|null $closed_at
  * @property string|null $closed_by
  * @property string|null $created_by
@@ -54,6 +58,8 @@ final class ChallengeModel extends Model
         'progress' => 0,
         'contributors' => 0,
         'count_version' => 1,
+        'shown_progress' => 0,
+        'shown_contributors' => 0,
     ];
 
     /** What a count is made of: changing any of it makes counts of the older version stale */
@@ -107,6 +113,10 @@ final class ChallengeModel extends Model
             'count_version' => 'integer',
             'progress_at' => 'datetime',
             'completed_at' => 'datetime',
+            'shown_progress' => 'integer',
+            'shown_contributors' => 'integer',
+            'shown_completed_at' => 'datetime',
+            'shown_at' => 'datetime',
             'closed_at' => 'datetime',
         ];
     }

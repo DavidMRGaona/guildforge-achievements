@@ -31,8 +31,9 @@ use Modules\Achievements\Domain\Repositories\ChallengeRepositoryInterface;
 use Throwable;
 
 /**
- * Who completed a challenge is whoever added to it and holds its reward now (a reward taken away by
- * hand no longer counts). The list asks the core's profile card for each of them, so it only names
+ * Who completed a challenge is whoever the monthly run listed (ListChallengeCompletersJob: added to
+ * it and held its reward on the first day of the month) and still holds the reward now (a reward
+ * taken away by hand no longer counts); nobody is added between two runs. The list asks the core's profile card for each of them, so it only names
  * people whose profile the viewer may see, by their public name, and leaves out whoever hides their
  * achievements; in a challenge of members, also whoever does not show the membership. It stops
  * after a few. How many got the reward is never told next to how many added: together they would
@@ -43,14 +44,12 @@ final class ChallengeBoard implements ChallengeBoardInterface
     /** Cards asked for, at most, to fill the list of one challenge: the list and a few spare */
     private const int MAX_EXAMINED = self::MAX_LISTED + 4;
 
-    private const string CACHE_PREFIX = 'achievements:challenge-people:v1:';
+    private const string CACHE_PREFIX = 'achievements:challenge-people:v2:';
 
     /** How long one viewer's list is kept: a profile hidden meanwhile drops out within this */
     private const int CACHE_SECONDS = 300;
 
     private ?bool $viewerIsMember = null;
-
-    private const int CHUNK = 500;
 
     /** @var array<string, Achievement|null> */
     private array $rewards = [];
@@ -67,6 +66,7 @@ final class ChallengeBoard implements ChallengeBoardInterface
         private readonly ActivityMetricsInterface $metrics,
         private readonly AssociationMembershipServiceInterface $membership,
         private readonly Repository $cache,
+        private readonly ChallengeHolders $holders,
     ) {}
 
     public function shown(?Authenticatable $viewer): array
@@ -147,7 +147,9 @@ final class ChallengeBoard implements ChallengeBoardInterface
                 continue;
             }
 
-            $state = $challenge->state($today);
+            // In a challenge of members, what the nightly count published; each one's own contribution is live
+            $seen = $challenge->asOthersSeeIt();
+            $state = $seen->state($today);
             $membersOnly = $challenge->audience === ChallengeAudience::Members;
 
             $views[] = new ChallengeViewDTO(
@@ -155,8 +157,8 @@ final class ChallengeBoard implements ChallengeBoardInterface
                 name: $challenge->name,
                 description: $challenge->description,
                 state: $state,
-                counted: $challenge->progressAt instanceof DateTimeImmutable,
-                progress: $challenge->progress,
+                counted: $seen->progressAt instanceof DateTimeImmutable,
+                progress: $seen->progress,
                 target: $rule->target,
                 unit: $this->unit($rule),
                 startsOn: $challenge->startsOn,
@@ -166,7 +168,7 @@ final class ChallengeBoard implements ChallengeBoardInterface
                 ended: $challenge->hasEnded($today),
                 membersOnly: $membersOnly,
                 reward: $this->catalogue->present($reward, $viewerId !== null && $this->grants->holds($viewerId, $reward->id)),
-                contributors: $challenge->contributors,
+                contributors: $seen->contributors,
                 people: $withPeople && $state === ChallengeState::Completed ? $this->completers($challenge, $reward, $viewer, $membersOnly) : [],
                 // In a challenge of members, only a member is told they have not added yet
                 contribution: $viewer instanceof Authenticatable && (! $membersOnly || $this->viewerIsMember($viewer))
@@ -179,27 +181,18 @@ final class ChallengeBoard implements ChallengeBoardInterface
     }
 
     /**
-     * The people who got the reward, as the viewer may see them: whoever added and holds it now,
-     * minus whoever hides their achievements, through the core's card (visible profiles, public
+     * The people who got the reward, as the viewer may see them: whoever the monthly run listed and
+     * still holds it, minus whoever hides their achievements, through the core's card (visible profiles, public
      * name). In a challenge of members, only those whose card already shows the membership (and the
      * viewer's own): the list must never tell who is a member. At most MAX_LISTED, from a few more
-     * cards asked; the answer is kept for a short while per viewer.
+     * cards asked; the answer, made from the monthly list, is kept for a short while per viewer.
      *
      * @return list<ChallengeCompleterDTO>
      */
     private function completers(Challenge $challenge, Achievement $reward, ?Authenticatable $viewer, bool $membersOnly): array
     {
-        $holders = [];
-
-        foreach (array_chunk($this->challenges->contributorIds($challenge->id), self::CHUNK) as $chunk) {
-            $held = $this->grants->heldAchievementIds($chunk);
-
-            foreach ($chunk as $userId) {
-                if (in_array($reward->id, $held[$userId] ?? [], true)) {
-                    $holders[] = $userId;
-                }
-            }
-        }
+        // Whoever the monthly run listed and still holds the reward: nobody is added in between
+        $holders = $this->holders->among($reward->id, $this->challenges->listed($challenge->id));
 
         if ($holders === []) {
             return [];

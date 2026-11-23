@@ -6,7 +6,6 @@ namespace Modules\Achievements\Filament\Resources\ChallengeResource\Pages;
 
 use App\Filament\Concerns\HasKnowledgeGuideAction;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
-use DateTimeInterface;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
@@ -64,6 +63,8 @@ final class EditChallenge extends EditRecord
             return array_diff_key($data, array_flip(ChallengeForm::lockedFields()));
         }
 
+        // Also for one stored shorter before the rule: it is not saved again until it lasts enough
+        ChallengeForm::assertLongEnough($data);
         $data = ChallengeForm::intoRule($data, $this->challenge());
         $this->keepTheRewardUsable($data);
 
@@ -83,8 +84,8 @@ final class EditChallenge extends EditRecord
     {
         $record = $this->challenge();
         $changed = ($data['rule'] ?? null) != $record->rule
-            || $this->day($data['starts_on'] ?? null) !== $record->starts_on->format('Y-m-d')
-            || $this->day($data['ends_on'] ?? null) !== $record->ends_on->format('Y-m-d')
+            || ChallengeForm::day($data['starts_on'] ?? null) !== $record->starts_on->format('Y-m-d')
+            || ChallengeForm::day($data['ends_on'] ?? null) !== $record->ends_on->format('Y-m-d')
             || ($data['audience'] ?? $record->audience) !== $record->audience
             || ($data['reward_achievement_id'] ?? $record->reward_achievement_id) !== $record->reward_achievement_id;
 
@@ -98,15 +99,6 @@ final class EditChallenge extends EditRecord
         if (! $reward instanceof Achievement || ! ChallengeRewardRule::isUsable($reward)) {
             throw ValidationException::withMessages(['data.reward_achievement_id' => __('achievements::messages.challenges.reward_not_usable')]);
         }
-    }
-
-    private function day(mixed $value): ?string
-    {
-        if ($value instanceof DateTimeInterface) {
-            return $value->format('Y-m-d');
-        }
-
-        return is_string($value) && $value !== '' ? substr($value, 0, 10) : null;
     }
 
     private function challenge(): ChallengeModel

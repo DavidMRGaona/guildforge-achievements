@@ -94,6 +94,7 @@ use Modules\Achievements\Infrastructure\Settings\ModuleAchievementsSettings;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Jobs\EvaluateChallengesJob;
+use Modules\Achievements\Jobs\ListChallengeCompletersJob;
 use Modules\Achievements\Jobs\RefreshAchievementRarityJob;
 use Modules\Achievements\Jobs\ReleaseAchievementAnnouncementsJob;
 use Modules\Achievements\Listeners\CountChallengesForChangedFacts;
@@ -306,7 +307,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
                 ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
                 ->name('achievements:rarity');
             // Who is an association member changes without any fact changing
-            $schedule->job(new EvaluateChallengesJob)
+            $schedule->job(new EvaluateChallengesJob(publish: true))
                 ->dailyAt('04:10')
                 ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
                 ->name('achievements:challenges');
@@ -315,6 +316,11 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
                 ->monthlyOn(ReleaseAchievementAnnouncementsJob::RELEASE_DAY, ReleaseAchievementAnnouncementsJob::RELEASE_AT)
                 ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
                 ->name('achievements:announcements');
+            // Who the list of a completed challenge names, at the same hour (#12)
+            $schedule->job(new ListChallengeCompletersJob)
+                ->monthlyOn(ReleaseAchievementAnnouncementsJob::RELEASE_DAY, ReleaseAchievementAnnouncementsJob::RELEASE_AT)
+                ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
+                ->name('achievements:challenge-lists');
         });
     }
 

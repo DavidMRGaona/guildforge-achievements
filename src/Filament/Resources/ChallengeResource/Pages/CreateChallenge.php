@@ -21,6 +21,7 @@ final class CreateChallenge extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        ChallengeForm::assertLongEnough($data);
         $actor = auth()->user()?->getAuthIdentifier();
 
         return ChallengeForm::intoRule($data) + ['created_by' => is_string($actor) ? $actor : null];

@@ -17,7 +17,8 @@ use Modules\Achievements\Application\Services\ChallengeEvaluatorInterface;
 /**
  * Counts the collective challenges again (#12): after the ledger changes, after a challenge is saved,
  * after the «Retos» switch goes on and every night (who is an association member changes without any
- * fact changing).
+ * fact changing). The nightly one (`publish`) also makes its totals what others see of a challenge
+ * of members (Challenge::asOthersSeeIt()).
  *
  * Unique only while it waits in the queue (same challenges and silence): the lock goes when it
  * starts, so a change made while it runs is counted by the next one. Many ledger changes in a row
@@ -52,6 +53,7 @@ final class EvaluateChallengesJob implements ShouldBeUniqueUntilProcessing, Shou
     public function __construct(
         public readonly ?array $challengeIds = null,
         public readonly bool $silent = false,
+        public readonly bool $publish = false,
     ) {
         $this->afterCommit();
     }
@@ -65,12 +67,12 @@ final class EvaluateChallengesJob implements ShouldBeUniqueUntilProcessing, Shou
             sort($ids, SORT_STRING);
         }
 
-        return 'challenges:'.sha1((string) json_encode([$ids, $this->silent]));
+        return 'challenges:'.sha1((string) json_encode([$ids, $this->silent, $this->publish]));
     }
 
     public function handle(ChallengeEvaluatorInterface $evaluator): void
     {
-        $result = $evaluator->evaluate($this->challengeIds, $this->silent);
+        $result = $evaluator->evaluate($this->challengeIds, $this->silent, $this->publish);
 
         if (! $result->shouldRetry() || $this->job === null) {
             return;

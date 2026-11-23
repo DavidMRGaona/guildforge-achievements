@@ -51,6 +51,12 @@ interface ChallengeRepositoryInterface
     public function saveProgress(string $id, ChallengeProgress $progress, DateTimeImmutable $countedAt, int $loadedVersion): ?Challenge;
 
     /**
+     * Makes the last count of every challenge ever counted what others see of it
+     * (Challenge::asOthersSeeIt()): the nightly count calls it once it is done. Returns how many.
+     */
+    public function publishShown(DateTimeImmutable $at): int;
+
+    /**
      * Runs `$work` holding the challenge's row lock, only while it is not closed; false otherwise.
      * Rewards are granted inside it, so closing (which takes the same lock) and granting never
      * cross: after a challenge is closed, nobody else gets its reward.
@@ -108,6 +114,27 @@ interface ChallengeRepositoryInterface
     public function contributorIds(string $challengeId): array;
 
     /**
+     * Every challenge that ever completed, closed or not, oldest first.
+     *
+     * @return list<Challenge>
+     */
+    public function completed(): array;
+
+    /**
+     * Who the list of a completed challenge may name, as the monthly run found it, sorted by id.
+     *
+     * @return list<string>
+     */
+    public function listed(string $challengeId): array;
+
+    /**
+     * Replaces who the list of a challenge may name (the monthly run, ListChallengeCompletersJob).
+     *
+     * @param  list<string>  $userIds
+     */
+    public function replaceListed(string $challengeId, array $userIds, DateTimeImmutable $at): void;
+
+    /**
      * The ids of the challenges whose reward is this achievement.
      *
      * @return list<string>
@@ -115,8 +142,9 @@ interface ChallengeRepositoryInterface
     public function rewarding(string $achievementId): array;
 
     /**
-     * Deletes every contribution and remembered membership of an account (anonymization), forgets
-     * it as the one who created or closed a challenge, and returns how many contributions there were.
+     * Deletes every contribution, remembered membership and place on a list of an account
+     * (anonymization), forgets it as the one who created or closed a challenge, and returns how many
+     * contributions there were.
      */
     public function forgetUser(string $userId): int;
 }

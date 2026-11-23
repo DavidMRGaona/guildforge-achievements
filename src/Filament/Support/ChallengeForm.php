@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Modules\Achievements\Filament\Support;
 
 use App\Application\Services\TimezoneServiceInterface;
+use Closure;
+use DateTimeInterface;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -18,6 +20,7 @@ use Modules\Achievements\Domain\Challenges\ChallengeAudience;
 use Modules\Achievements\Domain\Challenges\ChallengeMetric;
 use Modules\Achievements\Domain\Challenges\ChallengeRewardRule;
 use Modules\Achievements\Domain\Challenges\ChallengeRule;
+use Modules\Achievements\Domain\Entities\Challenge;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\ChallengeModel;
 
@@ -86,6 +89,12 @@ final class ChallengeForm
                         ->native(false)
                         ->displayFormat('d/m/Y')
                         ->afterOrEqual('starts_on')
+                        ->rule(fn (Get $get, ?Model $record): Closure => static function (string $attribute, mixed $value, Closure $fail) use ($get, $record): void {
+                            // A complete challenge keeps its days, however short (ChallengePolicy)
+                            if (! self::locksWhatCounts($record) && ! self::isLongEnough($get('starts_on'), $value)) {
+                                $fail(self::tooShortMessage());
+                            }
+                        })
                         ->required(),
 
                     Select::make('audience')
@@ -199,6 +208,51 @@ final class ChallengeForm
     public static function lockedFields(): array
     {
         return [...self::FIELDS, 'rule', 'starts_on', 'ends_on', 'audience', 'reward_achievement_id'];
+    }
+
+    /**
+     * Refuses days shorter than Challenge::MIN_DAYS, first and last included (the form checks it
+     * too; this is the server's check, also for a challenge stored before the rule).
+     *
+     * @param  array<string, mixed>  $data
+     *
+     * @throws ValidationException
+     */
+    public static function assertLongEnough(array $data): void
+    {
+        if (! self::isLongEnough($data['starts_on'] ?? null, $data['ends_on'] ?? null)) {
+            throw ValidationException::withMessages(['data.ends_on' => self::tooShortMessage()]);
+        }
+    }
+
+    /**
+     * `Y-m-d` of a date field's value (a day or a date), null when it has none.
+     */
+    public static function day(mixed $value): ?string
+    {
+        if ($value instanceof DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+
+        return is_string($value) && $value !== '' ? substr($value, 0, 10) : null;
+    }
+
+    private static function isLongEnough(mixed $startsOn, mixed $endsOn): bool
+    {
+        $start = self::day($startsOn);
+        $end = self::day($endsOn);
+
+        // Missing days are the required rules' business
+        if ($start === null || $end === null) {
+            return true;
+        }
+
+        return Challenge::lengthInDays($start, $end) >= Challenge::MIN_DAYS;
+    }
+
+    private static function tooShortMessage(): string
+    {
+        return self::text('validation.too_short', ['days' => (string) Challenge::MIN_DAYS]);
     }
 
     private static function hasStarted(?Model $record): bool

@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Tests\Support;
 
+use DateTimeImmutable;
+use Illuminate\Support\Facades\Date;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\ChallengeEvaluatorInterface;
+use Modules\Achievements\Domain\Repositories\ChallengeRepositoryInterface;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\ChallengeModel;
+use Modules\Achievements\Jobs\ListChallengeCompletersJob;
 
 /**
  * Collective challenges written straight to their table, and the «Retos» switch.
@@ -48,6 +52,22 @@ trait BuildsChallenges
         $model->save();
 
         return $model;
+    }
+
+    /**
+     * The monthly run that makes the lists of who completed each challenge.
+     */
+    protected function listCompleters(): void
+    {
+        $this->app->call([new ListChallengeCompletersJob, 'handle']);
+    }
+
+    /**
+     * What the nightly count publishes of challenges of members, as of now.
+     */
+    protected function publishShown(): void
+    {
+        $this->app->make(ChallengeRepositoryInterface::class)->publishShown(DateTimeImmutable::createFromInterface(Date::now()));
     }
 
     protected function challenges(): ChallengeEvaluatorInterface

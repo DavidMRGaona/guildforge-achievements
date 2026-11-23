@@ -4,14 +4,20 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Tests\Feature\Challenges;
 
+use App\Application\Authorization\Services\AssociationMembersAmongInterface;
 use App\Application\Authorization\Services\AssociationMembershipServiceInterface;
 use App\Application\Exceptions\NothingToDrawException;
 use App\Application\Profiles\Services\ProfileCardServiceInterface;
+use App\Application\Services\TimezoneServiceInterface;
 use App\Application\SiteBlocks\Services\SiteBlockRegistryInterface;
 use App\Domain\SiteBlocks\SiteBlockPlacement;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use DateTimeZone;
+use Illuminate\Console\Scheduling\Event;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Testing\PendingCommand;
 use Inertia\Testing\AssertableInertia as Assert;
 use Modules\Achievements\Filament\SiteBlocks\ChallengeSiteBlock;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\ChallengeModel;
@@ -22,6 +28,7 @@ use Modules\Achievements\Tests\Support\BuildsActivityFacts;
 use Modules\Achievements\Tests\Support\BuildsChallenges;
 use Modules\Achievements\Tests\Support\BuildsShowcase;
 use Modules\Achievements\Tests\Support\FakeProfileCards;
+use Tests\Support\Activity\InMemoryActivitySource;
 use Tests\Support\Modules\ModuleTestCase;
 use Tests\Support\Time\UsesUtcStorage;
 
@@ -248,6 +255,158 @@ final class ChallengeBoardTest extends ModuleTestCase
             ->assertInertia(fn (Assert $page): Assert => $page->where('challenges.0.contribution', null));
     }
 
+    public function test_others_see_a_challenge_of_members_as_the_nightly_count_left_it(): void
+    {
+        [$ana, $luis] = [$this->person('Ana'), $this->person('Luis')];
+        $this->everybodyIsAMember();
+        $challenge = $this->challenge(['target' => 2], ['audience' => 'members']);
+        $this->ledgerSubject(InMemoryActivitySource::TYPE, 't1', 'game_session', [$this->recordedFact((string) $ana->id, when: '2026-12-02 18:00:00')]);
+
+        // Counted during the day, before any night: nobody sees a total yet
+        $this->challenges()->evaluate(null, silent: false);
+        $this->actingAs($ana)->get(route('achievements.index'))
+            ->assertInertia(fn (Assert $page): Assert => $page
+                ->where('challenges.0.counted', false)
+                ->where('challenges.0.progress', 0)
+                // Her own part is live
+                ->where('challenges.0.contribution', 1));
+
+        // The night
+        $this->challenges()->evaluate(null, silent: false, publish: true);
+
+        // An hour after Luis's table ends it is counted, and the challenge is complete (he gets the reward)
+        $this->ledgerSubject(InMemoryActivitySource::TYPE, 't2', 'game_session', [$this->recordedFact((string) $luis->id, when: '2026-12-19 18:00:00')]);
+        $this->challenges()->evaluate(null, silent: false);
+        $this->assertSame(2, $challenge->refresh()->progress);
+        $this->assertNotNull($challenge->completed_at);
+
+        foreach ([$ana, $luis] as $viewer) {
+            $this->app['auth']->forgetGuards();
+            $this->actingAs($viewer)->get(route('achievements.index'))
+                ->assertInertia(fn (Assert $page): Assert => $page
+                    ->where('challenges.0.counted', true)
+                    ->where('challenges.0.state', 'running')
+                    ->where('challenges.0.progress', 1)
+                    ->where('challenges.0.contributors', 1)
+                    ->where('challenges.0.contribution', 1));
+        }
+        $block = $this->app->make(ChallengeSiteBlock::class)->props([], null);
+        $this->assertIsArray($block['challenge']);
+        $this->assertSame(1, $block['challenge']['progress']);
+        $this->assertSame('running', $block['challenge']['state']);
+
+        // The next night
+        $this->travelTo('2026-12-21 04:10:00');
+        $this->challenges()->evaluate(null, silent: false, publish: true);
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($ana)->get(route('achievements.index'))
+            ->assertInertia(fn (Assert $page): Assert => $page
+                ->where('challenges.0.state', 'completed')
+                ->where('challenges.0.progress', 2)
+                ->where('challenges.0.contributors', 2));
+    }
+
+    public function test_a_challenge_for_everybody_shows_each_count_as_it_comes(): void
+    {
+        $ana = $this->person('Ana');
+        $challenge = $this->challenge(['target' => 5]);
+        $this->ledgerSubject(InMemoryActivitySource::TYPE, 't1', 'game_session', [$this->recordedFact((string) $ana->id, when: '2026-12-02 18:00:00')]);
+
+        $this->challenges()->evaluate(null, silent: false);
+
+        $this->assertSame(1, $challenge->refresh()->progress);
+        $this->get(route('achievements.index'))
+            ->assertInertia(fn (Assert $page): Assert => $page->where('challenges.0.counted', true)->where('challenges.0.progress', 1));
+    }
+
+    public function test_the_list_of_who_completed_it_only_grows_on_the_first_of_the_month(): void
+    {
+        $challenge = $this->challenge(['target' => 1]);
+        [$ana, $luis] = [$this->person('Ana'), $this->person('Luis')];
+        $this->grantAt($ana, $challenge->reward_achievement_id);
+        // Listed on the 1st with Ana only: Luis had not got the reward yet
+        $this->counted($challenge, progress: 2, contributors: 2, contributions: [(string) $ana->id => 1, (string) $luis->id => 1], completed: true);
+        $this->grantAt($luis, $challenge->reward_achievement_id, when: '2026-12-20 09:00:00');
+
+        foreach ([$this->person('Quien mira'), $this->person('Otra')] as $viewer) {
+            $this->app['auth']->forgetGuards();
+            $this->actingAs($viewer)->get(route('achievements.index'))
+                ->assertInertia(fn (Assert $page): Assert => $page
+                    ->has('challenges.0.people', 1)
+                    ->where('challenges.0.people.0.name', 'Ana'));
+        }
+
+        $this->travelTo('2027-01-01 10:00:00');
+        $this->listCompleters();
+        $this->app['auth']->forgetGuards();
+
+        $this->actingAs($this->person('Quien mira después'))->get(route('achievements.index'))
+            ->assertInertia(fn (Assert $page): Assert => $page
+                ->has('challenges.0.people', 2)
+                ->where('challenges.0.people.0.name', 'Ana')
+                ->where('challenges.0.people.1.name', 'Luis'));
+    }
+
+    public function test_the_kept_list_is_the_monthly_one(): void
+    {
+        $challenge = $this->challenge(['target' => 1]);
+        [$ana, $luis] = [$this->person('Ana'), $this->person('Luis')];
+        $this->grantAt($ana, $challenge->reward_achievement_id);
+        $this->counted($challenge, progress: 2, contributors: 2, contributions: [(string) $ana->id => 1, (string) $luis->id => 1], completed: true);
+        $viewer = $this->person('Quien mira');
+        $this->actingAs($viewer)->get(route('achievements.index'));
+
+        // Luis gets it meanwhile; within the five minutes the same viewer still gets the monthly list
+        $this->grantAt($luis, $challenge->reward_achievement_id, when: '2026-12-20 10:01:00');
+        $this->travel(2)->minutes();
+        $this->actingAs($viewer)->get(route('achievements.index'))
+            ->assertInertia(fn (Assert $page): Assert => $page->has('challenges.0.people', 1));
+        // And once the kept answer is gone too
+        $this->travel(10)->minutes();
+        $this->actingAs($viewer)->get(route('achievements.index'))
+            ->assertInertia(fn (Assert $page): Assert => $page->has('challenges.0.people', 1));
+    }
+
+    public function test_the_lists_are_made_on_the_first_of_each_month_with_the_summary_and_the_total_each_night(): void
+    {
+        $events = collect(app(Schedule::class)->events());
+        $lists = $events->first(static fn (Event $event): bool => $event->description === 'achievements:challenge-lists');
+        $nightly = $events->first(static fn (Event $event): bool => $event->description === 'achievements:challenges');
+
+        $this->assertInstanceOf(Event::class, $lists);
+        $this->assertSame('0 10 1 * *', $lists->expression);
+        $zone = $lists->timezone;
+        $this->assertSame(app(TimezoneServiceInterface::class)->displayTimezone()->getName(), $zone instanceof DateTimeZone ? $zone->getName() : $zone);
+        $this->assertInstanceOf(Event::class, $nightly);
+        $this->assertSame('10 4 * * *', $nightly->expression);
+    }
+
+    public function test_the_nightly_count_is_the_one_that_publishes(): void
+    {
+        Bus::fake([EvaluateChallengesJob::class]);
+        $this->app->make(Schedule::class);
+
+        $command = $this->artisan('schedule:test', ['--name' => 'achievements:challenges']);
+        $this->assertInstanceOf(PendingCommand::class, $command);
+        $command->assertSuccessful()->run();
+
+        Bus::assertDispatched(EvaluateChallengesJob::class, static fn (EvaluateChallengesJob $job): bool => $job->publish && $job->challengeIds === null && ! $job->silent);
+    }
+
+    private function everybodyIsAMember(): void
+    {
+        $this->app->instance(AssociationMembersAmongInterface::class, new class implements AssociationMembersAmongInterface
+        {
+            public function among(array $userIds): array
+            {
+                return array_fill_keys($userIds, true);
+            }
+        });
+        $membership = $this->createStub(AssociationMembershipServiceInterface::class);
+        $membership->method('isAssociationMember')->willReturn(true);
+        $this->app->instance(AssociationMembershipServiceInterface::class, $membership);
+    }
+
     /**
      * @param  array<string, int>  $contributions
      */
@@ -270,5 +429,9 @@ final class ChallengeBoardTest extends ModuleTestCase
                 'updated_at' => '2026-12-10 18:00:00',
             ]);
         }
+
+        // As after the nightly count and the monthly list
+        $this->publishShown();
+        $this->listCompleters();
     }
 }

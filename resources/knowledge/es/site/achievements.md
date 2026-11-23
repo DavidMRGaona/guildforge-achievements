@@ -28,11 +28,13 @@ En **Logros**, con la sesión iniciada, cada logro por temporada te dice si ya l
 
 A veces hay retos entre todas las personas, como «entre todos, 40 partidas en diciembre». Salen al principio de la página **Logros**, con una barra que dice cuánto se lleva, sus fechas y el logro de recompensa. También pueden salir en el pie de página, en una ventana o en la página de enlaces.
 
-No se compite: todo lo que haces dentro de las fechas suma al total. Algunos retos son solo para socios, y entonces solo suma lo que hacen los socios. Con la sesión iniciada ves cuántas veces has participado tú.
+No se compite: todo lo que haces dentro de las fechas suma al total. Algunos retos son solo para socios, y entonces solo suma lo que hacen los socios. Con la sesión iniciada ves al momento cuántas veces has participado tú.
+
+Un reto dura al menos 28 días. En un reto para socios, el total y cuántas personas han contribuido se actualizan una vez al día, por la noche. Así, el total no cambia justo al acabar una partida y no dice quién estaba en ella.
 
 Cuando se llega al objetivo, cada persona que contribuyó recibe el logro de recompensa. También lo recibe quien contribuye después con algo que ocurrió dentro de las fechas, si se registra como mucho 30 días después del último día. En un reto para socios, lo que se registra pasado el último día cuenta si eras socio cuando se descubrió.
 
-Los retos solo enseñan totales: nunca dicen qué partidas o eventos han contado. De un reto conseguido se nombra a algunas de las personas que lo tienen, solo si puedes ver su perfil y con su nombre público. Si ocultas tus logros, no se te nombra. En un reto para socios, solo se nombra a quien ya enseña en su perfil que es socio.
+Los retos solo enseñan totales: nunca dicen qué partidas o eventos han contado. De un reto conseguido se nombra a algunas de las personas que lo tienen, solo si puedes ver su perfil y con su nombre público. Si ocultas tus logros, no se te nombra. En un reto para socios, solo se nombra a quien ya enseña en su perfil que es socio. Esa lista solo crece el día 1 de cada mes: si consigues la recompensa a mitad de mes, tu nombre sale a partir del día 1 siguiente, sin decir cuándo la conseguiste.
 
 Ten en cuenta que la recompensa de un reto para socios, vista en tu perfil, deja entrever que eres socio. Por eso, si anuncias tus logros raros, esa recompensa solo sale en el resumen mensual cuando tu perfil ya enseña que eres socio.
 

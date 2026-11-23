@@ -16,6 +16,7 @@ use Filament\Tables\Columns\Column;
 use Illuminate\Bus\UniqueLock;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Modules\Achievements\AchievementsServiceProvider;
 use Modules\Achievements\Domain\Repositories\ChallengeRepositoryInterface;
@@ -161,6 +162,64 @@ final class ChallengeResourceTest extends ModuleTestCase
             ->fillForm($this->formData(['starts_on' => '2026-12-10', 'ends_on' => '2026-12-01']))
             ->call('create')
             ->assertHasFormErrors(['ends_on']);
+    }
+
+    public function test_a_challenge_lasts_at_least_28_days_counting_both_ends(): void
+    {
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+
+        // 1–27 February: 27 days
+        Livewire::test(CreateChallenge::class)
+            ->fillForm($this->formData(['starts_on' => '2027-02-01', 'ends_on' => '2027-02-27']))
+            ->call('create')
+            ->assertHasFormErrors(['ends_on']);
+        $this->assertSame(0, ChallengeModel::query()->count());
+
+        // 1–28 February: 28 days
+        Livewire::test(CreateChallenge::class)
+            ->fillForm($this->formData(['starts_on' => '2027-02-01', 'ends_on' => '2027-02-28']))
+            ->call('create')
+            ->assertHasNoFormErrors();
+        $this->assertSame(1, ChallengeModel::query()->count());
+    }
+
+    public function test_the_server_refuses_a_short_challenge_whatever_the_form_checked(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        ChallengeForm::assertLongEnough(['starts_on' => '2026-12-01', 'ends_on' => '2026-12-27']);
+    }
+
+    public function test_a_short_challenge_stored_before_the_rule_is_not_saved_again_until_it_lasts_enough(): void
+    {
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+        $challenge = $this->challenge([], ['starts_on' => '2026-12-01', 'ends_on' => '2026-12-07']);
+
+        Livewire::test(EditChallenge::class, ['record' => $challenge->id])
+            ->fillForm(['name' => 'Semana'])
+            ->call('save')
+            ->assertHasFormErrors(['ends_on']);
+        $this->assertNotSame('Semana', $challenge->refresh()->name);
+
+        Livewire::test(EditChallenge::class, ['record' => $challenge->id])
+            ->fillForm(['name' => 'Mes', 'ends_on' => '2026-12-28'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+        $this->assertSame('Mes', $challenge->refresh()->name);
+    }
+
+    public function test_a_completed_short_challenge_still_changes_its_name(): void
+    {
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+        $challenge = $this->challenge([], ['starts_on' => '2026-12-01', 'ends_on' => '2026-12-07']);
+        ChallengeModel::query()->whereKey($challenge->id)->update(['completed_at' => '2026-12-05 10:00:00']);
+
+        Livewire::test(EditChallenge::class, ['record' => $challenge->id])
+            ->fillForm(['name' => 'Semana'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+        $this->assertSame('Semana', $challenge->refresh()->name);
+        $this->assertSame('2026-12-07', $challenge->ends_on->format('Y-m-d'));
     }
 
     public function test_editing_keeps_the_rule_fields(): void

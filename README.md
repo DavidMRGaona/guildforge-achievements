@@ -215,6 +215,7 @@ Cada reto tiene nombre (80 caracteres), descripción (300), primer y último dí
 - **Recompensa.** Un logro activo, no secreto, que solo se concede a mano y no se repite cada temporada (`ChallengeRewardRule`), comprobado al elegirlo, al enseñar el reto, al conceder y al guardar un reto cuyas fechas o lo que cuenta cambian (un reto pasado puede volver a contarse). Mientras un reto lo use, el logro no se puede borrar (`AchievementPolicy::delete()`). Mientras el reto se siga contando, el formulario de logros tampoco deja desactivarlo, hacerlo secreto ni darle una regla. En un reto para socios, ver la recompensa en un perfil ya insinúa que esa persona es socia; la guía lo avisa.
 - **Reto conseguido.** Lo que cuenta, sus fechas, quién participa y la recompensa quedan fijos (`ChallengePolicy::changeWhatCounts()`, campos desactivados, y el servidor descarta lo que llegue de ellos); solo cambian nombre y descripción. Si ya ha empezado, el formulario avisa de que cambiar lo que se cuenta cambia el progreso.
 - **Borrar.** Se decide otra vez bajo el bloqueo de la fila (`deleteUnlessCompleted()`): un reto que se completó mientras el diálogo estaba abierto no se borra.
+- **Duración mínima.** Un reto dura al menos 28 días contando el primero y el último (`Challenge::MIN_DAYS`, `Challenge::lengthInDays()`): el total de un reto de una tarde o un fin de semana diría quién estuvo en esa mesa o en ese evento. Lo comprueba el formulario y otra vez el servidor al crear y al guardar (`ChallengeForm::assertLongEnough()`), también en un reto más corto guardado antes de la regla, que no se vuelve a guardar hasta que dure lo suficiente. Un reto conseguido conserva sus fechas y sigue cambiando nombre y descripción.
 
 ### Regla
 
@@ -240,7 +241,7 @@ Se cuenta en `EvaluateChallengesJob` (único mientras espera en la cola):
 - tras cada cambio del registro (`AchievementFactsChanged`), en silencio si viene de un recálculo;
 - al crear un reto o cambiar su regla, sus fechas, quién participa o la recompensa;
 - al encender **Retos** o volver a encender un tipo de actividad;
-- cada noche (`achievements:challenges`, a las 04:10 de la zona de visualización), porque quién es socio cambia sin que cambie ningún hecho.
+- cada noche (`achievements:challenges`, a las 04:10 de la zona de visualización), porque quién es socio cambia sin que cambie ningún hecho. Esta cuenta (`publish`) además publica lo que los demás ven de los retos para socios (`publishShown()`, columnas `shown_*`).
 
 Un reto se cuenta desde su primer día hasta 30 días después del último (`Challenge::LATE_FACTS_DAYS`), porque hay actividad que se registra tarde. No se cuenta si está cerrado, si su tipo de actividad está apagado o no tiene fuente (se queda el último total), si su regla es ilegible o si los ajustes no se pueden leer.
 
@@ -252,15 +253,17 @@ Solo conceden los recuentos con aviso, y cada concesión se anuncia (`Achievemen
 
 ### En la web
 
+- **Retos para socios: el total de la noche.** Lo que se enseña de un reto para socios (total, personas que contribuyeron y si se consiguió) es la foto de la última cuenta nocturna (`Challenge::asOthersSeeIt()`), no el recuento del momento: un total que sube una hora después de acabar una mesa diría quién estaba en ella y que es socio. Vale para `/logros` y para el bloque. Conceder sigue siendo inmediato, y cada persona ve su propia aportación al momento. Hasta la primera noche el reto dice «Aún no se ha contado». Los retos para todas las personas se enseñan tal como se cuentan. En el panel, el progreso es siempre el del momento.
 - **`/logros`**: antes del catálogo, los retos en marcha, los que empiezan en los próximos 30 días y los que terminaron hace menos de 30 (`ChallengeBoardInterface`), con barra de progreso, fechas (con el año si no son del año en curso), recompensa y cuántas personas contribuyeron. Un reto nunca contado dice «Aún no se ha contado» en vez de un 0, y no sale uno sin fuente, con su tipo apagado o con una recompensa que ya no lo es.
   - Con la sesión iniciada, cuántas veces participó esa persona; en un reto para socios, solo si lo es.
-  - De un reto conseguido, hasta doce de las personas que tienen la recompensa, con la tarjeta del perfil del core (`ProfileCardServiceInterface::card()`, como mucho 16 tarjetas, guardado 5 minutos por visor): solo perfiles que quien mira puede ver, solo con su nombre público y nunca quien oculta sus logros. En un reto para socios, solo tarjetas que ya enseñan la insignia de socio (`showsMembership`), más la del propio visor.
+  - De un reto conseguido, hasta doce de las personas que tienen la recompensa según la lista del mes, con la tarjeta del perfil del core (`ProfileCardServiceInterface::card()`, como mucho 16 tarjetas, guardado 5 minutos por visor): solo perfiles que quien mira puede ver, solo con su nombre público y nunca quien oculta sus logros. En un reto para socios, solo tarjetas que ya enseñan la insignia de socio (`showsMembership`), más la del propio visor.
+  - **Lista mensual.** Quién puede salir en la lista se decide el día 1 de cada mes a la misma hora que el resumen de anuncios (`ListChallengeCompletersJob`, `achievements:challenge-lists`, `RELEASE_DAY` a las `RELEASE_AT` de la zona de visualización): quien contribuyó y tenía la recompensa entonces (`achievements_challenge_listed`). Hasta el mes siguiente no se añade nadie, aunque ya tenga la recompensa, así que un nombre nuevo nunca dice cuándo la consiguió. Al dibujarla aún se quita a quien ya no tiene la recompensa, oculta sus logros o su perfil. Lo guardado 5 minutos por visor sale de esa lista mensual.
   - Nunca se dice cuántas personas tienen la recompensa junto a cuántas contribuyeron: juntos delatarían una retirada. Ninguna fecha por persona.
 - **Bloque `achievements.challenge`** («Reto de la asociación»), para el pie de página, las ventanas emergentes y la página de enlaces: el reto elegido en sus ajustes o, sin elegir, el reto en marcha que antes termina (si no hay, el siguiente en empezar). Sin reto que enseñar no se dibuja. Solo da totales; la lista de personas solo está en `/logros`.
 
-Nada de esto nombra una mesa, una sesión o un evento: solo totales.
+Nada de esto nombra una mesa, una sesión o un evento, pero un total que cambia justo después de una partida diría quién estuvo en ella. Por eso un reto dura al menos 28 días, los retos para socios se enseñan con el total de la noche y la lista de quién lo consiguió solo crece una vez al mes.
 
-Al anonimizar una cuenta se borran sus aportaciones y lo guardado sobre si era socia, y deja de figurar como quien creó o cerró un reto; el total se recalcula en la siguiente cuenta.
+Al anonimizar una cuenta se borran sus aportaciones, lo guardado sobre si era socia y su sitio en la lista mensual, y deja de figurar como quien creó o cerró un reto; el total se recalcula en la siguiente cuenta.
 
 ## Catálogo inicial
 

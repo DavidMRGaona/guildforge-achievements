@@ -24,6 +24,8 @@ interface ChallengeEvaluatorInterface
 {
     /**
      * @param  list<string>|null  $challengeIds  only these; null for every challenge still counted
+     * @param  bool  $publish  the nightly count: once counted, the totals become what others see of a
+     *                         challenge of members (ChallengeRepositoryInterface::publishShown())
      */
-    public function evaluate(?array $challengeIds, bool $silent): ChallengeEvaluationResultDTO;
+    public function evaluate(?array $challengeIds, bool $silent, bool $publish = false): ChallengeEvaluationResultDTO;
 }

@@ -62,7 +62,7 @@ final readonly class ChallengeEvaluator implements ChallengeEvaluatorInterface
         private AchievementWarnings $warnings,
     ) {}
 
-    public function evaluate(?array $challengeIds, bool $silent): ChallengeEvaluationResultDTO
+    public function evaluate(?array $challengeIds, bool $silent, bool $publish = false): ChallengeEvaluationResultDTO
     {
         $settings = $this->settings->readStrictly();
 
@@ -129,6 +129,11 @@ final readonly class ChallengeEvaluator implements ChallengeEvaluatorInterface
                     $granted += $this->reward($saved, $progress);
                 }
             }
+        }
+
+        // Also what the counts of the day stored (a challenge left for a retry keeps its last one)
+        if ($publish) {
+            $this->challenges->publishShown($now);
         }
 
         return new ChallengeEvaluationResultDTO(ChallengeEvaluationOutcome::Evaluated, $counted, $completed, $granted, $retry);

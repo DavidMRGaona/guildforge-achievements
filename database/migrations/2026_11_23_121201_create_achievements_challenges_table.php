@@ -38,6 +38,12 @@ return new class extends Migration
             $table->timestamp('progress_at')->nullable();
             // When the total first reached the target (the fact that did it); never cleared
             $table->timestamp('completed_at')->nullable();
+            // What others see of a challenge of members: the last count as the nightly count found
+            // it (shown_at), so a total that moves during the day never tells who just played
+            $table->unsignedInteger('shown_progress')->default(0);
+            $table->unsignedInteger('shown_contributors')->default(0);
+            $table->timestamp('shown_completed_at')->nullable();
+            $table->timestamp('shown_at')->nullable();
             // Closed by hand: nothing more counts, nobody else gets the reward
             $table->timestamp('closed_at')->nullable();
             $table->uuid('closed_by')->nullable();
