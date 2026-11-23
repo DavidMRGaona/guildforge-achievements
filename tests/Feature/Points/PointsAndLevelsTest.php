@@ -8,6 +8,7 @@ use App\Application\Profiles\DTOs\ResolvedProfileDTO;
 use App\Application\Profiles\DTOs\ResolvedProfileStatDTO;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementPointsInterface;
@@ -16,11 +17,14 @@ use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\PointsCutoffInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
+use Modules\Achievements\Domain\ValueObjects\AchievementPreferences;
+use Modules\Achievements\Domain\ValueObjects\PointsPeriod;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsLevelProfileStat;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsActivityFacts;
 use Modules\Achievements\Tests\Support\BuildsShowcase;
+use RuntimeException;
 use Tests\Support\Modules\ModuleTestCase;
 use Tests\Support\Time\UsesUtcStorage;
 
@@ -178,6 +182,60 @@ final class PointsAndLevelsTest extends ModuleTestCase
         $this->assertSame(3, $this->levelStat($this->render($this->ana, $this->luis))?->value);
     }
 
+    public function test_a_grant_in_the_photos_own_second_waits_for_the_next_night(): void
+    {
+        // Tonight's photo is 03:30 in Madrid, 02:30:00 UTC: a grant a second before counts, one in
+        // that very second waits, as the photo's own list does
+        $forty = $this->achievement($this->countRule(), ['name' => 'Cuarenta', 'points' => 40]);
+        $five = $this->achievement($this->countRule(), ['name' => 'Cinco', 'points' => 5]);
+        $this->grantAt($this->ana, (string) $forty->id, '2026-11-22 02:29:59');
+        $this->grantAt($this->ana, (string) $five->id, '2026-11-22 02:30:00');
+
+        $this->assertSame(60, $this->achievementsSection($this->render($this->ana, $this->luis))?->props['points']['total'] ?? null);
+        $this->assertSame(80, $this->achievementsSection($this->render($this->ana, $this->ana))?->props['points']['total'] ?? null);
+    }
+
+    public function test_deleted_and_anonymized_accounts_never_count_nor_offer_a_year(): void
+    {
+        $deactivated = $this->person('Desactivada');
+        $this->grantAt($deactivated, (string) $this->twenty->id, '2019-05-01 10:00:00', '2018');
+        $deactivated->delete();
+        $anonymized = $this->person('Anónima');
+        $this->grantAt($anonymized, (string) $this->twenty->id, '2020-05-01 10:00:00', '2019');
+        DB::table('users')->where('id', $anonymized->id)->update(['anonymized_at' => now()]);
+        // Gone for good: its grants stay behind without a foreign key
+        $gone = (string) Str::uuid7();
+        $this->grantAt($gone, (string) $this->twenty->id, '2021-05-01 10:00:00', '2020');
+        $repository = app(AchievementPointsRepositoryInterface::class);
+
+        $everyone = $repository->everyone(PointsPeriod::allTime());
+
+        $this->assertSame([strtolower((string) $this->ana->id)], array_keys($everyone));
+        $this->assertSame('2025-03-01 10:00:00', $repository->firstGrantedAt()?->format('Y-m-d H:i:s'));
+        $this->assertNull($repository->earliestSeasonKey());
+    }
+
+    public function test_the_section_saves_what_is_shown_and_the_leaderboard_choice_together(): void
+    {
+        $real = app(AchievementPreferencesRepositoryInterface::class);
+        $this->app->instance(AchievementPreferencesRepositoryInterface::class, new FailingChoicesRepository($real));
+
+        $this->withoutExceptionHandling();
+
+        try {
+            $this->actingAs($this->ana)
+                ->put('/logros/miembros/'.$this->handleOf($this->ana), ['hidden' => true, 'featured' => [], 'leaderboard' => false]);
+            $this->fail('Saving the leaderboard choice should have failed.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('choices down', $exception->getMessage());
+        }
+
+        // Nothing half saved: the showcase went back with the failed choice
+        $choices = $real->find((string) $this->ana->id);
+        $this->assertFalse($choices->hidden);
+        $this->assertTrue($choices->inLeaderboard);
+    }
+
     public function test_without_a_cut_others_see_no_points_never_a_zero(): void
     {
         $cutoff = $this->createStub(PointsCutoffInterface::class);
@@ -209,7 +267,7 @@ final class PointsAndLevelsTest extends ModuleTestCase
     public function test_a_failure_reading_points_drops_only_the_points(): void
     {
         $points = $this->createStub(AchievementPointsRepositoryInterface::class);
-        $points->method('breakdowns')->willThrowException(new \RuntimeException('down'));
+        $points->method('breakdowns')->willThrowException(new RuntimeException('down'));
         $this->app->instance(AchievementPointsRepositoryInterface::class, $points);
 
         $props = $this->achievementsSection($this->render($this->ana, $this->luis))?->props;
@@ -328,5 +386,50 @@ final class PointsAndLevelsTest extends ModuleTestCase
     {
         app(AchievementsSettingsInterface::class)->save(AchievementsSettings::fromArray($values));
         $this->app->forgetScopedInstances();
+    }
+}
+
+/**
+ * Saves what is shown and fails on the leaderboard choice, as a database cut between the two would.
+ */
+final readonly class FailingChoicesRepository implements AchievementPreferencesRepositoryInterface
+{
+    public function __construct(
+        private AchievementPreferencesRepositoryInterface $real,
+    ) {}
+
+    public function forUsers(array $userIds): array
+    {
+        return $this->real->forUsers($userIds);
+    }
+
+    public function find(string $userId): AchievementPreferences
+    {
+        return $this->real->find($userId);
+    }
+
+    public function save(AchievementPreferences $preferences): void
+    {
+        $this->real->save($preferences);
+    }
+
+    public function saveShowcase(string $userId, bool $hidden, array $featured): void
+    {
+        $this->real->saveShowcase($userId, $hidden, $featured);
+    }
+
+    public function saveChoices(string $userId, ?bool $announceRare, ?bool $inLeaderboard): void
+    {
+        throw new RuntimeException('choices down');
+    }
+
+    public function forgetFeatured(string $achievementId): int
+    {
+        return $this->real->forgetFeatured($achievementId);
+    }
+
+    public function deleteForUser(string $userId): void
+    {
+        $this->real->deleteForUser($userId);
     }
 }

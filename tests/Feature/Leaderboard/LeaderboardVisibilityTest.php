@@ -394,6 +394,33 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
             ->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 40));
     }
 
+    public function test_a_grant_in_the_photos_own_second_waits_for_the_next_night(): void
+    {
+        // Tonight's photo is 03:30 in Madrid, 02:30:00 UTC
+        $viewer = $this->person('Vera');
+        $ana = $this->scored('Ana', 'public', []);
+        $this->grantAt($ana, (string) $this->ten->id, '2026-11-22 02:29:59');
+        $this->grantAt($ana, (string) $this->thirty->id, '2026-11-22 02:30:00');
+
+        $this->actingAs($viewer)->get('/logros/clasificacion')
+            ->assertInertia(fn (Assert $page): Assert => $page->has('entries', 1)->where('entries.0.points', 10));
+    }
+
+    public function test_a_seasonless_grant_at_midnight_on_new_years_day_counts_in_the_new_season(): void
+    {
+        $this->settingsWith(['points' => true, 'leaderboard' => true, 'seasons_and_streaks' => true]);
+        $viewer = $this->person('Vera');
+        $ana = $this->scored('Ana', 'public', []);
+        // Stored in UTC: 00:00 on the 1st in Madrid is 23:00 on the 31st, a second before is still 2025
+        $this->grantAt($ana, (string) $this->ten->id, '2025-12-31 23:00:00');
+        $this->grantAt($ana, (string) $this->thirty->id, '2025-12-31 22:59:59');
+
+        $this->actingAs($viewer)->get('/logros/clasificacion?temporada=2026')
+            ->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 10));
+        $this->actingAs($viewer)->get('/logros/clasificacion?temporada=2025')
+            ->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 30));
+    }
+
     public function test_a_revoke_alone_applies_at_once_for_others(): void
     {
         $viewer = $this->person('Vera');

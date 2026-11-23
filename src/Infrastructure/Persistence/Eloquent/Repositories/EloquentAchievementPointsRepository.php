@@ -15,8 +15,9 @@ use stdClass;
 
 /**
  * One aggregate query over `achievements_grants` joined to the catalogue, per account and
- * achievement, answered from the grants' unique key (user_id first). The photo's query joins `users`,
- * so an account deleted for good (its grants stay without a foreign key) never counts.
+ * achievement, answered from the grants' unique key (user_id first). everyone() and the season list
+ * (firstGrantedAt(), earliestSeasonKey()) join `users`, so an account deleted for good (its grants
+ * stay without a foreign key), soft-deleted or anonymized never counts nor offers a year.
  */
 final readonly class EloquentAchievementPointsRepository implements AchievementPointsRepositoryInterface
 {
@@ -45,12 +46,7 @@ final readonly class EloquentAchievementPointsRepository implements AchievementP
 
     public function everyone(PointsPeriod $period, ?DateTimeImmutable $before = null): array
     {
-        $rows = $this->points($period, $before)
-            ->join('users', 'users.id', '=', 'achievements_grants.user_id')
-            ->whereNull('users.deleted_at')
-            ->whereNull('users.anonymized_at')
-            ->get()
-            ->all();
+        $rows = $this->ofLiveAccounts($this->points($period, $before))->get()->all();
 
         return array_filter($this->fold($rows), static fn (PointsBreakdown $points): bool => $points->total() > 0);
     }
@@ -68,7 +64,7 @@ final readonly class EloquentAchievementPointsRepository implements AchievementP
 
     public function firstGrantedAt(?DateTimeImmutable $before = null): ?DateTimeImmutable
     {
-        $first = $this->before($this->db->table('achievements_grants'), $before)->min('granted_at');
+        $first = $this->before($this->ofLiveAccounts($this->db->table('achievements_grants')), $before)->min('achievements_grants.granted_at');
 
         if (! is_string($first) || $first === '') {
             return null;
@@ -81,9 +77,22 @@ final readonly class EloquentAchievementPointsRepository implements AchievementP
 
     public function earliestSeasonKey(?DateTimeImmutable $before = null): ?string
     {
-        $key = $this->before($this->db->table('achievements_grants'), $before)->where('season_key', '<>', '')->min('season_key');
+        $key = $this->before($this->ofLiveAccounts($this->db->table('achievements_grants')), $before)
+            ->where('achievements_grants.season_key', '<>', '')
+            ->min('achievements_grants.season_key');
 
         return is_string($key) && preg_match('/^\d{4}$/D', $key) === 1 ? $key : null;
+    }
+
+    /**
+     * Only grants of accounts that still exist and are neither deactivated nor anonymized.
+     */
+    private function ofLiveAccounts(Builder $grants): Builder
+    {
+        return $grants
+            ->join('users', 'users.id', '=', 'achievements_grants.user_id')
+            ->whereNull('users.deleted_at')
+            ->whereNull('users.anonymized_at');
     }
 
     /**

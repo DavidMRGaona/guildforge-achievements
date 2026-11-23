@@ -12,8 +12,9 @@ use Modules\Achievements\Domain\ValueObjects\PointsPeriod;
  * The leaderboard (#10), for one signed-in viewer: only accounts whose public profile the viewer
  * may see (the core's ProfileAccessRule), with a public name, not deactivated or anonymized, that
  * neither hid their achievements nor opted out. Ranks count only those rows, so a position never
- * tells about anybody the viewer may not see. Totals come from last night's photo of points (the
- * viewer's own row as it is now). Never throws: anything that fails, or no photo yet, shows nobody.
+ * tells about anybody the viewer may not see. Totals count the grants still held that were made
+ * before the nightly photo (PointsCutoffInterface), read on every request; the viewer's own row as it
+ * is now. Never throws: anything that fails, or no photo yet, shows nobody.
  */
 interface AchievementLeaderboardInterface
 {

@@ -41,14 +41,15 @@ interface AchievementPointsRepositoryInterface
     public function openIds(): array;
 
     /**
-     * When the first grant still kept was made (storage zone), or null without any; with `$before`,
-     * among grants made before that instant.
+     * When the first grant still kept of an account that still exists, not deactivated or anonymized,
+     * was made (storage zone), or null without any; with `$before`, among grants made before that
+     * instant.
      */
     public function firstGrantedAt(?DateTimeImmutable $before = null): ?DateTimeImmutable;
 
     /**
-     * The earliest season a grant was made for ('2025'), or null without any: a grant for the season
-     * before, made in January, counts there.
+     * The earliest season a grant of such an account was made for ('2025'), or null without any: a
+     * grant for the season before, made in January, counts there.
      */
     public function earliestSeasonKey(?DateTimeImmutable $before = null): ?string;
 }
