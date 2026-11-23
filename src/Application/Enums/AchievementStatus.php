@@ -35,6 +35,9 @@ enum AchievementStatus: string
     /** A community achievement while community achievements are switched off */
     case CommunityOff = 'community_off';
 
+    /** Counts recognitions received while recognitions are switched off */
+    case RecognitionsOff = 'recognitions_off';
+
     public function isEvaluated(): bool
     {
         return $this === self::Evaluated;
@@ -54,7 +57,7 @@ enum AchievementStatus: string
             self::Evaluated => 'success',
             self::Manual => 'info',
             self::Inactive => 'gray',
-            self::NoSource, self::KindOff, self::SecretsOff, self::SeasonsOff, self::CommunityOff => 'warning',
+            self::NoSource, self::KindOff, self::SecretsOff, self::SeasonsOff, self::CommunityOff, self::RecognitionsOff => 'warning',
             self::InvalidRule => 'danger',
         };
     }

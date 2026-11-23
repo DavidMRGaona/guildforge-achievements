@@ -5,7 +5,7 @@ summary: Qué avisos llegan cuando consigues un logro y cómo anunciar tus logro
 category: community
 audience: site
 order: 42
-keywords: [aviso, avisos, campana, notificación, anunciar, anuncio, anuncios, logros raros, resumen mensual, resumen, día 1, he conseguido, logros que consigo, logros poco comunes, apagar avisos]
+keywords: [reconocimientos, reconocimiento, aviso, avisos, campana, notificación, anunciar, anuncio, anuncios, logros raros, resumen mensual, resumen, día 1, he conseguido, logros que consigo, logros poco comunes, apagar avisos]
 related: [achievements.site.achievements, achievements.site.privacy]
 ---
 Los avisos de logros llegan a la campana, nunca por correo.
@@ -17,6 +17,14 @@ Te llega un aviso a la campana, como mucho un minuto después: «Has conseguido 
 Solo se avisa de lo que acabas de conseguir. No llega aviso cuando lo que te lo dio es de hace más de dos semanas, por ejemplo si se crea un logro que ya cumplías o una mesa se marca como jugada mucho después. Tampoco de lo que el equipo concede a mano o en lote sin aviso.
 
 Para apagar estos avisos, abre **Ajustes de la cuenta → Avisos**, entra en **Logros** y apaga **Logros que consigo**.
+
+## Reconocimientos
+
+Cuando alguien con quien has jugado te reconoce algo, te llega un aviso al momento: «Ana te ha reconocido: «Gran narración»». No dice de qué partida. Si luego se quita ese reconocimiento, su aviso desaparece también.
+
+Después de una partida o una campaña te puede llegar, como mucho una vez al día, una invitación a reconocer a alguien de ella. Estos avisos solo te llegan a ti: nadie más se entera de que alguien te ha reconocido.
+
+Para apagarlos, abre **Ajustes de la cuenta → Avisos**, entra en **Logros** y apaga **Reconocimientos**.
 
 ## Anunciar tus logros raros
 

@@ -22,9 +22,11 @@ use Modules\Achievements\Application\Services\CommunityMetricsInterface;
 use Modules\Achievements\Domain\Entities\Achievement;
 use Modules\Achievements\Domain\Entities\AchievementGrant;
 use Modules\Achievements\Domain\Enums\GrantSource;
+use Modules\Achievements\Domain\Recognitions\RecognitionCut;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\RecognitionRepositoryInterface;
 use Modules\Achievements\Domain\Rules\AchievementRule;
 use Modules\Achievements\Domain\Rules\AnnouncementWindow;
 use Modules\Achievements\Domain\Rules\MetricType;
@@ -48,6 +50,7 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
         private TimezoneServiceInterface $time,
         private AchievementWarnings $warnings,
         private CommunityMetricsInterface $community,
+        private RecognitionRepositoryInterface $recognitions,
     ) {}
 
     public function evaluate(array $userIds, bool $silent, ?array $achievementIds = null, bool $dryRun = false): EvaluationResultDTO
@@ -78,6 +81,8 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
         $granted = [];
         $users = 0;
         $after = null;
+        /** @var array<string, true> $walked accounts already evaluated, recognition rules included */
+        $walked = [];
 
         while ($kinds !== []) {
             $chunk = $this->facts->userIdsWithKinds($kinds, $after, self::USERS_PER_CHUNK);
@@ -90,6 +95,27 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
             array_push($granted, ...$result->granted);
             $users += $result->users;
             $after = array_last($chunk);
+            $walked += array_fill_keys($chunk, true);
+        }
+
+        // Recognitions received come from no kind of activity: their own walk, over who received some
+        $byRecognitions = array_values(array_filter($evaluable, static fn (array $one): bool => $one[1]->metric === MetricType::Recognitions));
+        $cut = RecognitionCut::at(DateTimeImmutable::createFromInterface(Date::now()), $this->time->displayTimezone());
+        $after = null;
+
+        while ($byRecognitions !== []) {
+            $chunk = $this->recognitions->receiverIds($cut, $after, self::USERS_PER_CHUNK);
+
+            if ($chunk === []) {
+                break;
+            }
+
+            $after = array_last($chunk);
+            // Whoever the first walk evaluated already had these rules looked at: never twice
+            $fresh = array_values(array_filter($chunk, static fn (string $userId): bool => ! isset($walked[$userId])));
+            $result = $this->evaluateUsers($fresh, $byRecognitions, $silent, $dryRun);
+            array_push($granted, ...$result->granted);
+            $users += $result->users;
         }
 
         return new EvaluationResultDTO(EvaluationOutcome::Evaluated, $granted, $users, count($evaluable), $pending);
@@ -111,6 +137,7 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
         $needsFacts = array_any($evaluable, static fn (array $entry): bool => ! $entry[1]->isCommunity());
         $now = DateTimeImmutable::createFromInterface(Date::now());
         $zone = $this->time->displayTimezone();
+        $cut = RecognitionCut::at($now, $zone);
         $granted = [];
 
         foreach (array_chunk($userIds, self::USERS_PER_CHUNK) as $chunk) {
@@ -118,13 +145,14 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
             $held = $this->grants->heldSeasonKeys($chunk);
             // Taken away by hand: never granted again by a rule, nor counted by a dry run
             $revoked = $this->grants->revokedSeasonKeys($chunk);
-            $people = $this->communityPeople($evaluable, $chunk);
+            $people = $this->communityPeople($evaluable, $chunk) + $this->recognitionsReceived($evaluable, $chunk, $cut);
 
             foreach ($chunk as $userId) {
                 $personFacts = $facts[$userId] ?? [];
 
-                // Every rule that measures the person's facts needs at least one of its kind
-                if ($needsFacts && $personFacts === []) {
+                // Every rule that measures the person's facts needs at least one of its kind, unless
+                // recognitions received are what it counts
+                if ($needsFacts && $personFacts === [] && ! $this->receivedAny($people, $userId)) {
                     continue;
                 }
 
@@ -152,8 +180,10 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
                             continue;
                         }
 
-                        // Met long ago: granted without a notice, whatever asked for this evaluation
-                        $quiet = $silent || ! $this->window->isRecent($rule, $metAt, $now, $zone);
+                        // Met long ago: granted without a notice, whatever asked for this evaluation.
+                        // Recognitions count from the start of the month, so that is when they were met
+                        $countedAt = $rule->metric === MetricType::Recognitions ? $cut : $metAt;
+                        $quiet = $silent || ! $this->window->isRecent($rule, $countedAt, $now, $zone);
 
                         if ($dryRun) {
                             $granted[] = new GrantedAchievementDTO($userId, $achievement->id, $quiet, $season?->key());
@@ -198,6 +228,37 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
         }
 
         return $people;
+    }
+
+    /**
+     * When each recognition counted for each account of the chunk, keyed by achievement: only those
+     * given before the start of the month (RecognitionCut), as everybody else sees them. One query
+     * per type asked for, shared by the rules that ask for it.
+     *
+     * @param  list<array{Achievement, AchievementRule}>  $evaluable
+     * @param  list<string>  $userIds
+     * @return array<string, array<string, list<DateTimeImmutable>>>
+     */
+    private function recognitionsReceived(array $evaluable, array $userIds, DateTimeImmutable $cut): array
+    {
+        $byType = [];
+        $received = [];
+
+        foreach ($evaluable as [$achievement, $rule]) {
+            if ($rule->metric === MetricType::Recognitions) {
+                $received[$achievement->id] = $byType[(string) $rule->recognitionType] ??= $this->recognitions->receivedInstants($userIds, $rule->recognitionType, $cut);
+            }
+        }
+
+        return $received;
+    }
+
+    /**
+     * @param  array<string, array<string, list<DateTimeImmutable>>>  $people
+     */
+    private function receivedAny(array $people, string $userId): bool
+    {
+        return array_any($people, fn ($byUser) => ($byUser[$userId] ?? []) !== []);
     }
 
     /**

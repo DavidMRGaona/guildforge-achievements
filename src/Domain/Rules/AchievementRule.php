@@ -18,6 +18,7 @@ use JsonException;
  *     {"version": 1, "metric": "distinct", "kind": "game_session", "key": "game_system", "filters": {…}, "threshold": 3}
  *     {"version": 1, "metric": "years", "basis": "account" | "membership", "threshold": 5}
  *     {"version": 1, "metric": "people", "kind": "game_session", "filters": {"role": "director", "with_role": "player"}, "threshold": 20}
+ *     {"version": 1, "metric": "recognitions", "filters": {"type": "<recognition type id>"}, "threshold": 10}
  *     {"version": 1, "metric": "mentor", "threshold": 1}
  *     {"version": 1, "metric": "manual"}
  *     {"version": 1, "metric": "manual", "window": {"type": "season"}}
@@ -79,6 +80,7 @@ final readonly class AchievementRule
         'distinct' => ['version', 'metric', 'kind', 'key', 'filters', 'threshold', 'window'],
         'years' => ['version', 'metric', 'basis', 'threshold', 'window'],
         'people' => ['version', 'metric', 'kind', 'filters', 'threshold', 'window'],
+        'recognitions' => ['version', 'metric', 'filters', 'threshold', 'window'],
         'mentor' => ['version', 'metric', 'threshold', 'window'],
         'manual' => ['version', 'metric', 'window'],
     ];
@@ -99,6 +101,7 @@ final readonly class AchievementRule
         public ?YearsBasis $basis = null,
         public ?string $withRole = null,
         ?RuleWindow $window = null,
+        public ?string $recognitionType = null,
     ) {
         $this->window = $window ?? RuleWindow::allTime();
     }
@@ -146,6 +149,19 @@ final readonly class AchievementRule
             'metric' => MetricType::People->value,
             'kind' => $kind,
             'filters' => $filters === [] ? null : $filters,
+            'threshold' => $threshold,
+        ]));
+    }
+
+    /**
+     * Recognitions received, of any type (null) or of one.
+     */
+    public static function recognitions(int $threshold, ?string $typeId = null): ?self
+    {
+        return self::tryFrom(self::withoutNulls([
+            'version' => self::VERSION,
+            'metric' => MetricType::Recognitions->value,
+            'filters' => $typeId === null ? null : ['type' => $typeId],
             'threshold' => $threshold,
         ]));
     }
@@ -219,6 +235,10 @@ final readonly class AchievementRule
             return self::readPeopleRule($threshold, $raw);
         }
 
+        if ($metric === MetricType::Recognitions) {
+            return self::readRecognitionsRule($threshold, $raw);
+        }
+
         return self::readActivityRule($metric, $threshold, $raw, $window);
     }
 
@@ -250,6 +270,15 @@ final readonly class AchievementRule
     public function isCommunity(): bool
     {
         return $this->metric->isCommunity();
+    }
+
+    /**
+     * Measured over instants that come from outside the person's facts: the people met (community
+     * rules) or the recognitions received.
+     */
+    public function countsInstants(): bool
+    {
+        return $this->isCommunity() || $this->metric === MetricType::Recognitions;
     }
 
     /**
@@ -287,7 +316,7 @@ final readonly class AchievementRule
             MetricType::Count, MetricType::Distinct, MetricType::People => $this->kind,
             MetricType::Years => $this->basis?->kind(),
             MetricType::Mentor => self::MENTOR_KIND,
-            MetricType::Manual => null,
+            MetricType::Recognitions, MetricType::Manual => null,
         };
     }
 
@@ -319,6 +348,12 @@ final readonly class AchievementRule
                 'filters' => $this->peopleFilters($this->role, $this->withRole),
                 'threshold' => $this->threshold,
                 'window' => ['type' => self::WINDOW_ALL_TIME],
+            ]),
+            MetricType::Recognitions => self::withoutNulls([
+                'version' => self::VERSION,
+                'metric' => $this->metric->value,
+                'filters' => $this->recognitionType === null ? null : ['type' => $this->recognitionType],
+                'threshold' => $this->threshold,
             ]),
             MetricType::Count, MetricType::Distinct => self::withoutNulls([
                 'version' => self::VERSION,
@@ -357,6 +392,28 @@ final readonly class AchievementRule
         }
 
         return new self(MetricType::People, $threshold, kind: $kind, role: $role, withRole: $withRole);
+    }
+
+    /**
+     * Only an optional `filters.type`, a recognition type id (a UUID, read in lower case).
+     *
+     * @param  array<string, mixed>  $raw
+     */
+    private static function readRecognitionsRule(int $threshold, array $raw): ?self
+    {
+        $filters = $raw['filters'] ?? [];
+
+        if (! is_array($filters) || ($filters !== [] && ! self::isMap($filters)) || array_diff(array_keys($filters), ['type']) !== []) {
+            return null;
+        }
+
+        $type = $filters['type'] ?? null;
+
+        if ($type !== null && (! is_string($type) || preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/Di', $type) !== 1)) {
+            return null;
+        }
+
+        return new self(MetricType::Recognitions, $threshold, recognitionType: $type === null ? null : strtolower($type));
     }
 
     /**
@@ -464,7 +521,7 @@ final readonly class AchievementRule
         return match ($metric) {
             MetricType::Count => true,
             MetricType::Distinct, MetricType::Manual => ! $window->isStreak(),
-            MetricType::Years, MetricType::People, MetricType::Mentor => $window->isAllTime(),
+            MetricType::Years, MetricType::People, MetricType::Mentor, MetricType::Recognitions => $window->isAllTime(),
         };
     }
 

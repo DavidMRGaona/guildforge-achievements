@@ -336,7 +336,7 @@ final class AchievementsSettingsPage extends Page implements HasForms
 
     private function switchedBackOn(AchievementsSettings $before, AchievementsSettings $after): bool
     {
-        if ((! $before->secrets && $after->secrets) || (! $before->seasonsAndStreaks && $after->seasonsAndStreaks) || (! $before->community && $after->community)) {
+        if ((! $before->secrets && $after->secrets) || (! $before->seasonsAndStreaks && $after->seasonsAndStreaks) || (! $before->community && $after->community) || (! $before->recognitions && $after->recognitions)) {
             return true;
         }
 

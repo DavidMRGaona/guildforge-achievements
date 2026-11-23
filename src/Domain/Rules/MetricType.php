@@ -23,6 +23,13 @@ enum MetricType: string
     case People = 'people';
 
     /**
+     * Recognitions received (#11), of any type or of one: counted only up to the start of the
+     * month in the display zone, as everybody else sees them, so the achievement never tells
+     * when one arrived
+     */
+    case Recognitions = 'recognitions';
+
+    /**
      * Different people whose first game session as a player was one the person ran («Mentor»),
      * decided by the nightly batch alone (MentorRule)
      */

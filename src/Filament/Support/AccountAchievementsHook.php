@@ -32,14 +32,16 @@ final class AccountAchievementsHook
         }
 
         $userId = strtolower((string) $account->getKey());
+        $grants = AccountGrantsAccess::allows($userId);
+        $recognitions = RecognitionModerationAccess::allows($userId);
 
-        if (! AccountGrantsAccess::allows($userId)) {
+        if (! $grants && ! $recognitions) {
             return '';
         }
 
         /** @var view-string $view */
         $view = 'achievements::filament.account-achievements';
 
-        return view($view, ['userId' => $userId]);
+        return view($view, ['userId' => $userId, 'grants' => $grants, 'recognitions' => $recognitions]);
     }
 }

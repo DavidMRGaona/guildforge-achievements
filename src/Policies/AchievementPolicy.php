@@ -32,6 +32,9 @@ final class AchievementPolicy
 
     public const string GRANT = 'achievements:achievements.grant';
 
+    /** Seeing and deleting the recognitions of an account (#11): it shows who played together */
+    public const string MODERATE_RECOGNITIONS = 'achievements:achievements.moderate_recognitions';
+
     public function viewAny(UserModel $user): bool
     {
         return $this->authorize($user, self::VIEW_ANY)
@@ -82,6 +85,11 @@ final class AchievementPolicy
     public static function grantsAny(UserModel $user): bool
     {
         return (new self)->authorize($user, self::GRANT);
+    }
+
+    public static function moderatesRecognitions(UserModel $user): bool
+    {
+        return (new self)->authorize($user, self::MODERATE_RECOGNITIONS);
     }
 
     /**

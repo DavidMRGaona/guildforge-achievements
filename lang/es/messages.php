@@ -13,6 +13,8 @@ return [
             'grant_description' => 'Quien concede en lote ve a quién se lo concede, es decir, quién participó en esa partida, evento o reserva. Da este permiso solo a quien ya puede ver esas participaciones en su módulo.',
             'manage_description' => 'Quien gestiona el catálogo ve quién tiene cada logro y, tras una concesión en lote, a quién se le concedió, es decir, quién participó en esa partida, evento o reserva. Da este permiso solo a quien ya puede ver esas participaciones en su módulo.',
             'configure' => 'Configurar los logros',
+            'moderate_recognitions' => 'Ver y borrar los reconocimientos de cada persona',
+            'moderate_recognitions_description' => 'En la ficha de cada persona se ve a quién reconoció y quién la reconoció, es decir, con quién jugó (sin la partida y con mes y año). Da este permiso solo a quien modera la asociación.',
         ],
     ],
 
@@ -72,6 +74,7 @@ return [
             'secrets_off' => 'Secretos apagados',
             'seasons_off' => 'Temporadas apagadas',
             'community_off' => 'Comunidad apagada',
+            'recognitions_off' => 'Reconocimientos apagados',
         ],
 
         'delete' => [
@@ -93,12 +96,14 @@ return [
                 'basis' => 'Años de',
                 'threshold' => 'Cuántos hacen falta',
                 'threshold_per_month' => 'Cuántas hacen falta cada mes',
+                'recognition_type' => 'Tipo de reconocimiento',
                 'window' => 'Cuándo cuenta',
                 'streak_months' => 'Meses seguidos',
                 'streak_per_season' => 'Dentro de cada temporada',
             ],
             'helpers' => [
-                'metric' => '«Solo a mano» no se concede nunca solo. «Personas distintas» y «Mentor» son logros de comunidad: solo se conceden con los logros de comunidad encendidos. «Mentor» se revisa cada noche y solo cuenta primeras partidas de hace más de 14 días.',
+                'metric' => '«Solo a mano» no se concede nunca solo. «Personas distintas» y «Mentor» son logros de comunidad: solo se conceden con los logros de comunidad encendidos. «Mentor» se revisa cada noche y solo cuenta primeras partidas de hace más de 14 días. «Reconocimientos recibidos» cuenta, el día 1 de cada mes, los recibidos hasta el mes anterior.',
+                'recognition_type' => 'Para contar solo los de un tipo, como «Gran narración». Vacío, cuenta cualquiera.',
                 'kind' => 'Solo salen los tipos con alguna fuente activa.',
                 'role' => 'Por ejemplo, jugar o dirigir. Sin papel, cuenta cualquiera.',
                 'with_role' => 'Qué papel tenían las personas que se cuentan: jugador, para «dirigir a 20 personas». Sin papel, cuenta cualquiera. En estos logros solo valen jugador y dirección.',
@@ -106,7 +111,7 @@ return [
                 'attribute_key' => 'Para contar solo una parte: las partidas de un sistema, por ejemplo.',
                 'placement_max' => 'Para torneos: 1 es ganar y 3, subir al podio. Vacío, cualquier puesto.',
                 'basis' => 'Los de cuenta se cumplen solos con la fecha; los de socio, con cada año que informa el módulo de socios.',
-                'threshold' => 'Número de cosas, de valores distintos, de personas o de años.',
+                'threshold' => 'Número de cosas, de valores distintos, de personas, de reconocimientos o de años.',
                 'threshold_per_month' => 'Actividades distintas que hacen falta en cada uno de esos meses. Con 1 basta una al mes.',
                 'window' => 'Una temporada es un año natural. Por temporada, se vuelve a conseguir cada año y la concesión guarda el año («Temporada 2027»).',
                 'window_streak' => 'Meses naturales seguidos con actividad. Un mes sin ella corta la racha.',
@@ -122,6 +127,7 @@ return [
             ],
             'placeholders' => [
                 'any_role' => 'Cualquier papel',
+                'any_recognition_type' => 'Cualquier tipo',
                 'no_attribute' => 'Sin filtro',
             ],
             'metrics' => [
@@ -129,6 +135,7 @@ return [
                 'distinct' => 'Valores distintos',
                 'years' => 'Años',
                 'people' => 'Personas distintas',
+                'recognitions' => 'Reconocimientos recibidos',
                 'mentor' => 'Mentor: primeras partidas dirigidas',
                 'manual' => 'Solo a mano',
             ],
@@ -168,6 +175,8 @@ return [
                 'season_streak' => 'racha de :months mes en la temporada|racha de :months meses en la temporada',
                 'people' => 'Personas distintas: :threshold',
                 'with_role' => 'con :role',
+                'recognitions' => 'Reconocimientos recibidos: :threshold',
+                'recognitions_of_type' => 'Reconocimientos «:type» recibidos: :threshold',
                 'mentor' => 'Primeras partidas dirigidas: :threshold',
             ],
         ],
@@ -418,8 +427,8 @@ return [
             'leaderboard' => 'Página con la clasificación de quienes aparecen en ella, solo para cuentas con sesión. Necesita los puntos encendidos.',
             'levels_scale' => 'Cada nivel empieza en un número de puntos. El primero empieza en 0 y cada uno necesita más puntos que el anterior.',
             'challenges' => 'Objetivos colectivos con una recompensa para todas las personas que contribuyen.',
-            'recognitions' => 'Tras una partida, una campaña o un torneo, los participantes pueden reconocerse.',
-            'recognitions_window_days' => 'Días, desde que acaba la partida, la campaña o el torneo, en los que se puede reconocer.',
+            'recognitions' => 'Tras una partida o una campaña, quienes participaron pueden reconocerse. Los torneos no cuentan.',
+            'recognitions_window_days' => 'Días, contados desde el día de la partida o de la campaña, en los que se puede reconocer.',
         ],
 
         'metric_kinds' => [
@@ -617,6 +626,73 @@ return [
                 'challenge' => 'Sin elegir, el reto en marcha que antes termina (o el próximo en empezar).',
             ],
             'placeholder' => 'El que antes termina',
+        ],
+    ],
+
+    'recognition_types' => [
+        'navigation' => 'Tipos de reconocimiento',
+        'model' => [
+            'singular' => 'tipo de reconocimiento',
+            'plural' => 'tipos de reconocimiento',
+        ],
+        'sections' => [
+            'type' => 'Tipo de reconocimiento',
+            'type_description' => 'Lo que una persona puede reconocer a otra con la que ha jugado. Siempre en positivo.',
+        ],
+        'fields' => [
+            'name' => 'Nombre',
+            'icon' => 'Icono',
+            'colour' => 'Color',
+            'is_active' => 'Activo',
+        ],
+        'helpers' => [
+            'is_active' => 'Apagado, nadie puede darlo, pero los que ya se dieron siguen contando.',
+        ],
+        'delete' => [
+            'description' => 'Solo se puede borrar un tipo que no se ha dado nunca. No se puede deshacer. Si ya se ha dado, apágalo.',
+            'confirmation' => 'Entiendo que el borrado no se puede deshacer',
+        ],
+    ],
+
+    'recognitions' => [
+        'section' => [
+            'label' => 'Reconocimientos',
+            'description' => 'Cuántos reconocimientos de cada tipo ha recibido la persona. Los demás ven lo recibido hasta el mes anterior.',
+        ],
+        'stat' => [
+            'label' => 'Reconocimientos',
+            'description' => 'Reconocimientos recibidos de quienes han jugado con la persona.',
+        ],
+        'page' => [
+            'title' => 'Reconocimientos',
+            'description' => 'Reconoce lo bueno de quienes han jugado contigo.',
+            'given' => 'Reconocimiento enviado',
+            'already_given' => 'Ya habías reconocido a esa persona en esa partida',
+            'refused' => 'No se ha podido dar el reconocimiento. Puede que el plazo haya terminado o que esa persona ya no se pueda elegir.',
+            'deleted' => 'Reconocimiento quitado',
+        ],
+        'panel' => [
+            'title' => 'Reconocimientos',
+            'description' => 'Lo que esta persona ha dado y recibido. Sin la partida y con mes y año, para no decir dónde jugó.',
+            'empty' => 'Sin reconocimientos',
+            'fields' => [
+                'type' => 'Tipo',
+                'direction' => 'Sentido',
+                'person' => 'Otra persona',
+                'month' => 'Mes',
+            ],
+            'directions' => [
+                'given' => 'Dado',
+                'received' => 'Recibido',
+            ],
+            'delete' => [
+                'label' => 'Borrar',
+                'heading' => 'Borrar el reconocimiento',
+                'description' => 'Desaparece para las dos personas y deja de contar. No se puede deshacer.',
+                'confirmation' => 'Entiendo que el borrado no se puede deshacer',
+                'done' => 'Reconocimiento borrado',
+                'gone' => 'El reconocimiento ya no estaba',
+            ],
         ],
     ],
 ];

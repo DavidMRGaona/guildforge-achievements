@@ -10,7 +10,7 @@ use Tests\TestCase;
 
 final class PermissionSuggestionsTest extends TestCase
 {
-    public function test_the_module_registers_its_four_permissions(): void
+    public function test_the_module_registers_its_five_permissions(): void
     {
         $names = array_map(
             fn (PermissionDTO $permission): string => $permission->name,
@@ -21,8 +21,20 @@ final class PermissionSuggestionsTest extends TestCase
             'achievements.view_any',
             'achievements.manage',
             'achievements.grant',
+            'achievements.moderate_recognitions',
             'achievements.configure',
         ], $names);
+    }
+
+    public function test_moderating_recognitions_has_no_role_and_warns_what_it_shows(): void
+    {
+        $permissions = (new AchievementsServiceProvider($this->app))->registerPermissions();
+        $moderate = array_first(array_filter($permissions, fn (PermissionDTO $permission): bool => $permission->name === 'achievements.moderate_recognitions'));
+
+        $this->assertInstanceOf(PermissionDTO::class, $moderate);
+        $this->assertSame([], $moderate->roles);
+        $this->assertFalse($moderate->adminOnly);
+        $this->assertNotNull($moderate->description);
     }
 
     public function test_only_managing_is_suggested_for_the_content_role(): void

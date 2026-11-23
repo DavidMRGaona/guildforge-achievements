@@ -100,4 +100,12 @@ return [
         'name' => 'Mentor',
         'description' => 'Dirige la primera partida de alguien.',
     ],
+
+    // Starter recognition types (#11), copied when created
+    'recognitions' => [
+        'great_storytelling' => 'Gran narración',
+        'good_companion' => 'Buen compañero',
+        'helps_newcomers' => 'Ayuda a quien empieza',
+        'great_atmosphere' => 'Gran ambiente',
+    ],
 ];

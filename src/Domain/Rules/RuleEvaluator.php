@@ -22,6 +22,8 @@ use Modules\Achievements\Domain\ValueObjects\Season;
  * - people and mentor (community): the people the rule counts, which come from other people's
  *   facts and so from outside (`$people`: one instant per different person, when they were first
  *   met, or when a newcomer's first game was decided, MentorRule); without them, 0.
+ * - recognitions: the recognitions received that count (`$people` again: one instant per
+ *   recognition, already cut to what everybody else sees); without them, 0.
  * - manual: always 0, never met.
  *
  * Windows (RuleWindow), with days, months and years always as calendar dates in the display zone:
@@ -40,7 +42,7 @@ final class RuleEvaluator
 {
     /**
      * @param  list<AchievementFact>  $facts  the person's facts (other kinds are ignored)
-     * @param  list<DateTimeImmutable>|null  $people  community rules: when each different person was first met
+     * @param  list<DateTimeImmutable>|null  $people  community rules: when each different person was first met; recognitions: when each one counted
      * @param  Season|null  $season  for a seasonal rule, the season asked about (the current one when null); ignored otherwise
      */
     public function isMet(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone, ?array $people = null, ?Season $season = null): bool
@@ -53,7 +55,7 @@ final class RuleEvaluator
      * seasonal rule, the run going on for a streak.
      *
      * @param  list<AchievementFact>  $facts
-     * @param  list<DateTimeImmutable>|null  $people  community rules: when each different person was first met
+     * @param  list<DateTimeImmutable>|null  $people  community rules: when each different person was first met; recognitions: when each one counted
      */
     public function value(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone, ?array $people = null): int
     {
@@ -75,7 +77,7 @@ final class RuleEvaluator
     private function measure(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone, ?array $people): int
     {
         return match ($rule->metric) {
-            MetricType::People, MetricType::Mentor => count($people ?? []),
+            MetricType::People, MetricType::Mentor, MetricType::Recognitions => count($people ?? []),
             MetricType::Count => count($this->subjects($rule, $facts)),
             MetricType::Distinct => $this->distinctValues($rule, $facts),
             MetricType::Years => $rule->basis === YearsBasis::Account
@@ -122,7 +124,7 @@ final class RuleEvaluator
      * threshold was first met. A seasonal rule answers for `$season` (the current one when null).
      *
      * @param  list<AchievementFact>  $facts
-     * @param  list<DateTimeImmutable>|null  $people  community rules: when each different person was first met
+     * @param  list<DateTimeImmutable>|null  $people  community rules: when each different person was first met; recognitions: when each one counted
      */
     public function metAt(AchievementRule $rule, array $facts, DateTimeImmutable $now, DateTimeZone $displayZone, ?array $people = null, ?Season $season = null): ?DateTimeImmutable
     {
@@ -142,7 +144,7 @@ final class RuleEvaluator
             return null;
         }
 
-        if ($rule->isCommunity()) {
+        if ($rule->countsInstants()) {
             $met = $people ?? [];
             sort($met);
 

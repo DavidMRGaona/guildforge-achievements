@@ -8,6 +8,7 @@ use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Enums\AchievementStatus;
 use Modules\Achievements\Domain\Entities\Achievement;
 use Modules\Achievements\Domain\Rules\AchievementRule;
+use Modules\Achievements\Domain\Rules\MetricType;
 
 /**
  * The one decision of whether an achievement is evaluated, shared by the evaluator and the panel.
@@ -27,6 +28,16 @@ final class AchievementStatusRule
 
         if (! $rule instanceof AchievementRule) {
             return AchievementStatus::InvalidRule;
+        }
+
+        // Recognitions received come from no source of activity: only the mechanic's own switch
+        if ($rule->metric === MetricType::Recognitions) {
+            return match (true) {
+                ! $achievement->active => AchievementStatus::Inactive,
+                $achievement->secret && ! $settings->secrets => AchievementStatus::SecretsOff,
+                ! $settings->recognitions => AchievementStatus::RecognitionsOff,
+                default => AchievementStatus::Evaluated,
+            };
         }
 
         $kind = $rule->evaluatedKind();

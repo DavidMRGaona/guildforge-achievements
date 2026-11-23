@@ -29,6 +29,8 @@ interface Props {
     showsPoints?: boolean;
     /** Only for signed-in people while there is a leaderboard */
     leaderboardUrl?: string | null;
+    /** Only for signed-in people while recognitions are on */
+    recognitionsUrl?: string | null;
     challenges?: Challenge[];
     /** The season going on; null while seasons and streaks are off */
     season?: string | null;
@@ -39,6 +41,7 @@ const props = withDefaults(defineProps<Props>(), {
     signedIn: false,
     showsPoints: false,
     leaderboardUrl: null,
+    recognitionsUrl: null,
     season: null,
     challenges: () => [],
 });
@@ -94,6 +97,14 @@ function progressText(progress: AchievementProgress): string {
                 data-test="leaderboard-link"
             >
                 {{ t('achievements.catalogue.seeLeaderboard') }}
+            </Link>
+            <Link
+                v-if="recognitionsUrl"
+                :href="recognitionsUrl"
+                class="mt-2 ml-4 inline-flex min-h-[44px] items-center text-sm font-medium text-[var(--color-primary-link)] underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                data-test="recognitions-link"
+            >
+                {{ t('achievements.catalogue.seeRecognitions') }}
             </Link>
         </div>
     </div>

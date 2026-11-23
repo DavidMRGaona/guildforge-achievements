@@ -17,7 +17,7 @@ final class PermissionsTest extends ModuleTestCase
     {
         $registry = $this->app->make(PermissionRegistryInterface::class);
 
-        foreach (['view_any', 'manage', 'grant', 'configure'] as $action) {
+        foreach (['view_any', 'manage', 'grant', 'moderate_recognitions', 'configure'] as $action) {
             $this->assertTrue($registry->has('achievements:achievements.'.$action), $action);
         }
     }
@@ -35,6 +35,7 @@ final class PermissionsTest extends ModuleTestCase
             'achievements:achievements.view_any' => 'Ver los logros en el panel',
             'achievements:achievements.manage' => 'Gestionar el catálogo, los retos y los tipos de reconocimiento',
             'achievements:achievements.grant' => 'Conceder y retirar logros',
+            'achievements:achievements.moderate_recognitions' => 'Ver y borrar los reconocimientos de cada persona',
             'achievements:achievements.configure' => 'Configurar los logros',
         ], $labels);
     }
@@ -63,5 +64,10 @@ final class PermissionsTest extends ModuleTestCase
         }
 
         $this->assertSame(['achievements:achievements.manage'], $suggested);
+    }
+
+    public function test_moderating_recognitions_warns_that_it_shows_who_played_together(): void
+    {
+        $this->assertStringContainsString('con quién jugó', (string) __('achievements::messages.permissions.achievements.moderate_recognitions_description'));
     }
 }
