@@ -12,6 +12,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Date;
 use Modules\Achievements\Application\DTOs\AchievementRarityDTO;
 use Modules\Achievements\Application\Services\AchievementRarityInterface;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\ShownToOthersGrants;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use stdClass;
 use Throwable;
@@ -81,8 +82,9 @@ final class NightlyAchievementRarity implements AchievementRarityInterface
         if ($activePeople > 0) {
             $rows = $this->db->table('achievements_grants')
                 ->whereIn('user_id', $this->activePeople($since)->distinct()->select('achievements_facts.user_id'))
-                // Strictly before: a grant written in the photo's own second waits for the next one
-                ->where('granted_at', '<', $stamp)
+                // Strictly before: a grant written in the photo's own second waits for the next one;
+                // one shown by closed months waits for its month to be over
+                ->tap(fn (Builder $grants): Builder => ShownToOthersGrants::apply($grants, $takenAt, $this->time))
                 ->selectRaw('achievement_id, count(distinct user_id) as holders')
                 ->groupBy('achievement_id')
                 ->get();

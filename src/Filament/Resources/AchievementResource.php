@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Achievements\Filament\Resources;
 
 use App\Application\Profiles\ProfileBadgeIcons;
+use App\Application\Services\TimezoneServiceInterface;
 use App\Domain\Profiles\ProfileBadgeColour;
 use App\Filament\Actions\RowDetailsAction;
 use App\Filament\Forms\Components\MediaLibraryPicker;
@@ -47,6 +48,7 @@ use Modules\Achievements\Filament\Support\AchievementPanelView;
 use Modules\Achievements\Filament\Support\AchievementRuleForm;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementGrantModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\ShownToOthersGrants;
 use Modules\Achievements\Policies\AchievementPolicy;
 
 /**
@@ -176,9 +178,14 @@ final class AchievementResource extends BaseResource
 
         $takenAt = app(AchievementRarityInterface::class)->current()->takenAt;
 
-        return $takenAt instanceof DateTimeImmutable
-            ? $query->where('granted_at', '<', $takenAt->format('Y-m-d H:i:s'))
-            : $query->whereRaw('1 = 0');
+        if (! $takenAt instanceof DateTimeImmutable) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        // What others see of each holder (ShownToOthersRule): a mentor waits for its month to end
+        ShownToOthersGrants::apply($query->getQuery(), $takenAt, app(TimezoneServiceInterface::class));
+
+        return $query;
     }
 
     public static function table(Table $table): Table

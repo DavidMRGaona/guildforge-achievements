@@ -49,4 +49,14 @@ enum MetricType: string
     {
         return $this === self::Mentor;
     }
+
+    /**
+     * Others see its grants only once their month is over in the display zone (ShownToOthersRule):
+     * a mentor's grant falls a fixed time after the newcomer's first game, so a grant seen within
+     * its month could be paired with that game.
+     */
+    public function showsByClosedMonths(): bool
+    {
+        return $this === self::Mentor;
+    }
 }

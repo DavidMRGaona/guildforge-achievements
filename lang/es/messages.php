@@ -110,6 +110,7 @@ return [
                 'threshold_per_month' => 'Actividades distintas que hacen falta en cada uno de esos meses. Con 1 basta una al mes.',
                 'window' => 'Una temporada es un año natural. Por temporada, se vuelve a conseguir cada año y la concesión guarda el año («Temporada 2027»).',
                 'window_streak' => 'Meses naturales seguidos con actividad. Un mes sin ella corta la racha.',
+                'metric_locked' => 'Alguien ya tiene este logro, así que no se puede cambiar qué se mide: lo que ven los demás de cada concesión depende de ello. Si necesitas otra cosa, crea un logro nuevo.',
                 'window_locked' => 'Alguien ya tiene este logro, así que no se puede cambiar cuándo cuenta: las concesiones de un logro por temporada guardan su año y las de los demás, no. Si necesitas otro, crea un logro nuevo.',
                 'streak_months' => 'De 2 a 36 meses; dentro de una temporada, 12 como mucho.',
                 'streak_per_season' => 'La racha empieza de cero cada año y se puede conseguir una vez por temporada. Sin marcar, se consigue una sola vez.',
@@ -152,6 +153,7 @@ return [
             'value_not_offered' => ':value (ya no se ofrece)',
             'validation' => [
                 'invalid_rule' => 'Con estos datos no se puede formar una regla. Revisa los campos de la regla.',
+                'metric_locked' => 'Alguien ya tiene este logro: no se puede cambiar qué se mide. Crea un logro nuevo.',
                 'window_locked' => 'Alguien ya tiene este logro: no se puede cambiar cuándo cuenta. Crea un logro nuevo con la otra opción.',
             ],
             'summary' => [

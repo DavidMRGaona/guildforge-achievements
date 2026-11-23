@@ -106,12 +106,15 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
         }
 
         $kinds = $this->kinds($evaluable);
+        // Community rules count other people, never the person's own facts: those are read only for
+        // the rules that measure them (the nightly batch reads none)
+        $needsFacts = array_any($evaluable, static fn (array $entry): bool => ! $entry[1]->isCommunity());
         $now = DateTimeImmutable::createFromInterface(Date::now());
         $zone = $this->time->displayTimezone();
         $granted = [];
 
         foreach (array_chunk($userIds, self::USERS_PER_CHUNK) as $chunk) {
-            $facts = $this->facts->forUsers($chunk, $kinds);
+            $facts = $needsFacts ? $this->facts->forUsers($chunk, $kinds) : [];
             $held = $this->grants->heldSeasonKeys($chunk);
             // Taken away by hand: never granted again by a rule, nor counted by a dry run
             $revoked = $this->grants->revokedSeasonKeys($chunk);
@@ -120,8 +123,8 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
             foreach ($chunk as $userId) {
                 $personFacts = $facts[$userId] ?? [];
 
-                // Every rule needs at least one fact of its kind
-                if ($personFacts === []) {
+                // Every rule that measures the person's facts needs at least one of its kind
+                if ($needsFacts && $personFacts === []) {
                     continue;
                 }
 

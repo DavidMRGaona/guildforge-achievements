@@ -85,13 +85,18 @@ Premian a quien trae y cuida gente, no solo a quien juega mucho: jugar con mucha
 
 ### Mentor
 
-Premia a quien dirige la primera partida de alguien: la primera partida en la que esa persona juega como jugador.
+Premia a quien dirige la primera partida de alguien: la primera partida en la que esa persona juega como jugador, aunque antes haya dirigido alguna. Una campaña entera no cuenta como partida; cada una de sus sesiones, sí.
 
 - **Se revisa cada noche**, nunca al momento, y solo para primeras partidas de hace más de 14 días. Una mesa se marca como completada a menudo días después de jugarse: con ese margen, la primera de verdad llega antes de decidir y no quedan dos mentores para la misma persona.
-- **Se concede con la fecha de esa noche**, nunca con la de la partida, así que no coincide con la «Primera partida» de quien empezaba.
-- **Un mentor por persona nueva.** Si la mesa tuvo varias personas en la dirección, el mentor es la que además creó la mesa. Si ninguna la creó, no hay mentor. Si alguien empezó con dos mesas a la misma hora, tampoco.
+- **Se concede con la fecha de esa noche**, nunca con la de la partida.
+- **Los demás lo ven por meses cerrados.** Un Mentor concedido en noviembre lo ven los demás a partir del 1 de diciembre, a la vez que todos los de ese mes: en su perfil, en el contador, en los puntos, en la clasificación y en la rareza. Así no se puede emparejar con la «Primera partida» de nadie. En este panel, quien solo puede ver el catálogo lo cuenta igual en **Personas**. Quien lo consigue lo ve en su perfil al momento.
+- **Un mentor por persona nueva, para siempre.** Si la mesa tuvo varias personas en la dirección, el mentor es la que además creó la mesa. Si ninguna la creó, no hay mentor. Si alguien empezó con dos mesas a la misma hora, tampoco. Lo que se decide esa noche ya no cambia: aunque luego aparezca una mesa anterior o la primera deje de contar, nadie más es su mentor.
+- **Dirigir con el nombre oculto.** Quien dirige sin enseñar su nombre cuenta como jugador en esa mesa: nunca es el mentor, y si era su primera partida como jugador, cuenta como persona nueva de quien dirigía a la vista.
+- **El progreso** sube con la revisión de la noche, no antes.
+- **Antes de la primera noche** hay que recalcular la actividad una vez (lo explica la guía «Ajustes de los logros y recálculo»): hasta entonces no se decide ningún Mentor.
+- **Qué se mide no cambia** en cuanto alguien tiene el logro: lo que ven los demás de cada concesión depende de ello. Para otra cosa, crea un logro nuevo.
 - **Aviso.** Quien lo consigue recibe el aviso de siempre si la primera partida es de las últimas semanas. Lo que se decide de golpe, porque la partida es más antigua (al instalar el módulo, por ejemplo), se concede sin aviso.
-- **Qué se deduce.** Quien lo recibe sabe que alguien de una mesa que dirigió no había jugado antes en {{site_name}}. La asociación lo acepta a cambio de este logro. Los demás solo ven que lo tiene, con el mes y el año, nunca a quién dio la bienvenida.
+- **Qué se deduce.** Quien lo recibe sabe que alguien de una mesa que dirigió no había jugado antes en {{site_name}}. La asociación lo acepta a cambio de este logro. Los demás solo ven que lo tiene, con el mes y el año y cuando ese mes ha terminado, nunca a quién dio la bienvenida.
 
 ## Lo que se concede no se retira
 

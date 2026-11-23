@@ -261,6 +261,14 @@ final readonly class AchievementRule
     }
 
     /**
+     * Shown to others by closed months only (see MetricType::showsByClosedMonths()).
+     */
+    public function showsByClosedMonths(): bool
+    {
+        return $this->metric->showsByClosedMonths();
+    }
+
+    /**
      * Who a community rule counts, without its threshold: two rules of the same shape count the
      * same people, so they share one query and one cached count.
      */
