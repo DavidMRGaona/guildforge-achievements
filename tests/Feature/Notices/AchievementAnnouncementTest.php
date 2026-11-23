@@ -19,8 +19,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Exceptions\AchievementSettingsUnreadableException;
+use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\Enums\GrantSource;
+use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
+use Modules\Achievements\Domain\ValueObjects\NewGrant;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Jobs\DeliverAchievementAnnouncementsJob;
 use Modules\Achievements\Jobs\ReleaseAchievementAnnouncementsJob;
@@ -28,6 +31,7 @@ use Modules\Achievements\Notifications\AchievementNoticeCategories;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsNotices;
 use Modules\Achievements\Tests\Support\BuildsShowcase;
+use RuntimeException;
 use Tests\Support\Modules\ModuleTestCase;
 use Tests\Support\Time\UsesUtcStorage;
 
@@ -81,7 +85,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
 
         $items = $this->announcementsOf($this->bea);
         $this->assertCount(1, $items);
-        $this->assertSame('Ana consiguió logros raros en noviembre', $items[0]->title);
+        $this->assertSame('Ana consiguió un logro raro en noviembre', $items[0]->title);
         $this->assertSame('Ana: «Maestro de campañas»', $items[0]->body);
         $this->assertSame('/miembros/'.$this->handleOf($this->ana), $items[0]->url);
         $this->assertSame('trophy', $items[0]->icon);
@@ -192,7 +196,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->earn($this->ana, $achievement, GrantSource::Challenge);
         $this->release();
 
-        $this->assertCount(1, $this->announcementsOf($this->bea));
+        $this->assertSame('Ana consiguió un logro de un reto en noviembre', $this->announcementsOf($this->bea)[0]->title);
     }
 
     public function test_a_rare_manual_grant_is_told(): void
@@ -375,7 +379,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->release();
 
         Bus::assertDispatched(DeliverAchievementAnnouncementsJob::class, fn (DeliverAchievementAnnouncementsJob $job): bool => $job->month === '2026-11'
-            && $job->entries === [strtolower((string) $this->ana->id) => [strtolower((string) $achievement->id)]]
+            && $job->entries === [strtolower((string) $this->ana->id) => [strtolower((string) $achievement->id) => 'rare']]
             && $job->afterCommit === true
             && in_array((string) $this->bea->id, $job->accountIds, true)
             && in_array((string) $this->ana->id, $job->accountIds, true)
@@ -407,7 +411,7 @@ final class AchievementAnnouncementTest extends ModuleTestCase
 
         $this->deliverDispatched();
 
-        $this->assertSame('Carla consiguió logros raros en noviembre', $this->announcementsOf($this->bea)[0]->title);
+        $this->assertSame('Carla consiguió un logro raro en noviembre', $this->announcementsOf($this->bea)[0]->title);
     }
 
     public function test_the_summary_runs_on_the_first_of_each_month_in_the_display_zone(): void
@@ -422,6 +426,142 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->assertSame('0 10 1 * *', $event->expression);
         $zone = $event->timezone;
         $this->assertSame(app(TimezoneServiceInterface::class)->displayTimezone()->getName(), $zone instanceof DateTimeZone ? $zone->getName() : $zone);
+    }
+
+    public function test_a_challenge_and_a_rare_one_are_told_as_both(): void
+    {
+        $challenge = $this->manualAchievement('Reto de otoño');
+        $rare = $this->rare('Raro');
+        $this->rarity([...$this->rareShares, (string) $challenge->id => 80.0]);
+
+        $this->earn($this->ana, $challenge, GrantSource::Challenge);
+        $this->earn($this->ana, $rare);
+        $this->release();
+
+        $this->assertSame('Ana consiguió logros raros y de retos en noviembre', $this->announcementsOf($this->bea)[0]->title);
+    }
+
+    public function test_the_same_public_name_twice_is_ordered_by_account(): void
+    {
+        $other = $this->person('Ana');
+        $this->allowAnnouncing($other);
+        $this->earn($other, $this->rare('Raro de la otra Ana'));
+        $this->earn($this->ana, $this->rare('Raro de Ana'));
+
+        $this->release();
+
+        [$first, $second] = strcmp(strtolower((string) $this->ana->id), strtolower((string) $other->id)) < 0
+            ? ['Raro de Ana', 'Raro de la otra Ana']
+            : ['Raro de la otra Ana', 'Raro de Ana'];
+        $this->assertSame('Ana: «'.$first.'»; Ana: «'.$second.'»', $this->announcementsOf($this->bea)[0]->body);
+    }
+
+    public function test_what_arrives_late_goes_under_its_own_month(): void
+    {
+        // 23:59 of 31 October where people are (Madrid, UTC+1)
+        $this->travelTo('2026-10-31 22:59:00');
+        $this->earn($this->ana, $this->rare('Raro de octubre'));
+        $this->travelTo('2026-11-20 12:00:00');
+        $carla = $this->person('Carla');
+        $this->allowAnnouncing($carla);
+        $this->earn($carla, $this->rare('Raro de noviembre'));
+
+        $this->release();
+
+        $titles = array_map(static fn (SiteNotificationItemDTO $item): string => $item->title, $this->announcementsOf($this->bea));
+        sort($titles);
+        $this->assertSame(['Ana consiguió un logro raro en octubre', 'Carla consiguió un logro raro en noviembre'], $titles);
+    }
+
+    public function test_the_month_ends_where_people_are(): void
+    {
+        // 00:30 of 1 December in Madrid: a December grant, told in January
+        $this->travelTo('2026-11-30 23:30:00');
+        $this->earn($this->ana, $this->rare('Primera hora de diciembre'));
+
+        $this->release();
+        $this->assertSame([], $this->announcementsOf($this->bea));
+
+        $this->release();
+        $this->assertSame('Ana consiguió un logro raro en diciembre', $this->announcementsOf($this->bea)[0]->title);
+    }
+
+    public function test_an_achievement_revoked_before_the_summary_is_not_told(): void
+    {
+        $grant = $this->earn($this->ana, $this->rare('Retirado'));
+        app(AchievementGranterInterface::class)->revoke($grant->id, (string) UserModel::factory()->create()->id, 'Error');
+
+        $this->release();
+
+        $this->assertSame([], $this->announcementsOf($this->bea));
+    }
+
+    public function test_an_achievement_revoked_between_the_summary_and_its_delivery_is_not_told(): void
+    {
+        Bus::fake([DeliverAchievementAnnouncementsJob::class]);
+        $grant = $this->earn($this->ana, $this->rare('Retirado tarde'));
+        $this->release();
+        app(AchievementGranterInterface::class)->revoke($grant->id, (string) UserModel::factory()->create()->id, 'Error');
+
+        $this->deliverDispatched();
+
+        $this->assertSame([], $this->announcementsOf($this->bea));
+    }
+
+    public function test_a_season_grant_is_told(): void
+    {
+        $seasonal = $this->achievement(['version' => 1, 'metric' => 'manual', 'window' => ['type' => 'season']], ['name' => 'Mejor máster del año']);
+        $this->rareShares[(string) $seasonal->id] = 1.0;
+        $this->rarity($this->rareShares);
+
+        $granted = app(AchievementGranterInterface::class)->grant(new NewGrant(strtolower((string) $this->ana->id), (string) $seasonal->id, GrantSource::Manual, false, (string) UserModel::factory()->create()->id, '2026'));
+        $this->assertNotNull($granted);
+
+        $this->assertSame('Has conseguido «Mejor máster del año»', $this->bellOf($this->ana, AchievementNoticeCategories::EARNED)[0]->title);
+        $this->release();
+        $this->assertSame('Ana: «Mejor máster del año»', $this->announcementsOf($this->bea)[0]->body);
+    }
+
+    public function test_unreadable_settings_at_delivery_keep_the_batch_for_a_retry(): void
+    {
+        Bus::fake([DeliverAchievementAnnouncementsJob::class]);
+        $this->earn($this->ana, $this->rare('Raro'));
+        $this->release();
+        $job = Bus::dispatched(DeliverAchievementAnnouncementsJob::class)->first();
+        $this->assertInstanceOf(DeliverAchievementAnnouncementsJob::class, $job);
+        $this->unreadableSettings();
+
+        $retried = new DeliverAchievementAnnouncementsJob($job->month, $job->entries, $job->accountIds)->withFakeQueueInteractions();
+        app()->call($retried->handle(...));
+        $retried->assertReleased();
+        $this->assertSame([], $this->announcementsOf($this->bea));
+
+        $last = new DeliverAchievementAnnouncementsJob($job->month, $job->entries, $job->accountIds)->withFakeQueueInteractions();
+        $this->assertInstanceOf(FakeJob::class, $last->job);
+        $last->job->attempts = $last->tries;
+        $this->expectException(AchievementSettingsUnreadableException::class);
+        app()->call($last->handle(...));
+    }
+
+    public function test_what_fails_for_the_whole_batch_fails_before_anybody_is_told(): void
+    {
+        Bus::fake([DeliverAchievementAnnouncementsJob::class]);
+        $this->earn($this->ana, $this->rare('Raro'));
+        $this->release();
+        $job = Bus::dispatched(DeliverAchievementAnnouncementsJob::class)->first();
+        $this->assertInstanceOf(DeliverAchievementAnnouncementsJob::class, $job);
+        $broken = $this->createStub(AchievementRepositoryInterface::class);
+        $broken->method('find')->willThrowException(new RuntimeException('Catalogue down'));
+        $this->app->instance(AchievementRepositoryInterface::class, $broken);
+
+        try {
+            app()->call($job->handle(...));
+            $this->fail('The failure should reach the job, so it is tried again.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Catalogue down', $exception->getMessage());
+        }
+
+        $this->assertSame([], $this->announcementsOf($this->bea));
     }
 
     /**

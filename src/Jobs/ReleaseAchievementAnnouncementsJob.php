@@ -18,15 +18,19 @@ use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Exceptions\AchievementSettingsUnreadableException;
 use Modules\Achievements\Application\Services\AchievementRarityInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Domain\Entities\AchievementGrant;
+use Modules\Achievements\Domain\Enums\GrantSource;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\PendingAchievementNoticeRepositoryInterface;
 use Modules\Achievements\Domain\Rules\AnnouncementRule;
+use Modules\Achievements\Notifications\AchievementsAnnouncedNotification;
 
 /**
  * The monthly summary of announcements (achievements#6): on the first day of each month
  * (RELEASE_DAY at RELEASE_AT, display zone), the rare and challenge achievements got before that
- * month, told to whoever may see each owner's profile in one notice per reader.
+ * month, told to whoever may see each owner's profile in one notice per reader and month: each
+ * grant goes under the display month it was got in, so a late one never names a false month.
  *
  * Others never learn more of when an achievement was got than its month: grants of one evaluation
  * share their second, so telling them at once, or even on the same day, would say who played with
@@ -72,30 +76,34 @@ final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, Should
             return;
         }
 
-        $today = $timezone->today();
-        // Everything got before this month; what is left over from an earlier failed month goes too
-        $before = $timezone->displayMonthRange($today)[0];
-        $month = $today->modify('first day of last month')->format('Y-m');
+        // Everything got before this display month: what arrives late (a grant of the 31st queued
+        // after this release, a month whose release failed) goes in the next one, under its own month
+        $before = $timezone->displayMonthRange($timezone->today())[0];
 
-        $pending->releaseAnnouncements($before, function (array $waiting) use ($settings, $grants, $preferences, $rarityService, $month): void {
+        $pending->releaseAnnouncements($before, function (array $waiting) use ($settings, $grants, $preferences, $rarityService, $timezone): void {
             // Off: what waited is dropped, never told once the mechanic comes back
             if (! $settings->announcements) {
                 return;
             }
 
             $rarity = $rarityService->current();
-            $entries = [];
+            $byMonth = [];
 
             foreach ($waiting as $ownerId => $grantIds) {
-                $announced = $this->announced((string) $ownerId, $grantIds, $grants, $preferences, $settings, $rarity);
-
-                if ($announced !== []) {
-                    $entries[(string) $ownerId] = $announced;
+                foreach ($this->announced((string) $ownerId, $grantIds, $grants, $preferences, $settings, $rarity) as $grant) {
+                    $month = $timezone->toDisplay($grant->grantedAt)->format('Y-m');
+                    $achievementId = strtolower($grant->achievementId);
+                    $kind = $grant->source === GrantSource::Challenge ? AchievementsAnnouncedNotification::CHALLENGE : AchievementsAnnouncedNotification::RARE;
+                    // Got in several seasons of one month: once, as a challenge one if any was
+                    $known = $byMonth[$month][(string) $ownerId][$achievementId] ?? null;
+                    $byMonth[$month][(string) $ownerId][$achievementId] = $known === AchievementsAnnouncedNotification::CHALLENGE ? $known : $kind;
                 }
             }
 
-            if ($entries !== []) {
-                $this->queue($month, $entries);
+            ksort($byMonth);
+
+            foreach ($byMonth as $month => $entries) {
+                $this->queue((string) $month, $entries);
             }
         });
     }
@@ -120,7 +128,7 @@ final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, Should
 
     /**
      * @param  list<string>  $grantIds
-     * @return list<string> achievement ids
+     * @return list<AchievementGrant> the grants others may hear of
      */
     private function announced(
         string $ownerId,
@@ -144,27 +152,24 @@ final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, Should
         }
 
         $wanted = array_flip($grantIds);
-        $ids = [];
 
-        foreach ($grants->forUser($ownerId) as $grant) {
-            if (isset($wanted[strtolower($grant->id)]) && AnnouncementRule::announces(
+        // Any season: a repeatable achievement got again is told again
+        return array_values(array_filter(
+            $grants->forUser($ownerId),
+            static fn (AchievementGrant $grant): bool => isset($wanted[strtolower($grant->id)]) && AnnouncementRule::announces(
                 $grant->source,
                 $grant->silent,
                 $rarity->shareOf($grant->achievementId),
                 $settings->announcementsRarityThreshold,
-            )) {
-                $ids[strtolower($grant->achievementId)] = true;
-            }
-        }
-
-        return array_keys($ids);
+            ),
+        ));
     }
 
     /**
      * Every account but the anonymized ones, in batches, queued once the transaction commits.
      * Owners are readers too: each one hears of the others.
      *
-     * @param  array<string, list<string>>  $entries
+     * @param  array<string, array<string, string>>  $entries  owner id => achievement id => kind
      */
     private function queue(string $month, array $entries): void
     {

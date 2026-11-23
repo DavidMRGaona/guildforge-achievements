@@ -60,7 +60,7 @@ Si no quieres la sección en tu perfil pero sí los destacados junto a tu nombre
 
 ## Avisos de logros
 
-Cuando consigues un logro, te llega un aviso a la campana: «Has conseguido «Diez partidas»». Si consigues varios a la vez, llegan juntos en un solo aviso. No llegan correos.
+Cuando consigues un logro, te llega un aviso a la campana: «Has conseguido “Diez partidas”». Si consigues varios a la vez, llegan juntos en un solo aviso. No llegan correos.
 
 No hay aviso de lo que ya tenías ganado antes de que existiera el logro, ni de lo que la asociación concede en lote sin aviso.
 

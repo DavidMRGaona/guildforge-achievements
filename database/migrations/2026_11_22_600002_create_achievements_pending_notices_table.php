@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Grants waiting to be told (achievements#6), once per kind of notice: to the holder a little later
- * (all of one evaluation together), and to others in the next daily release of announcements. A
+ * (all of one evaluation together), and to others in the monthly summary of announcements. A
  * revoked grant (its row deleted) leaves with it.
  */
 return new class extends Migration

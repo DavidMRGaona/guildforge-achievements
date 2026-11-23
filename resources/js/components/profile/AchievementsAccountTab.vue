@@ -85,8 +85,9 @@ function toggle(choice: Choice): void {
                 saved = true;
                 status.value = t(`achievements.account.${choice}.${value ? 'on' : 'off'}`);
             },
-            onError: () => {
-                error.value = t('achievements.profile.saveFailed');
+            // A refusal the server explains (announcements switched off meanwhile) is shown as it is
+            onError: (errors: Record<string, string>) => {
+                error.value = errors[choice] ?? t('achievements.profile.saveFailed');
             },
             // A refusal (read-only impersonation, too many requests) is told here, not in Inertia's dialog
             onHttpException: (response: { status?: number; data?: unknown }) => {

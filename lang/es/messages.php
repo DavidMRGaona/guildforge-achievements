@@ -273,7 +273,7 @@ return [
             'reason' => 'Motivo',
             'reason_helper' => 'Opcional. Queda en el historial; la persona no lo ve.',
             'notify' => 'Avisar a la persona',
-            'notify_helper' => 'Le llega un aviso de que lo ha conseguido.',
+            'notify_helper' => 'Le llega un aviso de que lo ha conseguido. Si el logro es raro y la persona lo permite, sale además en el resumen mensual de logros de quien puede ver su perfil.',
             'season' => 'Temporada',
             'season_helper' => 'Este logro se consigue una vez por temporada. La anterior sirve para lo que se hizo antes de cambiar de año.',
             'season_refused' => 'Esa temporada no se puede elegir.',
@@ -310,7 +310,7 @@ return [
             'notice' => 'Aviso',
             'notices' => [
                 'silent' => 'En silencio: sin aviso a nadie',
-                'notify' => 'Con aviso a cada persona',
+                'notify' => 'Con aviso a cada persona (lo concedido en lote nunca sale en el resumen mensual de logros raros)',
             ],
             'reason' => 'Motivo',
             'reason_helper' => 'Opcional. El mismo para todas las concesiones; la persona no lo ve.',

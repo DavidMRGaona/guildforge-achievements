@@ -14,6 +14,7 @@ use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInt
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsNotices;
 use Modules\Achievements\Tests\Support\BuildsShowcase;
+use Modules\Achievements\Tests\Support\InterleavedPreferences;
 use Tests\Support\Modules\ModuleTestCase;
 
 /**
@@ -147,17 +148,59 @@ final class AccountAchievementsTabTest extends ModuleTestCase
         $this->assertFalse(app(AchievementPreferencesRepositoryInterface::class)->find((string) $this->ana->id)->inLeaderboard);
     }
 
-    public function test_announcing_is_left_as_it_was_while_announcements_are_off(): void
+    public function test_announcing_is_refused_while_announcements_are_off(): void
     {
         $this->settings(new AchievementsSettings(announcements: false));
 
         $this->actingAs($this->ana)
+            ->from('/perfil?tab=achievements')
             ->put('/logros/preferencias', ['announceRare' => true, 'inLeaderboard' => false])
-            ->assertStatus(303);
+            ->assertSessionHasErrors('announceRare');
 
         $saved = app(AchievementPreferencesRepositoryInterface::class)->find((string) $this->ana->id);
         $this->assertFalse($saved->announceRare);
+        $this->assertTrue($saved->inLeaderboard);
+    }
+
+    public function test_a_stale_read_in_one_writer_never_undoes_the_other(): void
+    {
+        $held = $this->manualAchievement('Destacado');
+        $this->grantAt($this->ana, (string) $held->id);
+        $real = app(AchievementPreferencesRepositoryInterface::class);
+        $ownerId = (string) $this->ana->id;
+        $stale = $real->find($ownerId);
+        // The tab writes while the profile section's request is between reading and saving
+        $this->app->instance(AchievementPreferencesRepositoryInterface::class, new InterleavedPreferences($real, $stale, static function () use ($real, $ownerId): void {
+            $real->saveChoices($ownerId, announceRare: true, inLeaderboard: false);
+        }));
+
+        $this->actingAs($this->ana)
+            ->put('/logros/miembros/'.$this->handleOf($this->ana), ['hidden' => true, 'featured' => [(string) $held->id]])
+            ->assertStatus(303);
+
+        $saved = $real->find((string) $this->ana->id);
+        $this->assertTrue($saved->hidden);
+        $this->assertSame([strtolower((string) $held->id)], $saved->featured);
+        $this->assertTrue($saved->announceRare);
         $this->assertFalse($saved->inLeaderboard);
+    }
+
+    public function test_the_tab_never_undoes_what_the_section_saved_meanwhile(): void
+    {
+        $real = app(AchievementPreferencesRepositoryInterface::class);
+        $ownerId = (string) $this->ana->id;
+        $stale = $real->find($ownerId);
+        $this->app->instance(AchievementPreferencesRepositoryInterface::class, new InterleavedPreferences($real, $stale, static function () use ($real, $ownerId): void {
+            $real->saveShowcase($ownerId, true, []);
+        }));
+
+        $this->actingAs($this->ana)
+            ->put('/logros/preferencias', ['announceRare' => true])
+            ->assertStatus(303);
+
+        $saved = $real->find((string) $this->ana->id);
+        $this->assertTrue($saved->hidden);
+        $this->assertTrue($saved->announceRare);
     }
 
     public function test_each_writer_changes_only_its_own_choices(): void

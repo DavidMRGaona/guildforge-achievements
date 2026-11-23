@@ -22,10 +22,19 @@ return [
     ],
 
     'announced' => [
-        'one' => ':person consiguió logros raros en :month',
-        'two' => ':first y :second consiguieron logros raros en :month',
-        'many' => ':first, :second y :count más consiguieron logros raros en :month|:first, :second y :count más consiguieron logros raros en :month',
+        'one' => ':person consiguió :what en :month',
+        'two' => ':first y :second consiguieron :what en :month',
+        'many' => ':first, :second y :count más consiguieron :what en :month|:first, :second y :count más consiguieron :what en :month',
         'person' => ':person: :achievements',
+        'what' => [
+            'rare' => 'un logro raro|logros raros',
+            'challenge' => 'un logro de un reto|logros de retos',
+            'mixed' => 'logros raros y de retos|logros raros y de retos',
+        ],
+    ],
+
+    'account' => [
+        'announcements_off' => 'Los anuncios de logros están apagados ahora mismo: no se puede cambiar.',
     ],
 
     'list' => [

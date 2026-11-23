@@ -83,8 +83,11 @@ final class DeliverAchievementNoticesJob implements ShouldBeUniqueUntilProcessin
                 }
             }
 
-            if ($achievementIds !== []) {
-                $owner->notify(new AchievementsEarnedNotification(array_keys($achievementIds)));
+            // Built first: what fails while building fails the job, the channel would swallow it
+            $notification = AchievementsEarnedNotification::for($owner, array_keys($achievementIds));
+
+            if ($notification instanceof AchievementsEarnedNotification) {
+                $owner->notify($notification);
             }
         });
     }

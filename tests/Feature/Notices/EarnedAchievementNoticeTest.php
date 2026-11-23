@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Domain\Enums\GrantSource;
+use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
 use Modules\Achievements\Jobs\DeliverAchievementNoticesJob;
 use Modules\Achievements\Notifications\AchievementNoticeCategories;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
@@ -218,6 +219,31 @@ final class EarnedAchievementNoticeTest extends ModuleTestCase
 
         $this->assertSame('Has conseguido «Primera»', $this->bellOf($this->ana, AchievementNoticeCategories::EARNED)[0]->title);
         $this->assertSame(0, DB::table('achievements_pending_notices')->where('kind', 'earned')->count());
+    }
+
+    public function test_with_the_real_channel_a_notice_that_cannot_be_built_is_kept_for_the_retry(): void
+    {
+        Bus::fake([DeliverAchievementNoticesJob::class]);
+        $this->earn($this->ana, $this->manualAchievement('Primera'));
+        $real = app(AchievementRepositoryInterface::class);
+        $broken = $this->createStub(AchievementRepositoryInterface::class);
+        $broken->method('find')->willThrowException(new RuntimeException('Catalogue down'));
+        $this->app->instance(AchievementRepositoryInterface::class, $broken);
+
+        try {
+            $this->deliver($this->ana);
+            $this->fail('The failure should reach the job, so it is tried again.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Catalogue down', $exception->getMessage());
+        }
+
+        $this->assertSame(1, DB::table('achievements_pending_notices')->where('kind', 'earned')->count());
+        $this->assertSame([], $this->bellOf($this->ana, AchievementNoticeCategories::EARNED));
+
+        $this->app->instance(AchievementRepositoryInterface::class, $real);
+        $this->deliver($this->ana);
+
+        $this->assertSame('Has conseguido «Primera»', $this->bellOf($this->ana, AchievementNoticeCategories::EARNED)[0]->title);
     }
 
     private function deliver(UserModel $user): void

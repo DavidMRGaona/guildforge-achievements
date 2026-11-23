@@ -25,37 +25,43 @@ use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
 
 /**
  * The monthly summary of others' rare and challenge achievements (achievements#6), one notice per
- * reader: «Ana, Bob y 3 más consiguieron logros raros en noviembre».
+ * reader and month: «Ana, Bob y 3 más consiguieron logros raros en noviembre».
  *
  * It says the month and nothing finer: no day, no hour, and people are listed by name, never by
  * when or with whom they got something. Everything is asked again when it is delivered, and fails
- * closed: the mechanic still on (settings read strictly), each owner still active, still allowing it
- * and not hiding their achievements, the achievements still held, and each owner's profile visible
- * to this reader (the core's profile page rule, through PublicProfileServiceInterface). A reader is
+ * closed: the mechanic still on, each owner still active, still allowing it and not hiding their
+ * achievements, the achievements still held (in any season), and each owner's profile visible to
+ * this reader (the core's profile page rule, through PublicProfileServiceInterface). A reader is
  * never told about themselves. A secret is named only to a reader who holds it, or once its owner
  * featured it (which reveals it to everybody); anybody else gets it counted.
  *
- * One instance goes to a whole batch (DeliverAchievementAnnouncementsJob): what is about the owners
- * is read once, and what the readers hold in one query, only when some secret needs it.
+ * One instance goes to a whole batch (DeliverAchievementAnnouncementsJob), which calls prepare()
+ * first: what is about the owners, and what the readers hold (in one query, only when some secret
+ * needs it), is read there, so a failure there is the job's, before anybody is told.
  */
 final class AchievementsAnnouncedNotification extends Notification implements HasMailCategory, HasSiteNotification
 {
     public const string GROUP_KEY_PREFIX = 'achievements.announcements:';
 
-    private ?bool $on = null;
+    /** An achievement held by fewer active people than the threshold */
+    public const string RARE = 'rare';
 
-    /** @var array<string, array{handle: string, achievements: list<Achievement>, featured: list<string>}|false> */
+    /** The reward of a collective challenge */
+    public const string CHALLENGE = 'challenge';
+
+    private bool $prepared = false;
+
+    private bool $on = false;
+
+    /** @var array<string, array{handle: string, achievements: list<array{achievement: Achievement, kind: string}>, featured: list<string>}> */
     private array $owners = [];
 
-    /** @var list<string> */
-    private array $readerIds = [];
-
-    /** @var array<string, array<string, int>>|null */
-    private ?array $readerHoldings = null;
+    /** @var array<string, array<string, int>> */
+    private array $readerHoldings = [];
 
     /**
      * @param  string  $month  `Y-m` of the display zone
-     * @param  array<string, list<string>>  $entries  owner id => achievement ids
+     * @param  array<string, array<string, string>>  $entries  owner id => achievement id => kind (RARE, CHALLENGE)
      */
     public function __construct(
         public readonly string $month,
@@ -63,14 +69,50 @@ final class AchievementsAnnouncedNotification extends Notification implements Ha
     ) {}
 
     /**
-     * The accounts this instance goes to, so what they hold is read for all of them at once.
+     * Reads everything the batch shares; anything that fails, fails here.
      *
      * @param  list<string>  $readerIds
      */
-    public function forReaders(array $readerIds): void
+    public function prepare(AchievementsSettings $settings, array $readerIds): void
     {
-        $this->readerIds = array_values(array_unique(array_map(strtolower(...), $readerIds)));
-        $this->readerHoldings = null;
+        $this->prepared = true;
+        $this->on = $settings->announcements;
+        $this->owners = [];
+        $this->readerHoldings = [];
+
+        if (! $this->on) {
+            return;
+        }
+
+        $needsHoldings = false;
+
+        foreach (array_keys($this->entries) as $ownerId) {
+            $owner = $this->readOwner(strtolower((string) $ownerId));
+
+            if ($owner === null) {
+                continue;
+            }
+
+            $this->owners[strtolower((string) $ownerId)] = $owner;
+
+            foreach ($owner['achievements'] as $item) {
+                $needsHoldings = $needsHoldings || ($item['achievement']->secret && ! in_array(strtolower($item['achievement']->id), $owner['featured'], true));
+            }
+        }
+
+        if ($needsHoldings && $readerIds !== []) {
+            $readerIds = array_values(array_unique(array_map(strtolower(...), $readerIds)));
+            $found = app(AchievementGrantRepositoryInterface::class)->heldAchievementIds($readerIds);
+
+            foreach ($readerIds as $readerId) {
+                $this->readerHoldings[$readerId] = array_flip($found[$readerId] ?? []);
+            }
+        }
+    }
+
+    public function hasAnything(): bool
+    {
+        return $this->on && $this->owners !== [];
     }
 
     /**
@@ -88,15 +130,31 @@ final class AchievementsAnnouncedNotification extends Notification implements Ha
 
     public function toSiteNotification(object $notifiable): ?SiteNotificationDTO
     {
-        if (! $notifiable instanceof Authenticatable || ! $this->isOn()) {
+        if (! $notifiable instanceof Authenticatable) {
             return null;
         }
 
         $readerId = strtolower((string) $notifiable->getAuthIdentifier());
+
+        // Sent on its own, outside a batch: read what it needs now
+        if (! $this->prepared) {
+            $settings = app(AchievementsSettingsInterface::class)->readStrictly();
+
+            if (! $settings instanceof AchievementsSettings) {
+                return null;
+            }
+
+            $this->prepare($settings, [$readerId]);
+        }
+
+        if (! $this->hasAnything()) {
+            return null;
+        }
+
         $people = [];
 
-        foreach (array_keys($this->entries) as $ownerId) {
-            $person = $this->personFor(strtolower((string) $ownerId), $readerId, $notifiable);
+        foreach ($this->owners as $ownerId => $owner) {
+            $person = $this->personFor((string) $ownerId, $owner, $readerId, $notifiable);
 
             if ($person !== null) {
                 $people[] = $person;
@@ -107,8 +165,9 @@ final class AchievementsAnnouncedNotification extends Notification implements Ha
             return null;
         }
 
-        // By name, never by when: the order says nothing of who got what together
-        usort($people, static fn (array $a, array $b): int => [mb_strtolower($a['name']), $a['name']] <=> [mb_strtolower($b['name']), $b['name']]);
+        // By name, never by when: the order says nothing of who got what together; the same name
+        // twice is ordered by account
+        usort($people, static fn (array $a, array $b): int => [mb_strtolower($a['name']), $a['name'], $a['ownerId']] <=> [mb_strtolower($b['name']), $b['name'], $b['ownerId']]);
 
         $title = $this->title($people);
 
@@ -129,37 +188,39 @@ final class AchievementsAnnouncedNotification extends Notification implements Ha
     }
 
     /**
-     * @param  non-empty-list<array{name: string, url: string, named: list<string>, secrets: int}>  $people
+     * Who, what (one achievement or several; rare, of challenges or both) and the month.
+     *
+     * @param  non-empty-list<array{ownerId: string, name: string, url: string, named: list<string>, secrets: int, kinds: list<string>}>  $people
      */
     private function title(array $people): string
     {
-        $month = $this->monthName();
+        $count = array_sum(array_map(static fn (array $person): int => count($person['named']) + $person['secrets'], $people));
+        $kinds = array_values(array_unique(array_merge(...array_map(static fn (array $person): array => $person['kinds'], $people))));
+        $kind = count($kinds) > 1 ? 'mixed' : ($kinds[0] ?? self::RARE);
+        $what = trans_choice('achievements::notifications.announced.what.'.$kind, $count);
         $names = array_map(static fn (array $person): string => $person['name'], $people);
+        $month = $this->monthName();
 
         return match (count($names)) {
-            1 => __('achievements::notifications.announced.one', ['person' => $names[0], 'month' => $month]),
-            2 => __('achievements::notifications.announced.two', ['first' => $names[0], 'second' => $names[1], 'month' => $month]),
+            1 => __('achievements::notifications.announced.one', ['person' => $names[0], 'what' => $what, 'month' => $month]),
+            2 => __('achievements::notifications.announced.two', ['first' => $names[0], 'second' => $names[1], 'what' => $what, 'month' => $month]),
             default => trans_choice('achievements::notifications.announced.many', count($names) - 2, [
                 'first' => $names[0],
                 'second' => $names[1],
                 'count' => count($names) - 2,
+                'what' => $what,
                 'month' => $month,
             ]),
         };
     }
 
     /**
-     * @return array{name: string, url: string, named: list<string>, secrets: int}|null
+     * @param  array{handle: string, achievements: list<array{achievement: Achievement, kind: string}>, featured: list<string>}  $owner
+     * @return array{ownerId: string, name: string, url: string, named: list<string>, secrets: int, kinds: list<string>}|null
      */
-    private function personFor(string $ownerId, string $readerId, Authenticatable $reader): ?array
+    private function personFor(string $ownerId, array $owner, string $readerId, Authenticatable $reader): ?array
     {
         if ($ownerId === $readerId) {
-            return null;
-        }
-
-        $owner = $this->owner($ownerId);
-
-        if ($owner === false) {
             return null;
         }
 
@@ -177,9 +238,12 @@ final class AchievementsAnnouncedNotification extends Notification implements Ha
 
         $named = [];
         $secrets = 0;
+        $kinds = [];
 
-        foreach ($owner['achievements'] as $achievement) {
+        foreach ($owner['achievements'] as $item) {
+            $achievement = $item['achievement'];
             $id = strtolower($achievement->id);
+            $kinds[$item['kind']] = true;
 
             if (! $achievement->secret || in_array($id, $owner['featured'], true) || $this->readerHolds($readerId, $id)) {
                 $named[] = $achievement->name;
@@ -190,81 +254,67 @@ final class AchievementsAnnouncedNotification extends Notification implements Ha
 
         sort($named, SORT_NATURAL | SORT_FLAG_CASE);
 
-        return ['name' => $name, 'url' => route('profiles.show', ['handle' => $profile->handle], false), 'named' => $named, 'secrets' => $secrets];
+        return [
+            'ownerId' => $ownerId,
+            'name' => $name,
+            'url' => route('profiles.show', ['handle' => $profile->handle], false),
+            'named' => $named,
+            'secrets' => $secrets,
+            'kinds' => array_keys($kinds),
+        ];
     }
 
     private function readerHolds(string $readerId, string $achievementId): bool
     {
+        // A reader outside the batch prepared (a single send) is read on its own
         if (! isset($this->readerHoldings[$readerId])) {
-            // The first time, the whole batch in one query; a reader outside it, on its own
-            $ids = $this->readerHoldings === null && in_array($readerId, $this->readerIds, true) ? $this->readerIds : [$readerId];
-            $found = app(AchievementGrantRepositoryInterface::class)->heldAchievementIds($ids);
-
-            foreach ($ids as $id) {
-                $this->readerHoldings[$id] = array_flip($found[$id] ?? []);
-            }
+            $found = app(AchievementGrantRepositoryInterface::class)->heldAchievementIds([$readerId]);
+            $this->readerHoldings[$readerId] = array_flip($found[$readerId] ?? []);
         }
 
         return isset($this->readerHoldings[$readerId][$achievementId]);
     }
 
-    private function isOn(): bool
-    {
-        if ($this->on === null) {
-            $settings = app(AchievementsSettingsInterface::class)->readStrictly();
-            $this->on = $settings instanceof AchievementsSettings && $settings->announcements;
-        }
-
-        return $this->on;
-    }
-
     /**
-     * What is about one owner, read once for the whole batch; false when nothing may be told.
+     * What is about one owner; null when nothing may be told about them.
      *
-     * @return array{handle: string, achievements: list<Achievement>, featured: list<string>}|false
+     * @return array{handle: string, achievements: list<array{achievement: Achievement, kind: string}>, featured: list<string>}|null
      */
-    private function owner(string $ownerId): array|false
-    {
-        return $this->owners[$ownerId] ??= $this->readOwner($ownerId);
-    }
-
-    /**
-     * @return array{handle: string, achievements: list<Achievement>, featured: list<string>}|false
-     */
-    private function readOwner(string $ownerId): array|false
+    private function readOwner(string $ownerId): ?array
     {
         $account = UserModel::query()->find($ownerId);
 
         // Deactivated (not found) or anonymized meanwhile: nothing is told about them
         if (! $account instanceof UserModel || $account->anonymized_at !== null) {
-            return false;
+            return null;
         }
 
         $preferences = app(AchievementPreferencesRepositoryInterface::class)->find($ownerId);
 
         if (! $preferences->announceRare || $preferences->hidden) {
-            return false;
+            return null;
         }
 
         $card = app(ProfileCardServiceInterface::class)->card($ownerId, $account);
 
         if (! $card instanceof ProfileCardDTO) {
-            return false;
+            return null;
         }
 
+        // Any season counts: what is still held, in whichever
         $held = array_flip(app(AchievementGrantRepositoryInterface::class)->heldAchievementIds([$ownerId])[$ownerId] ?? []);
         $catalogue = app(AchievementRepositoryInterface::class);
         $achievements = [];
 
-        foreach ($this->entries[$ownerId] ?? [] as $id) {
-            $achievement = isset($held[strtolower($id)]) ? $catalogue->find($id) : null;
+        foreach ($this->entries[$ownerId] ?? [] as $id => $kind) {
+            $achievement = isset($held[strtolower((string) $id)]) ? $catalogue->find((string) $id) : null;
 
             if ($achievement instanceof Achievement) {
-                $achievements[] = $achievement;
+                $achievements[] = ['achievement' => $achievement, 'kind' => $kind === self::CHALLENGE ? self::CHALLENGE : self::RARE];
             }
         }
 
-        return $achievements === [] ? false : ['handle' => $card->handle, 'achievements' => $achievements, 'featured' => $preferences->featured];
+        return $achievements === [] ? null : ['handle' => $card->handle, 'achievements' => $achievements, 'featured' => $preferences->featured];
     }
 
     private function monthName(): string

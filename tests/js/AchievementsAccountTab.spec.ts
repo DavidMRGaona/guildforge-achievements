@@ -107,6 +107,25 @@ describe('AchievementsAccountTab', () => {
         );
     });
 
+    it('shows what the server refused and puts the choice back', async () => {
+        vi.mocked(router.put).mockImplementation((_url, _data, options) => {
+            options?.onError?.({
+                announceRare: 'Los anuncios de logros están apagados ahora mismo.',
+            });
+            options?.onFinish?.({} as never);
+        });
+        const wrapper = mountTab(account());
+
+        await wrapper.find('[data-test="switch-announceRare"]').trigger('click');
+
+        expect(wrapper.find('[role="alert"]').text()).toBe(
+            'Los anuncios de logros están apagados ahora mismo.'
+        );
+        expect(wrapper.find('[data-test="switch-announceRare"]').attributes('aria-checked')).toBe(
+            'false'
+        );
+    });
+
     it('ignores a switch while a change is being saved', async () => {
         vi.mocked(router.put).mockImplementation(() => undefined);
         const wrapper = mountTab(account());

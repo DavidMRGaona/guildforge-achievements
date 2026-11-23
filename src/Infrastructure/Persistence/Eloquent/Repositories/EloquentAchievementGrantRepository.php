@@ -6,6 +6,7 @@ namespace Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories;
 
 use App\Domain\Activity\ActivityIdentifierRule;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Database\ConnectionInterface;
@@ -74,7 +75,8 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
                 return null;
             }
 
-            $now = new DateTimeImmutable('now', new DateTimeZone(date_default_timezone_get()));
+            // The application's clock (Carbon), in the storage zone, so a test that travels moves it too
+            $now = CarbonImmutable::now(new DateTimeZone(date_default_timezone_get()))->toDateTimeImmutable();
             $id = (string) Str::uuid7();
             $stamp = $now->format(self::STORAGE_FORMAT);
 
@@ -355,7 +357,7 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
 
     private function now(): string
     {
-        return new DateTimeImmutable('now', new DateTimeZone(date_default_timezone_get()))->format(self::STORAGE_FORMAT);
+        return CarbonImmutable::now(new DateTimeZone(date_default_timezone_get()))->format(self::STORAGE_FORMAT);
     }
 
     /**

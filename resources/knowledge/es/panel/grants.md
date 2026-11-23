@@ -5,7 +5,7 @@ summary: Da un logro a una persona o a todas las que participaron en algo, retí
 category: users-and-roles
 audience: panel
 order: 81
-keywords: [logros, conceder, retirar, quitar, lote, en lote, asistentes, evento, torneo, mesa, historial, motivo, fundadora, aviso, silencio]
+keywords: [logros, conceder, retirar, quitar, lote, en lote, asistentes, evento, torneo, mesa, historial, motivo, fundadora, aviso, silencio, anuncio, resumen mensual]
 conditions:
   permissions:
     any: ['achievements:achievements.grant', 'achievements:achievements.manage']
@@ -26,6 +26,8 @@ Desde la cuenta: abre **Personas** → **Usuarios**, entra en la cuenta y baja h
 
 Los logros secretos solo los ve, y por tanto solo los concede, quien gestiona el catálogo.
 
+Con **Avisar a la persona** encendido, le llega un aviso a la campana. Si además el logro es raro (lo tiene menos gente activa que el umbral de los ajustes) y la persona lo permite en su pestaña **Logros**, sale en el resumen mensual de logros que reciben, el día 1 del mes siguiente, quienes pueden ver su perfil. En silencio no sale en ningún sitio.
+
 ## Conceder un logro en lote
 
 Sirve para dar un logro a todas las personas que participaron en algo con un papel: quien asistió a un evento, quien jugó un torneo, quien dirigió una mesa…
@@ -36,7 +38,7 @@ Sirve para dar un logro a todas las personas que participaron en algo con un pap
 4. Comprueba a cuántas personas se concederá, cuántas ya lo tienen y a cuántas se les retiró.
 
    > **Atención:** quien concede en lote ve a quién se lo concede, es decir, quién participó en esa partida, evento o reserva. Quien gestiona el catálogo también lo ve en **Personas que lo tienen** y en el historial. Da `achievements.grant` o `achievements.manage` solo a quien ya puede ver esas participaciones en su módulo.
-5. Elige el **Aviso**: **En silencio** o **Con aviso a cada persona**.
+5. Elige el **Aviso**: **En silencio** o **Con aviso a cada persona**. Con aviso, a cada persona le llega un aviso a la campana; lo concedido en lote no sale nunca en el resumen mensual de logros raros, porque diría quién participó en esa cosa.
 6. Escribe un **Motivo** si quieres (el mismo para todas), marca la casilla y pulsa **Conceder en lote**.
 
 A quien ya lo tiene no le cambia nada. A quien se lo retiraron no se le vuelve a dar en lote: si hace falta, concédeselo a mano.
