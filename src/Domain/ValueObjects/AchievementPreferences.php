@@ -89,4 +89,13 @@ final readonly class AchievementPreferences
     {
         return new self($this->userId, $this->hidden, $this->featured, $announceRare, $inLeaderboard);
     }
+
+    /**
+     * Whether the person may appear in the leaderboard by their own choice (#10): not while their
+     * achievements are hidden, nor once they left it.
+     */
+    public function appearsInLeaderboard(): bool
+    {
+        return ! $this->hidden && $this->inLeaderboard;
+    }
 }

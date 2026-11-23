@@ -36,6 +36,8 @@ use Livewire\Livewire;
 use Modules\Achievements\Application\Services\AchievementCatalogueInterface;
 use Modules\Achievements\Application\Services\AchievementEvaluatorInterface;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
+use Modules\Achievements\Application\Services\AchievementLeaderboardInterface;
+use Modules\Achievements\Application\Services\AchievementPointsInterface;
 use Modules\Achievements\Application\Services\AchievementRarityInterface;
 use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
@@ -45,6 +47,7 @@ use Modules\Achievements\Application\Services\BulkGrantInterface;
 use Modules\Achievements\Application\Services\ChallengeBoardInterface;
 use Modules\Achievements\Application\Services\ChallengeEvaluatorInterface;
 use Modules\Achievements\Application\Services\CommunityMetricsInterface;
+use Modules\Achievements\Application\Services\PointsCutoffInterface;
 use Modules\Achievements\Application\Services\StarterCatalogueInterface;
 use Modules\Achievements\Console\Commands\InstallStarterCatalogueCommand;
 use Modules\Achievements\Console\Commands\RecalculateAchievementFactsCommand;
@@ -52,6 +55,7 @@ use Modules\Achievements\Domain\Events\AchievementFactsChanged;
 use Modules\Achievements\Domain\Events\AchievementGranted;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\ChallengeRepositoryInterface;
@@ -71,6 +75,7 @@ use Modules\Achievements\Infrastructure\Community\LedgerCommunityMetrics;
 use Modules\Achievements\Infrastructure\Grants\AchievementEvaluator;
 use Modules\Achievements\Infrastructure\Grants\AchievementGranter;
 use Modules\Achievements\Infrastructure\Grants\BulkGranter;
+use Modules\Achievements\Infrastructure\Leaderboard\Leaderboard;
 use Modules\Achievements\Infrastructure\Observers\CountChangedChallenge;
 use Modules\Achievements\Infrastructure\Observers\EvaluateChangedAchievements;
 use Modules\Achievements\Infrastructure\Observers\ForgetFeaturedWhenMadeSecret;
@@ -78,13 +83,17 @@ use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementM
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\ChallengeModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementFactRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementGrantRepository;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementPointsRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementPreferencesRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentChallengeRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentPendingAchievementNoticeRepository;
+use Modules\Achievements\Infrastructure\Points\AchievementPoints;
+use Modules\Achievements\Infrastructure\Points\NightlyPhotoPointsCutoff;
 use Modules\Achievements\Infrastructure\Profiles\AccountAchievementsTab;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsCountProfileStat;
 use Modules\Achievements\Infrastructure\Profiles\AchievementShowcase;
+use Modules\Achievements\Infrastructure\Profiles\AchievementsLevelProfileStat;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsProfileSection;
 use Modules\Achievements\Infrastructure\Profiles\FeaturedAchievementBadges;
 use Modules\Achievements\Infrastructure\Rarity\NightlyAchievementRarity;
@@ -109,6 +118,7 @@ use Modules\Achievements\Listeners\RecordActivityFacts;
 use Modules\Achievements\Notifications\AchievementNoticeCategories;
 use Modules\Achievements\Policies\AchievementPolicy;
 use Modules\Achievements\Policies\ChallengePolicy;
+use Throwable;
 
 /**
  * Achievements («Logros»): what people have done in the association, as badges, levels and
@@ -119,6 +129,11 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
 {
     /** The owner's choices from the profile section (featured badges, hiding them) */
     public const string PROFILE_CHOICES_LIMITER = 'achievements-profile-choices';
+
+    /** The leaderboard page (#10): each request works out what one viewer may see */
+    public const string LEADERBOARD_LIMITER = 'achievements-leaderboard';
+
+    private const int LEADERBOARD_PER_MINUTE = 30;
 
     private const int PROFILE_CHOICES_PER_MINUTE = 20;
 
@@ -164,6 +179,13 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         $this->app->scoped(AchievementRarityInterface::class, NightlyAchievementRarity::class);
         $this->app->scoped(AchievementShowcaseInterface::class, AchievementShowcase::class);
 
+        // Points, levels and the leaderboard (#10): each account's points once per request or job
+        $this->app->bind(AchievementPointsRepositoryInterface::class, EloquentAchievementPointsRepository::class);
+        $this->app->scoped(AchievementPointsInterface::class, AchievementPoints::class);
+        $this->app->bind(AchievementLeaderboardInterface::class, Leaderboard::class);
+        // Up to when others see grants: the instant of the nightly photo, like the rest of the profile
+        $this->app->bind(PointsCutoffInterface::class, NightlyPhotoPointsCutoff::class);
+
         // Collective challenges (#12): the count from the ledger and what pages and blocks show
         $this->app->bind(ChallengeRepositoryInterface::class, EloquentChallengeRepository::class);
         $this->app->bind(ChallengeEvaluatorInterface::class, ChallengeEvaluator::class);
@@ -195,6 +217,8 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
             Limit::perMinute(self::PROFILE_CHOICES_PER_MINUTE)->by('achievements-choices:'.self::requesterKey($request)),
             Limit::perHour(self::PROFILE_CHOICES_PER_HOUR)->by('achievements-choices-hour:'.self::requesterKey($request)),
         ]);
+        RateLimiter::for(self::LEADERBOARD_LIMITER, static fn (Request $request): Limit => Limit::perMinute(self::LEADERBOARD_PER_MINUTE)
+            ->by('achievements-leaderboard:'.self::requesterKey($request)));
         $this->showOnTheUserPage();
         $this->shareAccountTab();
         $this->keepMediaUsagesUpToDate();
@@ -378,7 +402,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
      */
     public function registerProfileStats(): array
     {
-        return [AchievementsCountProfileStat::class];
+        return [AchievementsCountProfileStat::class, AchievementsLevelProfileStat::class];
     }
 
     /**
@@ -413,7 +437,22 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
                 label: __('achievements::messages.title'),
                 module: $this->moduleName(),
             ),
+            // Offered to the menu editor only while there is a leaderboard: a link to it would answer 404
+            ...($this->leaderboardShown() ? [new ModuleRouteDTO(
+                routeName: 'achievements.leaderboard',
+                label: __('achievements::messages.leaderboard.title'),
+                module: $this->moduleName(),
+            )] : []),
         ];
+    }
+
+    private function leaderboardShown(): bool
+    {
+        try {
+            return $this->app->make(AchievementsSettingsInterface::class)->leaderboardShown();
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     /**

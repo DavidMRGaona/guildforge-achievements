@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Achievements\AchievementsServiceProvider;
 use Modules\Achievements\Http\Controllers\AccountAchievementsController;
 use Modules\Achievements\Http\Controllers\AchievementCatalogueController;
+use Modules\Achievements\Http\Controllers\LeaderboardController;
 use Modules\Achievements\Http\Controllers\ProfileAchievementsController;
 
 /*
@@ -23,6 +24,12 @@ Route::prefix('logros')
     ->group(function (): void {
         // The catalogue with the rarity of each achievement, for everybody
         Route::get('/', AchievementCatalogueController::class)->name('index');
+
+        // The leaderboard (#10): signed-in accounts only (and, with `auth`, the core's email
+        // verification applies); it answers 404 while points or the leaderboard are off
+        Route::get('clasificacion', LeaderboardController::class)
+            ->middleware(['auth', ThrottleWhereListed::class.':'.AchievementsServiceProvider::LEADERBOARD_LIMITER])
+            ->name('leaderboard');
 
         // The owner's choices from their profile's section: only the owner of the profile at
         // {handle} passes (the core's profile editor rule), anybody else gets a 404

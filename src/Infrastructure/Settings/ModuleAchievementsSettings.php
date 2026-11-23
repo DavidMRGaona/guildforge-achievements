@@ -12,6 +12,7 @@ use App\Infrastructure\Modules\Services\SettingsTableModuleSettingsStore;
 use JsonException;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Domain\ValueObjects\LevelScale;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Throwable;
 
@@ -172,6 +173,21 @@ final class ModuleAchievementsSettings implements AchievementsSettingsInterface
     public function leaderboardEnabled(): bool
     {
         return $this->settings()->leaderboard;
+    }
+
+    public function levelScale(): LevelScale
+    {
+        return $this->settings()->levelScale();
+    }
+
+    public function levelsShown(): bool
+    {
+        return $this->settings()->levelsShown();
+    }
+
+    public function leaderboardShown(): bool
+    {
+        return $this->settings()->leaderboardShown();
     }
 
     public function recognitionsEnabled(): bool

@@ -107,7 +107,7 @@ final class AccountAchievementsTabTest extends ModuleTestCase
 
     public function test_the_owner_saves_their_choices_and_keeps_the_rest(): void
     {
-        $this->settings(new AchievementsSettings(leaderboard: true));
+        $this->settings(new AchievementsSettings(points: true, leaderboard: true));
         $held = $this->manualAchievement('Destacado');
         $this->grantAt($this->ana, (string) $held->id);
         $this->choose($this->ana, hidden: false, featured: [(string) $held->id]);

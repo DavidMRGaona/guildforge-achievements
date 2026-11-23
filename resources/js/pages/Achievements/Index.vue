@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { Link } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import { Check, RefreshCw } from '@lucide/vue';
 import HelpLink from '@/components/knowledge/HelpLink.vue';
@@ -25,6 +26,9 @@ interface Props {
     achievements: CatalogueAchievement[];
     showsRarity?: boolean;
     signedIn?: boolean;
+    showsPoints?: boolean;
+    /** Only for signed-in people while there is a leaderboard */
+    leaderboardUrl?: string | null;
     challenges?: Challenge[];
     /** The season going on; null while seasons and streaks are off */
     season?: string | null;
@@ -33,6 +37,8 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
     showsRarity: false,
     signedIn: false,
+    showsPoints: false,
+    leaderboardUrl: null,
     season: null,
     challenges: () => [],
 });
@@ -81,6 +87,14 @@ function progressText(progress: AchievementProgress): string {
                     })
                 }}
             </p>
+            <Link
+                v-if="leaderboardUrl"
+                :href="leaderboardUrl"
+                class="mt-2 inline-flex min-h-[44px] items-center text-sm font-medium text-[var(--color-primary-link)] underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                data-test="leaderboard-link"
+            >
+                {{ t('achievements.catalogue.seeLeaderboard') }}
+            </Link>
         </div>
     </div>
 
@@ -159,6 +173,15 @@ function progressText(progress: AchievementProgress): string {
                             </span>
                             <span v-else-if="showsRarity && item.heldByNobody">
                                 {{ t('achievements.rarity.nobody') }}
+                            </span>
+                            <span v-if="showsPoints && item.points != null && item.points > 0">
+                                {{
+                                    t(
+                                        'achievements.points.count',
+                                        { points: item.points.toLocaleString(locale) },
+                                        item.points
+                                    )
+                                }}
                             </span>
                             <span
                                 v-if="item.repeats"

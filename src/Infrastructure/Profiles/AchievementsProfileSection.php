@@ -10,10 +10,14 @@ use App\Application\Profiles\DTOs\ProfileOwnerDTO;
 use App\Application\Services\EmailVerificationPolicyInterface;
 use App\Domain\Profiles\ProfileRegion;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Modules\Achievements\Application\DTOs\PointsSummaryDTO;
 use Modules\Achievements\Application\DTOs\ShowcaseItemDTO;
+use Modules\Achievements\Application\Services\AchievementPointsInterface;
 use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\ValueObjects\AchievementPreferences;
+use Modules\Achievements\Domain\ValueObjects\Level;
+use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Throwable;
 
 /**
@@ -35,6 +39,8 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
         private AchievementsSettingsInterface $settings,
         private ShowcasePresenter $presenter,
         private EmailVerificationPolicyInterface $verification,
+        private AchievementPointsInterface $points,
+        private AchievementWarnings $warnings,
     ) {}
 
     public function key(): string
@@ -94,6 +100,7 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
         // second), and with it to the game or event behind it. The owner sees none masked.
         $secrets = count(array_filter($earned, static fn (ShowcaseItemDTO $item): bool => $item->achievement->masked));
         $earned = array_values(array_filter($earned, static fn (ShowcaseItemDTO $item): bool => ! $item->achievement->masked));
+        $showsPoints = $this->settings->pointsEnabled();
 
         if ($earned === [] && $locked === [] && $secrets === 0) {
             throw NothingToDrawException::make();
@@ -103,20 +110,95 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
         $preferences = $isOwner && ! $this->mustVerify($viewer) ? $this->showcase->preferences($owner->id) : null;
 
         return [
-            'earned' => array_map($this->presenter->earned(...), $earned),
+            // While points are off nothing says points at all
+            'earned' => array_map(
+                fn (ShowcaseItemDTO $item): array => $this->presenter->earned($item) + ($showsPoints ? ['points' => $item->points] : []),
+                $earned,
+            ),
             'secretCount' => $secrets,
             'locked' => array_map($this->presenter->locked(...), $locked),
             'showsRarity' => $this->settings->rarityEnabled(),
             'catalogueUrl' => route('achievements.index', absolute: false),
-            'owner' => $preferences instanceof AchievementPreferences ? [
-                'hidden' => $preferences->hidden,
-                'chosen' => array_values(array_filter(
-                    $preferences->featured,
-                    static fn (string $id): bool => array_any($earned, static fn (ShowcaseItemDTO $item): bool => $item->achievement->id === $id),
-                )),
-                'maxFeatured' => AchievementPreferences::MAX_FEATURED,
-                'updateUrl' => route('achievements.profile.update', ['handle' => $owner->handle], absolute: false),
-            ] : null,
+            'owner' => $preferences instanceof AchievementPreferences ? $this->owner($owner, $earned, $preferences) : null,
+        ] + $this->pointsProp($showsPoints, $owner, $viewerId, $isOwner);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function pointsProp(bool $showsPoints, ProfileOwnerDTO $owner, ?string $viewerId, bool $isOwner): array
+    {
+        if (! $showsPoints) {
+            return [];
+        }
+
+        try {
+            $points = $this->points($owner, $viewerId, $isOwner);
+        } catch (Throwable $exception) {
+            // Only the points go: the rest of the section still draws
+            $this->warnings->warn('profile_points_unavailable', '[Achievements] The points of a profile could not be read; they are not shown.', [
+                'reason' => 'profile_points_unavailable',
+                'exception' => $exception::class,
+            ]);
+
+            return [];
+        }
+
+        return $points === null ? [] : ['points' => $points];
+    }
+
+    /**
+     * The owner's own controls: hiding, the featured stars and, while there is a leaderboard,
+     * whether they appear in it (#10).
+     *
+     * @param  list<ShowcaseItemDTO>  $earned
+     * @return array<string, mixed>
+     */
+    private function owner(ProfileOwnerDTO $owner, array $earned, AchievementPreferences $preferences): array
+    {
+        return [
+            'hidden' => $preferences->hidden,
+            'chosen' => array_values(array_filter(
+                $preferences->featured,
+                static fn (string $id): bool => array_any($earned, static fn (ShowcaseItemDTO $item): bool => $item->achievement->id === $id),
+            )),
+            'maxFeatured' => AchievementPreferences::MAX_FEATURED,
+            'updateUrl' => route('achievements.profile.update', ['handle' => $owner->handle], absolute: false),
+        ] + ($this->settings->leaderboardShown() ? ['leaderboard' => $preferences->inLeaderboard] : []);
+    }
+
+    /**
+     * The owner's totals as this viewer may see them (#10): all time, the current season while
+     * seasons are on, the level while levels show. The owner sees their own at once, with every point
+     * and the next level. Anybody else sees last night's photo (points of people who played together
+     * never rise at once), and secrets masked to them only counted (secretCount), never added: a
+     * total minus the points shown would give their points away, and with them who holds them.
+     * Nothing for anybody else without a photo, or with no points in it: never a 0.
+     *
+     * @return array{total: int, season: int|null, seasonYear: int, level: array{number: int, name: string, threshold: int}|null, nextLevel: array{number: int, name: string, threshold: int}|null, leaderboardUrl: string|null}|null
+     */
+    private function points(ProfileOwnerDTO $owner, ?string $viewerId, bool $isOwner): ?array
+    {
+        $summary = $this->points->summary($owner->id, $viewerId);
+
+        if (! $summary instanceof PointsSummaryDTO || (! $isOwner && $summary->total === 0)) {
+            return null;
+        }
+        $level = static fn (?Level $level): ?array => $level instanceof Level ? [
+            'number' => $level->number,
+            'name' => $level->name,
+            'threshold' => $level->threshold,
+        ] : null;
+
+        return [
+            'total' => $summary->total,
+            'season' => $summary->season,
+            'seasonYear' => $summary->seasonYear,
+            'level' => $level($summary->level),
+            // How far the next level is: the owner's own progress
+            'nextLevel' => $isOwner ? $level($summary->nextLevel) : null,
+            // Signed-in accounts only open it
+            'leaderboardUrl' => $viewerId !== null && $this->settings->leaderboardShown() ? route('achievements.leaderboard', absolute: false) : null,
         ];
     }
 

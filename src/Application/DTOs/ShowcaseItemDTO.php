@@ -19,6 +19,7 @@ use DateTimeImmutable;
  * Locked (only ever built for the owner): `progress` and `threshold` say how far they are («7 de
  * 10»), both null for an achievement granted by hand or shown masked; `season` is the season that
  * progress is about (one that repeats) and `inMonths` says it counts months in a row (a streak).
+ * `points`: what the achievement gives (#10); sent only for what the viewer may see.
  */
 final readonly class ShowcaseItemDTO
 {
@@ -38,5 +39,6 @@ final readonly class ShowcaseItemDTO
         public array $seasons = [],
         public ?string $season = null,
         public bool $inMonths = false,
+        public int $points = 0,
     ) {}
 }

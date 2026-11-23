@@ -45,7 +45,7 @@ final readonly class AccountAchievementsTab
             'hidden' => $preferences->hidden,
             'offersAnnouncements' => $settings->announcements,
             // Without points there is no leaderboard to show
-            'leaderboardOn' => $settings->points && $settings->leaderboard,
+            'leaderboardOn' => $settings->leaderboardShown(),
             'threshold' => $settings->announcementsRarityThreshold,
             'updateUrl' => route('achievements.account.update', [], false),
             'noticesUrl' => route('profile.show', ['tab' => 'mail'], false),

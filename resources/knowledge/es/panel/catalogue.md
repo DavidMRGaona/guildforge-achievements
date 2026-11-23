@@ -5,7 +5,7 @@ summary: Crea logros, decide cuándo se conceden solos y entiende por qué uno s
 category: users-and-roles
 audience: panel
 order: 80
-keywords: [logros, insignias, catálogo, reglas, conceder, partidas, sistemas, torneos, podio, eventos, antigüedad, secreto, sin fuente, puntos, umbral, recalcular, rareza, gente activa, destacados, perfil, menú, página de logros, temporada, temporadas, cada año, repetible, racha, rachas, meses seguidos, constancia, comunidad, personas distintas, dirigir]
+keywords: [logros, insignias, catálogo, reglas, conceder, partidas, sistemas, torneos, podio, eventos, antigüedad, secreto, sin fuente, puntos, umbral, recalcular, rareza, gente activa, destacados, perfil, menú, página de logros, niveles, clasificación, temporada, comunidad, personas distintas, dirigir, temporadas, cada año, repetible, racha, rachas, meses seguidos, constancia]
 conditions:
   permissions:
     any: ['achievements:achievements.view_any', 'achievements:achievements.manage']
@@ -95,6 +95,14 @@ La **rareza** es la parte de la gente activa que tiene un logro: cuentas que han
 En el perfil, los demás ven la fecha de cada logro solo con mes y año, porque quienes juegan juntos lo consiguen a la vez y la hora exacta diría con quién se jugó; el dueño ve el día. En el panel, quien puede conceder o gestionar logros ve la fecha completa. Los logros secretos de otra persona no se ven uno a uno: solo cuántos tiene. Si marcas como secreto un logro que alguien tenía destacado, deja de estar destacado para todo el mundo, porque nadie eligió enseñarlo siendo secreto.
 
 La página **Logros** de la web enseña los logros que se pueden conseguir ahora, con la rareza de cada uno; los secretos salen como «Logro secreto». Los que se repiten llevan «Cada temporada», y cada persona ve si lo tiene este año y cuánto lleva. No salen los que están **Sin fuente**, **Tipo apagado**, **Secretos apagados**, **Temporadas apagadas** ni con **Regla no válida**, salvo a quien ya los tiene. Al habilitar el módulo se añade un enlace a ella en el menú de la cabecera; puedes moverlo o borrarlo en **Sitio web** → **Navegación**, y no vuelve.
+
+## Puntos, niveles y clasificación
+
+Los **puntos** de cada logro se escriben en su ficha. Mientras **Puntos** esté encendido en *Sistema → Configuración → Logros*, cada persona suma los puntos de sus logros y los ve en su perfil, desde siempre y en la temporada en curso (el año natural). Los demás ven ese total con lo conseguido hasta la noche anterior, para que nadie vea subir a la vez los puntos de quienes juegan juntos; lo que se quita (una retirada, un logro que pasa a secreto) y los cambios de puntos de un logro se aplican al momento. Tampoco ven los logros secretos que ellos no tienen, salvo los que el dueño haya destacado, también en la clasificación: así nadie adivina un secreto restando. El dueño ve los suyos al momento. Si cambias los puntos de un logro, cambian los totales de todos los que lo tienen. Un logro desactivado sigue sumando a quien lo tiene.
+
+Los **niveles** necesitan los puntos encendidos. En los ajustes, con **Niveles** encendido, cada nivel tiene un nombre y los puntos desde los que empieza. El primero empieza en 0 y cada uno necesita más puntos que el anterior. Hay seis de partida, que puedes cambiar; mientras no los cambies, sus nombres siguen el idioma del sitio. El nivel sale en la fila de datos del perfil y en la sección **Logros**.
+
+La **clasificación** también necesita los puntos encendidos. Es la página **Clasificación** de la web, solo para cuentas con sesión y sin verificación de email pendiente. Cada persona ve en ella solo los perfiles que puede ver, con su nombre público, y su puesto se cuenta entre ellos. No salen las cuentas desactivadas o anonimizadas, las que no tienen nombre público, quien oculta sus logros ni quien ha elegido no salir desde su perfil. Con **Temporadas y rachas** encendido se puede ver también por temporadas. La página se puede añadir al menú en **Sitio web** → **Navegación**.
 
 ## Catálogo inicial
 

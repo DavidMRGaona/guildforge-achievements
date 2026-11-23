@@ -10,6 +10,7 @@ import type {
     AchievementProgress,
     EarnedAchievement,
     LockedAchievement,
+    PointsSummary,
     ShowcaseOwner,
 } from '../../types/achievements';
 
@@ -28,6 +29,8 @@ interface Props {
     showsRarity?: boolean;
     catalogueUrl: string;
     owner?: ShowcaseOwner | null;
+    /** Totals and level; absent while points are off */
+    points?: PointsSummary | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -35,12 +38,14 @@ const props = withDefaults(defineProps<Props>(), {
     secretCount: 0,
     showsRarity: false,
     owner: null,
+    points: null,
 });
 
 const { t, locale } = useI18n();
 
 const chosen = ref<string[]>([...(props.owner?.chosen ?? [])]);
 const hidden = ref<boolean>(props.owner?.hidden ?? false);
+const inLeaderboard = ref<boolean>(props.owner?.leaderboard ?? true);
 const saving = ref(false);
 const status = ref('');
 const error = ref('');
@@ -51,6 +56,7 @@ watch(
     (owner) => {
         chosen.value = [...(owner?.chosen ?? [])];
         hidden.value = owner?.hidden ?? false;
+        inLeaderboard.value = owner?.leaderboard ?? true;
     }
 );
 
@@ -132,12 +138,16 @@ function save(next: { hidden: boolean; featured: string[] }, done: string): void
         return;
     }
 
+    // The leaderboard choice travels only while there is a leaderboard
+    const payload =
+        owner.leaderboard === undefined ? next : { ...next, leaderboard: inLeaderboard.value };
+
     saving.value = true;
     status.value = '';
     error.value = '';
     let saved = false;
 
-    router.put(owner.updateUrl, next, {
+    router.put(owner.updateUrl, payload, {
         preserveScroll: true,
         onSuccess: () => {
             saved = true;
@@ -165,6 +175,7 @@ function save(next: { hidden: boolean; featured: string[] }, done: string): void
             if (!saved) {
                 chosen.value = [...owner.chosen];
                 hidden.value = owner.hidden;
+                inLeaderboard.value = owner.leaderboard ?? true;
                 error.value ||= t('achievements.profile.saveFailed');
             }
         },
@@ -206,6 +217,39 @@ function toggleHidden(): void {
         hidden.value ? t('achievements.profile.nowHidden') : t('achievements.profile.nowShown')
     );
 }
+
+function toggleLeaderboard(): void {
+    if (saving.value) {
+        return;
+    }
+
+    inLeaderboard.value = !inLeaderboard.value;
+    save(
+        { hidden: hidden.value, featured: chosen.value },
+        inLeaderboard.value
+            ? t('achievements.profile.leaderboardIn')
+            : t('achievements.profile.leaderboardOut')
+    );
+}
+
+function formatPoints(value: number): string {
+    return t('achievements.points.count', { points: value.toLocaleString(locale.value) }, value);
+}
+
+/** How far the owner is from the next level, from 0 to 100 */
+const levelPercent = computed(() => {
+    const summary = props.points;
+
+    if (summary?.level == null || summary.nextLevel == null) {
+        return 100;
+    }
+
+    const span = summary.nextLevel.threshold - summary.level.threshold;
+
+    return span <= 0
+        ? 100
+        : Math.min(100, Math.round((100 * (summary.total - summary.level.threshold)) / span));
+});
 
 function progressPercent(item: LockedAchievement): number {
     if (item.progress === null || item.progress.threshold === 0) {
@@ -274,8 +318,114 @@ function progressPercent(item: LockedAchievement): number {
                         : t('achievements.profile.featuredAuto', { max: maxFeatured })
                 }}
             </p>
+            <div
+                v-if="owner.leaderboard !== undefined"
+                class="mt-3 flex items-start justify-between gap-3 border-t border-[var(--color-border)] pt-3"
+            >
+                <div class="min-w-0">
+                    <p id="achievements-leaderboard-label" class="font-medium text-base-primary">
+                        {{ t('achievements.profile.leaderboard') }}
+                    </p>
+                    <p id="achievements-leaderboard-help" class="mt-0.5 text-base-secondary">
+                        {{
+                            hidden
+                                ? t('achievements.profile.leaderboardHiddenHelp')
+                                : t('achievements.profile.leaderboardHelp')
+                        }}
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    role="switch"
+                    :aria-checked="inLeaderboard"
+                    aria-labelledby="achievements-leaderboard-label"
+                    aria-describedby="achievements-leaderboard-help"
+                    :aria-disabled="saving"
+                    class="-my-2 flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-muted"
+                    data-test="leaderboard-switch"
+                    @click="toggleLeaderboard"
+                >
+                    <span
+                        class="relative block h-6 w-11 rounded-full border transition-colors duration-200"
+                        :class="
+                            inLeaderboard
+                                ? 'border-primary-600 bg-primary-600 dark:border-primary-500 dark:bg-primary-500'
+                                : 'border-neutral-300 bg-neutral-200 dark:border-neutral-600 dark:bg-neutral-700'
+                        "
+                        aria-hidden="true"
+                    >
+                        <span
+                            class="absolute left-px top-px h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out"
+                            :class="inLeaderboard ? 'translate-x-5' : 'translate-x-0'"
+                        />
+                    </span>
+                </button>
+            </div>
             <p class="sr-only" role="status" aria-live="polite">{{ status }}</p>
             <p v-if="error" class="mt-2 font-medium text-error" role="alert">{{ error }}</p>
+        </div>
+
+        <!-- Points and level: totals only, never where they were earned -->
+        <div
+            v-if="points"
+            class="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-lg border border-[var(--color-border)] p-3 sm:p-4"
+            data-test="points"
+        >
+            <div>
+                <p class="text-2xl font-bold tabular-nums text-base-primary">
+                    {{ formatPoints(points.total) }}
+                </p>
+                <p v-if="points.season !== null" class="text-sm text-base-secondary">
+                    {{
+                        t('achievements.points.season', {
+                            points: formatPoints(points.season),
+                            season: points.seasonYear,
+                        })
+                    }}
+                </p>
+            </div>
+            <div v-if="points.level" class="min-w-0 flex-1">
+                <p class="font-medium text-base-primary">
+                    {{
+                        t('achievements.points.level', {
+                            number: points.level.number,
+                            name: points.level.name,
+                        })
+                    }}
+                </p>
+                <template v-if="points.nextLevel">
+                    <div
+                        class="mt-2 h-2 overflow-hidden rounded-full bg-muted"
+                        role="progressbar"
+                        :aria-valuenow="levelPercent"
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                        :aria-label="
+                            t('achievements.points.toNext', { name: points.nextLevel.name })
+                        "
+                    >
+                        <div
+                            class="h-full rounded-full bg-primary-600 dark:bg-primary-400"
+                            :style="{ width: `${levelPercent}%` }"
+                        />
+                    </div>
+                    <p class="mt-1 text-xs text-base-muted">
+                        {{
+                            t('achievements.points.missing', {
+                                points: formatPoints(points.nextLevel.threshold - points.total),
+                                name: points.nextLevel.name,
+                            })
+                        }}
+                    </p>
+                </template>
+            </div>
+            <Link
+                v-if="points.leaderboardUrl"
+                :href="points.leaderboardUrl"
+                class="inline-flex min-h-[44px] items-center text-sm font-medium text-[var(--color-primary-link)] underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+            >
+                {{ t('achievements.points.seeLeaderboard') }}
+            </Link>
         </div>
 
         <!-- What the owner got -->
@@ -351,6 +501,9 @@ function progressPercent(item: LockedAchievement): number {
                             </span>
                             <span v-if="showsRarity && item.rarity !== null">
                                 {{ t('achievements.rarity.share', { share: share(item.rarity) }) }}
+                            </span>
+                            <span v-if="item.points !== undefined && item.points > 0">
+                                {{ formatPoints(item.points) }}
                             </span>
                             <span
                                 v-if="item.featured"

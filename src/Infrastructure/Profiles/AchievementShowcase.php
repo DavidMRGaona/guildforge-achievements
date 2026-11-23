@@ -131,6 +131,7 @@ final class AchievementShowcase implements AchievementShowcaseInterface
                 grantedOrder: $isOwner ? $grant->grantedAt : null,
                 // Which seasons, never what was played in them; none on a masked one
                 seasons: $revealed ? ($seasons[$achievementId] ?? []) : [],
+                points: $achievement->points,
             );
         }
 

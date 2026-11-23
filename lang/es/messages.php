@@ -363,6 +363,9 @@ return [
         'save' => 'Guardar',
         'saved' => 'Ajustes guardados',
         'days' => 'días',
+        'points_suffix' => 'puntos',
+        'add_level' => 'Añadir nivel',
+        'levels_invalid' => 'El primer nivel empieza en 0 puntos y cada nivel necesita más puntos que el anterior.',
 
         'sections' => [
             'achievements' => 'Logros',
@@ -389,6 +392,9 @@ return [
             'points' => 'Puntos',
             'levels' => 'Niveles',
             'leaderboard' => 'Clasificación',
+            'levels_scale' => 'Niveles',
+            'level_threshold' => 'Desde',
+            'level_name' => 'Nombre',
             'challenges' => 'Retos',
             'recognitions' => 'Reconocimientos entre personas',
             'recognitions_window_days' => 'Plazo para reconocer',
@@ -404,8 +410,9 @@ return [
             'announcements' => 'Un resumen mensual, el día 1, de los logros poco frecuentes y de los de retos que consiguió otra persona el mes anterior, si esa persona lo permite en su pestaña «Logros».',
             'announcements_rarity_threshold' => 'Solo se anuncian los logros que tiene menos de este porcentaje de la gente activa. Los de retos se anuncian siempre.',
             'points' => 'Cada logro da puntos.',
-            'levels' => 'Los puntos suben de nivel.',
-            'leaderboard' => 'Página con la clasificación de quienes aparecen en ella.',
+            'levels' => 'Los puntos suben de nivel. Necesita los puntos encendidos.',
+            'leaderboard' => 'Página con la clasificación de quienes aparecen en ella, solo para cuentas con sesión. Necesita los puntos encendidos.',
+            'levels_scale' => 'Cada nivel empieza en un número de puntos. El primero empieza en 0 y cada uno necesita más puntos que el anterior.',
             'challenges' => 'Objetivos colectivos con una recompensa para todas las personas que contribuyen.',
             'recognitions' => 'Tras una partida, una campaña o un torneo, los participantes pueden reconocerse.',
             'recognitions_window_days' => 'Días, desde que acaba la partida, la campaña o el torneo, en los que se puede reconocer.',
@@ -436,6 +443,10 @@ return [
             'label' => 'Logros',
             'description' => 'Cuántos logros tiene.',
         ],
+        'level' => [
+            'label' => 'Nivel',
+            'description' => 'El nivel al que llegan sus puntos de logros.',
+        ],
         'featured' => [
             'not_held' => 'Solo puedes destacar logros que tengas.',
             'too_many' => 'Puedes destacar :max logros como mucho.',
@@ -449,6 +460,23 @@ return [
     'pages' => [
         'index_title' => 'Logros',
         'index_description' => 'Los logros que se pueden conseguir en la asociación y lo raro que es cada uno.',
+        'leaderboard_title' => 'Clasificación de logros',
+        'leaderboard_description' => 'Quién tiene más puntos de logros en la asociación.',
+    ],
+
+    'levels' => [
+        'starter' => [
+            'first_steps' => 'Primeros pasos',
+            'apprentice' => 'Aprendiz',
+            'regular' => 'Habitual',
+            'pillar' => 'Pilar del grupo',
+            'reference' => 'Referente',
+            'legend' => 'Leyenda',
+        ],
+    ],
+
+    'leaderboard' => [
+        'title' => 'Clasificación',
     ],
 
     'challenges' => [
