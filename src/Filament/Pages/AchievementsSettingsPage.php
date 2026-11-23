@@ -20,6 +20,8 @@ use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\ValueObjects\MetricKinds;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
+use Modules\Achievements\Jobs\EvaluateChallengesJob;
+use Modules\Achievements\Jobs\ListChallengeCompletersJob;
 
 /**
  * «Sistema → Configuración → Logros»: the switch of every mechanic of the module.
@@ -192,6 +194,16 @@ final class AchievementsSettingsPage extends Page implements HasForms
         // everybody again (silently) grants what was met while it was off
         if ($this->switchedBackOn($current, $saved)) {
             EvaluateAchievementsJob::dispatch();
+        }
+
+        // Challenges were not counted while off (#12): counted now, with what the ledger holds
+        if ($saved->challenges && (! $current->challenges || $this->switchedBackOn($current, $saved))) {
+            EvaluateChallengesJob::dispatch();
+        }
+
+        // And their lists were not made meanwhile: made once now, after that count, not on the 1st
+        if ($saved->challenges && ! $current->challenges) {
+            ListChallengeCompletersJob::dispatch(catchUp: true)->delay(now()->addMinutes(ListChallengeCompletersJob::CATCH_UP_DELAY_MINUTES));
         }
 
         Notification::make()

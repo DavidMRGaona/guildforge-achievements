@@ -5,8 +5,13 @@ import { Check, RefreshCw } from '@lucide/vue';
 import HelpLink from '@/components/knowledge/HelpLink.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import AchievementBadge from '../../components/AchievementBadge.vue';
+import ChallengeCard from '../../components/ChallengeCard.vue';
 import { formatShare } from '../../utils/badgeLook';
-import type { AchievementProgress, CatalogueAchievement } from '../../types/achievements';
+import type {
+    AchievementProgress,
+    CatalogueAchievement,
+    Challenge,
+} from '../../types/achievements';
 
 /**
  * `/logros`: every achievement that can be got, with the share of active people holding it. A secret
@@ -14,11 +19,13 @@ import type { AchievementProgress, CatalogueAchievement } from '../../types/achi
  * One that repeats each season tells the viewer where they stand in the season going on: whether
  * they hold it, the earlier seasons they got it in and their progress (their own, never anybody
  * else's).
+ * The association's challenges come first, with their totals (#12).
  */
 interface Props {
     achievements: CatalogueAchievement[];
     showsRarity?: boolean;
     signedIn?: boolean;
+    challenges?: Challenge[];
     /** The season going on; null while seasons and streaks are off */
     season?: string | null;
 }
@@ -27,6 +34,7 @@ const props = withDefaults(defineProps<Props>(), {
     showsRarity: false,
     signedIn: false,
     season: null,
+    challenges: () => [],
 });
 
 const { t, locale } = useI18n();
@@ -77,6 +85,30 @@ function progressText(progress: AchievementProgress): string {
     </div>
 
     <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <section
+            v-if="challenges.length > 0"
+            class="mb-10"
+            aria-labelledby="achievements-challenges"
+            data-test="challenges"
+        >
+            <h2 id="achievements-challenges" class="text-xl font-bold text-base-primary">
+                {{ t('achievements.challenges.title') }}
+            </h2>
+            <p class="mt-1 max-w-3xl text-sm text-base-secondary">
+                {{ t('achievements.challenges.subtitle') }}
+            </p>
+            <div class="mt-4 grid gap-4 lg:grid-cols-2">
+                <ChallengeCard
+                    v-for="challenge in challenges"
+                    :key="challenge.id"
+                    :challenge="challenge"
+                />
+            </div>
+        </section>
+
+        <h2 v-if="challenges.length > 0" class="mb-4 text-xl font-bold text-base-primary">
+            {{ t('achievements.catalogue.title') }}
+        </h2>
         <EmptyState
             v-if="achievements.length === 0"
             icon="document"

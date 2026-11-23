@@ -14,6 +14,7 @@ use App\Application\Profiles\Contracts\ProfileBadgeSourceInterface;
 use App\Application\Profiles\Contracts\ProfileSectionInterface;
 use App\Application\Profiles\Contracts\ProfileStatInterface;
 use App\Application\Services\TimezoneServiceInterface;
+use App\Application\SiteBlocks\Contracts\SiteBlockInterface;
 use App\Domain\Activity\Events\ActivityRecorded;
 use App\Domain\Events\UserAnonymized;
 use App\Domain\Modules\Events\ModuleEnabled;
@@ -41,6 +42,8 @@ use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\ActivityLedgerInterface;
 use Modules\Achievements\Application\Services\ActivityMetricsInterface;
 use Modules\Achievements\Application\Services\BulkGrantInterface;
+use Modules\Achievements\Application\Services\ChallengeBoardInterface;
+use Modules\Achievements\Application\Services\ChallengeEvaluatorInterface;
 use Modules\Achievements\Application\Services\CommunityMetricsInterface;
 use Modules\Achievements\Application\Services\StarterCatalogueInterface;
 use Modules\Achievements\Console\Commands\InstallStarterCatalogueCommand;
@@ -51,26 +54,33 @@ use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\ChallengeRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\PendingAchievementNoticeRepositoryInterface;
 use Modules\Achievements\Filament\Livewire\AccountAchievements;
 use Modules\Achievements\Filament\Livewire\AccountGrantLog;
 use Modules\Achievements\Filament\Media\AchievementBadgeImageMediaSource;
 use Modules\Achievements\Filament\Pages\AchievementsSettingsPage;
+use Modules\Achievements\Filament\SiteBlocks\ChallengeSiteBlock;
 use Modules\Achievements\Filament\Support\AccountAchievementsHook;
 use Modules\Achievements\Infrastructure\Activity\ReaderActivityMetrics;
 use Modules\Achievements\Infrastructure\Catalogue\AchievementCatalogue;
 use Modules\Achievements\Infrastructure\Catalogue\StarterCatalogue;
+use Modules\Achievements\Infrastructure\Challenges\ChallengeBoard;
+use Modules\Achievements\Infrastructure\Challenges\ChallengeEvaluator;
 use Modules\Achievements\Infrastructure\Community\LedgerCommunityMetrics;
 use Modules\Achievements\Infrastructure\Grants\AchievementEvaluator;
 use Modules\Achievements\Infrastructure\Grants\AchievementGranter;
 use Modules\Achievements\Infrastructure\Grants\BulkGranter;
+use Modules\Achievements\Infrastructure\Observers\CountChangedChallenge;
 use Modules\Achievements\Infrastructure\Observers\EvaluateChangedAchievements;
 use Modules\Achievements\Infrastructure\Observers\ForgetFeaturedWhenMadeSecret;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\ChallengeModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementFactRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementGrantRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementPreferencesRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementRepository;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentChallengeRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentPendingAchievementNoticeRepository;
 use Modules\Achievements\Infrastructure\Profiles\AccountAchievementsTab;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsCountProfileStat;
@@ -82,10 +92,14 @@ use Modules\Achievements\Infrastructure\Services\ActivityLedger;
 use Modules\Achievements\Infrastructure\Settings\ModuleAchievementsSettings;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
+use Modules\Achievements\Jobs\EvaluateChallengesJob;
+use Modules\Achievements\Jobs\ListChallengeCompletersJob;
 use Modules\Achievements\Jobs\RefreshAchievementRarityJob;
 use Modules\Achievements\Jobs\ReleaseAchievementAnnouncementsJob;
+use Modules\Achievements\Listeners\CountChallengesForChangedFacts;
 use Modules\Achievements\Listeners\EvaluateAchievementsForChangedFacts;
 use Modules\Achievements\Listeners\EvaluateAchievementsOfEnabledModule;
+use Modules\Achievements\Listeners\ForgetAnonymizedAccountContributions;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountFacts;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountGrants;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountPreferences;
@@ -94,6 +108,7 @@ use Modules\Achievements\Listeners\QueueAchievementNotice;
 use Modules\Achievements\Listeners\RecordActivityFacts;
 use Modules\Achievements\Notifications\AchievementNoticeCategories;
 use Modules\Achievements\Policies\AchievementPolicy;
+use Modules\Achievements\Policies\ChallengePolicy;
 
 /**
  * Achievements («Logros»): what people have done in the association, as badges, levels and
@@ -149,6 +164,11 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         $this->app->scoped(AchievementRarityInterface::class, NightlyAchievementRarity::class);
         $this->app->scoped(AchievementShowcaseInterface::class, AchievementShowcase::class);
 
+        // Collective challenges (#12): the count from the ledger and what pages and blocks show
+        $this->app->bind(ChallengeRepositoryInterface::class, EloquentChallengeRepository::class);
+        $this->app->bind(ChallengeEvaluatorInterface::class, ChallengeEvaluator::class);
+        $this->app->scoped(ChallengeBoardInterface::class, ChallengeBoard::class);
+
         // Grants waiting to be told to their holders, a little later and together (#6)
         $this->app->bind(PendingAchievementNoticeRepositoryInterface::class, EloquentPendingAchievementNoticeRepository::class);
     }
@@ -165,9 +185,12 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         Event::listen(AchievementFactsChanged::class, EvaluateAchievementsForChangedFacts::class);
         Event::listen(AchievementFactsChanged::class, ForgetCommunityProgress::class);
         Event::listen(ModuleEnabled::class, EvaluateAchievementsOfEnabledModule::class);
+        Event::listen(AchievementFactsChanged::class, CountChallengesForChangedFacts::class);
+        Event::listen(UserAnonymized::class, ForgetAnonymizedAccountContributions::class);
 
         AchievementModel::observe(EvaluateChangedAchievements::class);
         AchievementModel::observe(ForgetFeaturedWhenMadeSecret::class);
+        ChallengeModel::observe(CountChangedChallenge::class);
         RateLimiter::for(self::PROFILE_CHOICES_LIMITER, static fn (Request $request): array => [
             Limit::perMinute(self::PROFILE_CHOICES_PER_MINUTE)->by('achievements-choices:'.self::requesterKey($request)),
             Limit::perHour(self::PROFILE_CHOICES_PER_HOUR)->by('achievements-choices-hour:'.self::requesterKey($request)),
@@ -187,7 +210,10 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
      */
     public function registerPolicies(): array
     {
-        return [AchievementModel::class => AchievementPolicy::class];
+        return [
+            AchievementModel::class => AchievementPolicy::class,
+            ChallengeModel::class => ChallengePolicy::class,
+        ];
     }
 
     /**
@@ -276,11 +302,21 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
                 ->dailyAt('03:30')
                 ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
                 ->name('achievements:rarity');
+            // Who is an association member changes without any fact changing
+            $schedule->job(new EvaluateChallengesJob(publish: true))
+                ->dailyAt('04:10')
+                ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
+                ->name('achievements:challenges');
             // What others hear of goes out once a month, about the month before (#6)
             $schedule->job(new ReleaseAchievementAnnouncementsJob)
                 ->monthlyOn(ReleaseAchievementAnnouncementsJob::RELEASE_DAY, ReleaseAchievementAnnouncementsJob::RELEASE_AT)
                 ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
                 ->name('achievements:announcements');
+            // Who the list of a completed challenge names, at the same hour (#12)
+            $schedule->job(new ListChallengeCompletersJob)
+                ->monthlyOn(ReleaseAchievementAnnouncementsJob::RELEASE_DAY, ReleaseAchievementAnnouncementsJob::RELEASE_AT)
+                ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
+                ->name('achievements:challenge-lists');
         });
     }
 
@@ -343,6 +379,16 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
     public function registerProfileStats(): array
     {
         return [AchievementsCountProfileStat::class];
+    }
+
+    /**
+     * A collective challenge with its progress, for the footer, popups and the link page (#12).
+     *
+     * @return array<class-string<SiteBlockInterface>>
+     */
+    public function registerSiteBlocks(): array
+    {
+        return [ChallengeSiteBlock::class];
     }
 
     /**

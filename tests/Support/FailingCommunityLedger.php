@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Achievements\Tests\Support;
 
 use Closure;
+use DateTimeImmutable;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\FactsReplacement;
 use RuntimeException;
@@ -56,6 +57,11 @@ final readonly class FailingCommunityLedger implements AchievementFactRepository
     public function forUsers(array $userIds, array $kinds = []): array
     {
         return $this->inner->forUsers($userIds, $kinds);
+    }
+
+    public function forKindBetween(string $kind, DateTimeImmutable $from, DateTimeImmutable $until): array
+    {
+        return $this->inner->forKindBetween($kind, $from, $until);
     }
 
     public function userIdsWithKinds(array $kinds, ?string $afterUserId, int $limit): array

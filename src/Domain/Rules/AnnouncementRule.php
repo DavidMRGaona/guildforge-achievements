@@ -17,11 +17,17 @@ final class AnnouncementRule
     /**
      * @param  float|null  $share  percent of active people holding it; null while unknown (nobody active)
      * @param  float  $threshold  percent under which an achievement is rare
+     * @param  bool  $ownerShowsMembership  whether the owner's profile already shows the membership
      */
-    public static function announces(GrantSource $source, bool $silent, ?float $share, float $threshold): bool
+    public static function announces(GrantSource $source, bool $silent, ?float $share, float $threshold, bool $ownerShowsMembership = false): bool
     {
         if ($silent || $source === GrantSource::Bulk) {
             return false;
+        }
+
+        // The reward of a challenge for members says its holder is one: only when they show it anyway
+        if ($source === GrantSource::MemberChallenge) {
+            return $ownerShowsMembership;
         }
 
         if ($source === GrantSource::Challenge) {

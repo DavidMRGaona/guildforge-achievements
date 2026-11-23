@@ -89,6 +89,15 @@ interface AchievementFactRepositoryInterface
     public function forUsers(array $userIds, array $kinds = []): array;
 
     /**
+     * Every fact of a kind that happened in `[$from, $until)`, oldest first (collective challenges).
+     * Facts of anonymized accounts, or of accounts deleted for good, are left out.
+     *
+     * @param  string  $kind  a MetricKinds value
+     * @return list<AchievementFact>
+     */
+    public function forKindBetween(string $kind, DateTimeImmutable $from, DateTimeImmutable $until): array;
+
+    /**
      * Accounts with at least one fact of these kinds, sorted, after `$afterUserId` (keyset pages).
      *
      * @param  list<string>  $kinds  MetricKinds values; never empty
