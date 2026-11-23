@@ -29,13 +29,13 @@ final readonly class EloquentAchievementPointsRepository implements AchievementP
         private TimezoneServiceInterface $time,
     ) {}
 
-    public function breakdowns(array $userIds, PointsPeriod $period): array
+    public function breakdowns(array $userIds, PointsPeriod $period, ?DateTimeImmutable $before = null): array
     {
         $userIds = array_values(array_unique(array_map(strtolower(...), $userIds)));
         $rows = [];
 
         foreach (array_chunk($userIds, self::CHUNK) as $chunk) {
-            foreach ($this->points($period)->whereIn('achievements_grants.user_id', $chunk)->get() as $row) {
+            foreach ($this->points($period, $before)->whereIn('achievements_grants.user_id', $chunk)->get() as $row) {
                 $rows[] = $row;
             }
         }
@@ -43,9 +43,9 @@ final readonly class EloquentAchievementPointsRepository implements AchievementP
         return $this->fold($rows) + array_fill_keys($userIds, new PointsBreakdown);
     }
 
-    public function everyone(PointsPeriod $period): array
+    public function everyone(PointsPeriod $period, ?DateTimeImmutable $before = null): array
     {
-        $rows = $this->points($period)
+        $rows = $this->points($period, $before)
             ->join('users', 'users.id', '=', 'achievements_grants.user_id')
             ->whereNull('users.deleted_at')
             ->whereNull('users.anonymized_at')
@@ -66,9 +66,9 @@ final readonly class EloquentAchievementPointsRepository implements AchievementP
         return $ids;
     }
 
-    public function firstGrantedAt(): ?DateTimeImmutable
+    public function firstGrantedAt(?DateTimeImmutable $before = null): ?DateTimeImmutable
     {
-        $first = $this->db->table('achievements_grants')->min('granted_at');
+        $first = $this->before($this->db->table('achievements_grants'), $before)->min('granted_at');
 
         if (! is_string($first) || $first === '') {
             return null;
@@ -79,11 +79,21 @@ final readonly class EloquentAchievementPointsRepository implements AchievementP
         return $read === false ? null : $read;
     }
 
-    public function earliestSeasonKey(): ?string
+    public function earliestSeasonKey(?DateTimeImmutable $before = null): ?string
     {
-        $key = $this->db->table('achievements_grants')->where('season_key', '<>', '')->min('season_key');
+        $key = $this->before($this->db->table('achievements_grants'), $before)->where('season_key', '<>', '')->min('season_key');
 
         return is_string($key) && preg_match('/^\d{4}$/D', $key) === 1 ? $key : null;
+    }
+
+    /**
+     * Only grants made before the instant, when there is one (compared in the storage zone).
+     */
+    private function before(Builder $query, ?DateTimeImmutable $before): Builder
+    {
+        return $before instanceof DateTimeImmutable
+            ? $query->where('achievements_grants.granted_at', '<', $this->time->toStorage($before)->format(self::STORAGE_FORMAT))
+            : $query;
     }
 
     /**
@@ -107,9 +117,9 @@ final readonly class EloquentAchievementPointsRepository implements AchievementP
      * The grants of the period, their achievement's points summed per account and achievement (a
      * repeatable one counts once per season).
      */
-    private function points(PointsPeriod $period): Builder
+    private function points(PointsPeriod $period, ?DateTimeImmutable $before): Builder
     {
-        $query = $this->db->table('achievements_grants')
+        $query = $this->before($this->db->table('achievements_grants'), $before)
             ->join('achievements_catalogue', 'achievements_catalogue.id', '=', 'achievements_grants.achievement_id')
             ->select(['achievements_grants.user_id', 'achievements_catalogue.id as achievement_id'])
             ->selectRaw('sum(achievements_catalogue.points) as points')

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Application\Services;
 
+use DateTimeImmutable;
 use Modules\Achievements\Application\DTOs\PointsSummaryDTO;
 use Modules\Achievements\Domain\ValueObjects\PointsPeriod;
 
@@ -24,17 +25,18 @@ interface AchievementPointsInterface
 
     /**
      * The seasons with grants, from the current one back to the earliest of the first grant's and
-     * the earliest season a grant was made for.
+     * the earliest season a grant was made for; with `$before`, among grants made before it (what
+     * others see: a grant of today to an old season adds nothing to the list before the night).
      *
      * @return list<int>
      */
-    public function seasons(): array;
+    public function seasons(?DateTimeImmutable $before = null): array;
 
     /**
      * One account's points as a viewer sees them (null: a guest); the season while seasons are on,
-     * the level while levels show. The owner sees their own at once and in full; anybody else last
-     * night's photo, without the secret achievements masked to them, which are only ever counted.
-     * Null for anybody else while there is no photo yet.
+     * the level while levels show. The owner sees their own at once and in full; anybody else the
+     * grants still held that were made before the cut, without the secret achievements masked to
+     * them, which are only ever counted. Null for anybody else while there is no cut.
      */
     public function summary(string $userId, ?string $viewerId): ?PointsSummaryDTO;
 
@@ -48,7 +50,8 @@ interface AchievementPointsInterface
 
     /**
      * The secret achievements of an owner revealed to a viewer: those the owner featured (featuring
-     * reveals one to everybody) and those the viewer holds too.
+     * reveals one to everybody) and those the viewer holds too. They only add up for what the owner's
+     * breakdown holds, i.e. what the owner held before the cut.
      *
      * @return array<string, true>
      */

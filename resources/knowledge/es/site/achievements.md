@@ -38,7 +38,7 @@ Quién ve tu perfil lo decides en **Editar perfil**. Tus logros solo los ve quie
 
 ## La rareza
 
-La rareza es la parte de la gente activa que tiene un logro: «Lo tiene el 4 % de la gente activa». Cuenta como activa quien ha participado en algo en los últimos doce meses. Si llevas más de un año sin participar, tus logros salen sin rareza. Se calcula cada noche y cada vez que alguien consigue un logro.
+La rareza es la parte de la gente activa que tiene un logro: «Lo tiene el 4 % de la gente activa». Cuenta como activa quien ha participado en algo en los últimos doce meses. Si llevas más de un año sin participar, tus logros salen sin rareza. Se calcula una vez cada noche.
 
 ## Destacar tres logros
 
@@ -89,12 +89,12 @@ Los puntos suben de **nivel**: cada nivel empieza en un número de puntos que de
 
 Los puntos y el nivel son totales: nunca dicen en qué mesa o en qué evento se ganaron. Tú ves tus puntos enteros. Los demás ven tu total sin los logros secretos que ellos no tienen, salvo los que hayas destacado: así, nadie puede adivinar qué secreto tienes restando. Por eso tu total y tu nivel pueden ser distintos según quién mire.
 
-Tus puntos y tu nivel los ves al momento. Los demás los ven como estaban anoche: se actualizan una vez al día, de madrugada. Así, si juegas con alguien, nadie ve que vuestros puntos suben a la vez. Lo más que puede ver quien siga dos perfiles es que los dos subieron el mismo día. Si no quieres ni eso, oculta tus logros.
+Tus puntos y tu nivel los ves al momento. A los demás, lo que consigues les llega al día siguiente: se actualiza una vez al día, de madrugada. Así, si juegas con alguien, nadie ve que vuestros puntos suben a la vez. Lo que se quita se aplica al momento: un logro retirado deja de sumar enseguida, y un cambio de puntos de un logro cambia a la vez los totales de todos. Lo más que puede ver quien siga dos perfiles es que los dos subieron el mismo día. Si no quieres ni eso, oculta tus logros.
 
 ## La clasificación
 
 En **Logros**, con la sesión iniciada, **Ver la clasificación** enseña quién tiene más puntos, desde siempre o en una temporada. Solo pueden verla las cuentas con sesión que no tengan pendiente verificar su email.
 
-La clasificación se actualiza cada noche, salvo tu propia fila, que ves al momento. En ella solo salen los perfiles que tú puedes ver, con su nombre público y los puntos que tú puedes ver de cada uno, y tu puesto se cuenta solo entre ellos. No salen las cuentas desactivadas o anonimizadas, las que no tienen nombre público, quien oculta sus logros ni quien ha elegido no salir.
+La clasificación suma lo conseguido hasta la noche anterior, salvo tu propia fila, que ves al momento. En ella solo salen los perfiles que tú puedes ver, con su nombre público y los puntos que tú puedes ver de cada uno, y tu puesto se cuenta solo entre ellos. No salen las cuentas desactivadas o anonimizadas, las que no tienen nombre público, quien oculta sus logros ni quien ha elegido no salir.
 
 Apareces en ella salvo que no quieras. Para salir, apaga **Aparecer en la clasificación** en **Ajustes de la cuenta → Logros**, o en la sección **Logros** de tu perfil público mientras haya clasificación: es el mismo ajuste y se guarda al momento. En la pestaña puedes elegirlo aunque la clasificación todavía esté apagada. Puedes volver a encenderlo cuando quieras. Si ocultas tus logros, tampoco sales en la clasificación.

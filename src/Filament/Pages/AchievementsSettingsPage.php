@@ -24,7 +24,6 @@ use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\ValueObjects\LevelScale;
 use Modules\Achievements\Domain\ValueObjects\MetricKinds;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
-use Modules\Achievements\Jobs\TakePointsSnapshotJob;
 
 /**
  * «Sistema → Configuración → Logros»: the switch of every mechanic of the module.
@@ -225,11 +224,6 @@ final class AchievementsSettingsPage extends Page implements HasForms
         // everybody again (silently) grants what was met while it was off
         if ($this->switchedBackOn($current, $saved)) {
             EvaluateAchievementsJob::dispatch();
-        }
-
-        // Others see last night's photo of points: take one now, so they do not wait for the night
-        if (! $current->points && $saved->points) {
-            TakePointsSnapshotJob::dispatch();
         }
 
         Notification::make()

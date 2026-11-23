@@ -16,17 +16,18 @@ use Modules\Achievements\Application\Enums\LeaderboardViewerStatus;
 use Modules\Achievements\Application\Services\AchievementLeaderboardInterface;
 use Modules\Achievements\Application\Services\AchievementPointsInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Application\Services\PointsCutoffInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
-use Modules\Achievements\Domain\Repositories\PointsSnapshotRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\LevelScale;
 use Modules\Achievements\Domain\ValueObjects\PointsPeriod;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Throwable;
 
 /**
- * On every request, over last night's photo of points (ids and points only; the viewer's own row
- * as it is now, so nobody sees the points of two people who played together rise at once):
+ * On every request, over the grants still held that were made before the cut (the viewer's own row
+ * as it is now), so nobody sees the points of two people who played together rise at once, while a
+ * revoke or a change of points applies at once:
  *
  * 1. the core describes each candidate's profile and its ProfileAccessRule keeps those the viewer
  *    may see (visibleAmong(): deactivated, anonymized, hidden or stricter profiles go, as on the
@@ -48,7 +49,7 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
     private const int AVATAR_SIZE = 64;
 
     public function __construct(
-        private PointsSnapshotRepositoryInterface $snapshots,
+        private PointsCutoffInterface $cutoff,
         private LeaderboardProfiles $profiles,
         private ProfileAccessRule $access,
         private AchievementPreferencesRepositoryInterface $preferences,
@@ -64,12 +65,14 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
         $viewerId = ActivityIdentifierRule::userId((string) $viewer->getAuthIdentifier()) ?? strtolower((string) $viewer->getAuthIdentifier());
 
         try {
-            // No photo yet (the first night after points were switched on): nobody, never a 0
-            if (! $this->snapshots->takenAt() instanceof DateTimeImmutable) {
+            // No cut: nobody, never a 0
+            $cut = $this->cutoff->takenAt();
+
+            if (! $cut instanceof DateTimeImmutable) {
                 return LeaderboardPageDTO::unavailable();
             }
 
-            $rows = $this->visibleRows($viewer, $viewerId, $period);
+            $rows = $this->visibleRows($viewer, $viewerId, $period, $cut);
         } catch (Throwable $exception) {
             $this->warnings->warn('leaderboard_unavailable', '[Achievements] The leaderboard could not be worked out; nobody is shown.', [
                 'reason' => 'leaderboard_unavailable',
@@ -129,10 +132,11 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
      *
      * @return list<array{userId: string, points: int, publicName: string, handle: string, avatarPublicId: string|null}>
      */
-    private function visibleRows(Authenticatable $viewer, string $viewerId, PointsPeriod $period): array
+    private function visibleRows(Authenticatable $viewer, string $viewerId, PointsPeriod $period, DateTimeImmutable $cut): array
     {
-        // Last night's photo for everybody; the viewer's own points as they are now
-        $standings = $this->snapshots->forPeriod($period->key());
+        // Everybody's grants still held that were made before the cut, in one aggregate query (a
+        // revoke or a change of points shows at once, what is new waits); the viewer's own as now
+        $standings = $this->points->everyone($period, $cut);
         $standings[$viewerId] = $this->points->breakdowns([$viewerId], $period)[$viewerId];
 
         $described = $this->profiles->describe(array_map(strval(...), array_keys($standings)));
@@ -234,7 +238,7 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
             return null;
         }
 
-        // Listed by every rule: nothing to tell (never reached, the viewer's row is read as it is now)
+        // Nothing left to tell: never a guess
         return null;
     }
 }

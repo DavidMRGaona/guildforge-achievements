@@ -27,45 +27,47 @@ use Modules\Achievements\Infrastructure\Profiles\ShowcasePresenter;
  */
 final class AchievementCatalogueController extends Controller
 {
-    public function __construct(
-        private readonly AchievementShowcaseInterface $showcase,
-        private readonly AchievementRarityInterface $rarity,
-        private readonly AchievementsSettingsInterface $settings,
-        private readonly ShowcasePresenter $presenter,
-        private readonly SeoMetadataFactoryInterface $seo,
-        private readonly SeasonClock $seasons,
-    ) {}
-
-    public function __invoke(Request $request): Response
-    {
+    /**
+     * Resolved per call, never in the constructor: the route keeps its controller, and the showcase,
+     * the rarity and the settings are bound "scoped" (read once per request).
+     */
+    public function __invoke(
+        Request $request,
+        AchievementShowcaseInterface $showcase,
+        AchievementRarityInterface $rarity,
+        AchievementsSettingsInterface $settings,
+        ShowcasePresenter $presenter,
+        SeoMetadataFactoryInterface $seo,
+        SeasonClock $seasons,
+    ): Response {
         $viewer = $request->user();
         $viewerId = $viewer === null ? null : (string) $viewer->getAuthIdentifier();
-        $showsRarity = $this->settings->rarityEnabled();
-        $rarity = $showsRarity ? $this->rarity->current() : null;
-        $showsPoints = $this->settings->pointsEnabled();
+        $showsRarity = $settings->rarityEnabled();
+        $shares = $showsRarity ? $rarity->current() : null;
+        $showsPoints = $settings->pointsEnabled();
         // The viewer's own seasons only: nobody else's standing is ever built
-        $standings = $this->showcase->seasonStandings($viewerId);
+        $standings = $showcase->seasonStandings($viewerId);
 
         return Inertia::render('Achievements/Index', [
-            'achievements' => array_map(fn (AchievementViewDTO $view): array => $this->presenter->achievement($view) + [
+            'achievements' => array_map(fn (AchievementViewDTO $view): array => $presenter->achievement($view) + [
                 'held' => $view->held,
                 // What it gives (#10); a masked secret keeps it to itself
                 'points' => $showsPoints && ! $view->masked ? $view->points : null,
-                'standing' => $view->masked || ! isset($standings[strtolower($view->id)]) ? null : $this->presenter->standing($standings[strtolower($view->id)]),
+                'standing' => $view->masked || ! isset($standings[strtolower($view->id)]) ? null : $presenter->standing($standings[strtolower($view->id)]),
                 // 0 of what the viewer holds only says they are not active: not shown
                 'rarity' => match (true) {
                     $view->masked => null,
-                    $view->held => AchievementShowcase::knownShare($rarity?->shareOf($view->id)),
-                    default => $rarity?->shareOf($view->id),
+                    $view->held => AchievementShowcase::knownShare($shares?->shareOf($view->id)),
+                    default => $shares?->shareOf($view->id),
                 },
-            ], $this->showcase->catalogueFor($viewerId)),
-            'showsRarity' => $showsRarity && $rarity instanceof AchievementRarityDTO && $rarity->activePeople > 0,
+            ], $showcase->catalogueFor($viewerId)),
+            'showsRarity' => $showsRarity && $shares instanceof AchievementRarityDTO && $shares->activePeople > 0,
             'signedIn' => $viewer !== null,
             'showsPoints' => $showsPoints,
             // Only signed-in accounts open it
-            'leaderboardUrl' => $viewer !== null && $this->settings->leaderboardShown() ? route('achievements.leaderboard', absolute: false) : null,
-            'season' => $this->settings->seasonsAndStreaksEnabled() ? $this->seasons->current()->key() : null,
-            'seo' => $this->seo->forPage(new SeoPageDTO(
+            'leaderboardUrl' => $viewer !== null && $settings->leaderboardShown() ? route('achievements.leaderboard', absolute: false) : null,
+            'season' => $settings->seasonsAndStreaksEnabled() ? $seasons->current()->key() : null,
+            'seo' => $seo->forPage(new SeoPageDTO(
                 title: __('achievements::messages.pages.index_title'),
                 description: __('achievements::messages.pages.index_description'),
             ))->toArray(),

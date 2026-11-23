@@ -17,6 +17,7 @@ use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\ValueObjects\AchievementPreferences;
 use Modules\Achievements\Domain\ValueObjects\Level;
+use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Throwable;
 
 /**
@@ -39,6 +40,7 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
         private ShowcasePresenter $presenter,
         private EmailVerificationPolicyInterface $verification,
         private AchievementPointsInterface $points,
+        private AchievementWarnings $warnings,
     ) {}
 
     public function key(): string
@@ -126,7 +128,21 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
      */
     private function pointsProp(bool $showsPoints, ProfileOwnerDTO $owner, ?string $viewerId, bool $isOwner): array
     {
-        $points = $showsPoints ? $this->points($owner, $viewerId, $isOwner) : null;
+        if (! $showsPoints) {
+            return [];
+        }
+
+        try {
+            $points = $this->points($owner, $viewerId, $isOwner);
+        } catch (Throwable $exception) {
+            // Only the points go: the rest of the section still draws
+            $this->warnings->warn('profile_points_unavailable', '[Achievements] The points of a profile could not be read; they are not shown.', [
+                'reason' => 'profile_points_unavailable',
+                'exception' => $exception::class,
+            ]);
+
+            return [];
+        }
 
         return $points === null ? [] : ['points' => $points];
     }

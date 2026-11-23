@@ -6,6 +6,7 @@ namespace Modules\Achievements\Http\Controllers;
 
 use App\Application\Seo\DTOs\SeoPageDTO;
 use App\Application\Seo\Services\SeoMetadataFactoryInterface;
+use DateTimeImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Inertia\Inertia;
@@ -15,6 +16,7 @@ use Modules\Achievements\Application\DTOs\LeaderboardPageDTO;
 use Modules\Achievements\Application\Services\AchievementLeaderboardInterface;
 use Modules\Achievements\Application\Services\AchievementPointsInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Application\Services\PointsCutoffInterface;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
@@ -39,6 +41,7 @@ final class LeaderboardController extends Controller
         AchievementsSettingsInterface $settings,
         SeoMetadataFactoryInterface $seo,
         AchievementWarnings $warnings,
+        PointsCutoffInterface $cutoff,
     ): Response {
         abort_unless($settings->leaderboardShown(), 404);
 
@@ -49,7 +52,9 @@ final class LeaderboardController extends Controller
         $season = null;
 
         try {
-            $seasons = $settings->seasonsAndStreaksEnabled() ? $points->seasons() : [];
+            // The seasons others see: a grant of today to an old season adds nothing before the night
+            $cut = $cutoff->takenAt();
+            $seasons = $settings->seasonsAndStreaksEnabled() && $cut instanceof DateTimeImmutable ? $points->seasons($cut) : [];
             $season = $this->season($request->query('temporada'), $seasons);
             $page = $leaderboard->page($viewer, $points->period($season), max(1, $request->integer('page', 1)));
         } catch (HttpExceptionInterface $notFound) {

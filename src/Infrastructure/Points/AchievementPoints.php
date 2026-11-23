@@ -11,12 +11,11 @@ use InvalidArgumentException;
 use Modules\Achievements\Application\DTOs\PointsSummaryDTO;
 use Modules\Achievements\Application\Services\AchievementPointsInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Application\Services\PointsCutoffInterface;
 use Modules\Achievements\Application\Services\SeasonClock;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
-use Modules\Achievements\Domain\Repositories\PointsSnapshotRepositoryInterface;
-use Modules\Achievements\Domain\ValueObjects\PointsBreakdown;
 use Modules\Achievements\Domain\ValueObjects\PointsPeriod;
 use Modules\Achievements\Domain\ValueObjects\Season;
 
@@ -24,11 +23,12 @@ use Modules\Achievements\Domain\ValueObjects\Season;
  * Seasons are #8's (Season, SeasonClock): calendar years in the display zone. Their bounds are
  * midnight of the 1st of January there, as storage-zone instants.
  *
- * The owner sees their own points at once and in full. Anybody else sees last night's photo
- * (PointsSnapshotRepositoryInterface), so points of people who played together never rise at once
- * in front of them, and without the achievements that are secret now and masked to them (not held by
- * them, not featured by the owner), as the section and the catalogue mask them: «the secrets of
- * others are only counted». Without a photo they see nothing, never a 0.
+ * The owner sees their own points at once and in full. Anybody else sees them from the grants made
+ * before the cut (PointsCutoffInterface), read live: what is new waits for the night, so points of
+ * people who played together never rise at once in front of them, while a revoke, a change of points
+ * or an achievement made secret applies at once. And without the achievements that are secret now
+ * and masked to them (not held by them, not featured by the owner), as the section and the catalogue
+ * mask them: «the secrets of others are only counted». Without a cut they see nothing, never a 0.
  */
 final class AchievementPoints implements AchievementPointsInterface
 {
@@ -45,7 +45,7 @@ final class AchievementPoints implements AchievementPointsInterface
         private readonly AchievementPointsRepositoryInterface $points,
         private readonly AchievementGrantRepositoryInterface $grants,
         private readonly AchievementPreferencesRepositoryInterface $preferences,
-        private readonly PointsSnapshotRepositoryInterface $snapshots,
+        private readonly PointsCutoffInterface $cutoff,
         private readonly AchievementsSettingsInterface $settings,
         private readonly TimezoneServiceInterface $time,
         private readonly SeasonClock $clock,
@@ -71,18 +71,18 @@ final class AchievementPoints implements AchievementPointsInterface
         );
     }
 
-    public function seasons(): array
+    public function seasons(?DateTimeImmutable $before = null): array
     {
         $current = $this->clock->current()->year;
         $oldest = $current;
-        $first = $this->points->firstGrantedAt();
+        $first = $this->points->firstGrantedAt($before);
 
         if ($first instanceof DateTimeImmutable) {
             $oldest = min($oldest, Season::containing($first, $this->time->displayTimezone())->year);
         }
 
         // A grant for the season before, made in January, counts there
-        $earliestKey = Season::fromKey($this->points->earliestSeasonKey());
+        $earliestKey = Season::fromKey($this->points->earliestSeasonKey($before));
 
         if ($earliestKey instanceof Season) {
             $oldest = min($oldest, $earliestKey->year);
@@ -109,14 +109,17 @@ final class AchievementPoints implements AchievementPointsInterface
             $total = $this->points->breakdowns([$userId], PointsPeriod::allTime())[$userId]->total();
             $season = $seasonPeriod instanceof PointsPeriod ? $this->points->breakdowns([$userId], $seasonPeriod)[$userId]->total() : null;
         } else {
-            // Anybody else: last night's photo, without the secrets masked to them; nothing without one
-            if (! $this->snapshots->takenAt() instanceof DateTimeImmutable) {
+            // Anybody else: the grants still held that were made before the cut, without the secrets
+            // masked to them; nothing without a cut
+            $cut = $this->cutoff->takenAt();
+
+            if (! $cut instanceof DateTimeImmutable) {
                 return $this->summaries[$key] = null;
             }
 
             $revealed = $this->revealedSecrets($userId, $viewerId);
-            $total = $this->fromSnapshot($userId, PointsPeriod::allTime(), $revealed);
-            $season = $seasonPeriod instanceof PointsPeriod ? $this->fromSnapshot($userId, $seasonPeriod, $revealed) : null;
+            $total = $this->beforeCut($userId, PointsPeriod::allTime(), $cut, $revealed);
+            $season = $seasonPeriod instanceof PointsPeriod ? $this->beforeCut($userId, $seasonPeriod, $cut, $revealed) : null;
         }
 
         $scale = $this->settings->levelsShown() ? $this->settings->levelScale() : null;
@@ -160,11 +163,11 @@ final class AchievementPoints implements AchievementPointsInterface
     /**
      * @param  array<string, true>  $revealed
      */
-    private function fromSnapshot(string $userId, PointsPeriod $period, array $revealed): int
+    private function beforeCut(string $userId, PointsPeriod $period, DateTimeImmutable $cut, array $revealed): int
     {
-        $points = $this->snapshots->forUsers([$userId], $period->key())[$userId] ?? new PointsBreakdown;
-
-        return $points->visibleWith($this->openIds(), $revealed);
+        // Only achievements the owner held before the cut are in the breakdown, so a featured
+        // secret revoked or got today never adds up
+        return $this->points->breakdowns([$userId], $period, $cut)[$userId]->visibleWith($this->openIds(), $revealed);
     }
 
     private function id(string $id): string

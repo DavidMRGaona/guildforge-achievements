@@ -88,7 +88,7 @@ export interface LeaderboardEntry {
 }
 
 export type LeaderboardViewerStatus =
-    'listed' | 'no_points' | 'hidden' | 'opted_out' | 'no_public_name' | 'pending';
+    'listed' | 'no_points' | 'hidden' | 'opted_out' | 'no_public_name';
 
 export interface LeaderboardPagination {
     page: number;

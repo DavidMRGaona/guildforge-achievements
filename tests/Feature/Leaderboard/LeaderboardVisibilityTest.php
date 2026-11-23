@@ -20,14 +20,12 @@ use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Application\Services\AchievementLeaderboardInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Application\Services\PointsCutoffInterface;
 use Modules\Achievements\Domain\Enums\GrantSource;
 use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
-use Modules\Achievements\Domain\Repositories\PointsSnapshotRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\NewGrant;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
-use Modules\Achievements\Infrastructure\Points\PointsSnapshotTaker;
-use Modules\Achievements\Listeners\ForgetAnonymizedAccountPoints;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsActivityFacts;
 use Modules\Achievements\Tests\Support\BuildsShowcase;
@@ -101,8 +99,6 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $this->scored('Oculta', 'hidden', [$this->thirty, $this->ten]);
         $this->scored('Asociada', 'association', [$this->thirty, $this->ten]);
 
-        $this->snapshot();
-
         $this->actingAs($viewer)->get('/logros/clasificacion')
             ->assertOk()
             ->assertDontSee('oculta.login')
@@ -134,8 +130,6 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $membership->method('roleName')->willReturn('socio');
         $this->app->instance(AssociationMembershipServiceInterface::class, $membership);
 
-        $this->snapshot();
-
         $this->actingAs($viewer)->get('/logros/clasificacion')
             ->assertOk()
             ->assertInertia(fn (Assert $page): Assert => $page
@@ -152,8 +146,6 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $this->scored('Pública', 'public', [$this->thirty, $this->ten]);
         $viewer = $this->scored('Vera', 'members', [$this->thirty]);
 
-        $this->snapshot();
-
         $this->actingAs($viewer)->get('/logros/clasificacion')
             ->assertOk()
             ->assertInertia(fn (Assert $page): Assert => $page
@@ -169,8 +161,6 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
     {
         $owner = $this->scored('Oculta', 'hidden', [$this->thirty]);
         $other = $this->person('Luis');
-
-        $this->snapshot();
 
         $this->actingAs($owner)->get('/logros/clasificacion')
             ->assertInertia(fn (Assert $page): Assert => $page
@@ -190,8 +180,6 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $leaves = $this->scored('Olga', 'public', [$this->ten]);
 
         // A first request keeps the standings in the cache
-        $this->snapshot();
-
         $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->has('entries', 2));
 
         $this->choose($hides, hidden: true);
@@ -220,8 +208,6 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         DB::table('users')->where('id', $unnamed->id)->update(['display_name' => null]);
         $this->scored('Pública', 'public', [$this->ten]);
 
-        $this->snapshot();
-
         $this->actingAs($viewer)->get('/logros/clasificacion')
             ->assertOk()
             ->assertDontSee('sinnombre.login')
@@ -245,8 +231,6 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $secret = $this->achievement($this->countRule(), ['name' => 'El secreto', 'points' => 50, 'is_secret' => true]);
         $owner = $this->scored('Pública', 'public', [$this->ten, $secret]);
 
-        $this->snapshot();
-
         $this->actingAs($viewer)->get('/logros/clasificacion')
             ->assertOk()
             ->assertInertia(fn (Assert $page): Assert => $page
@@ -268,8 +252,6 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $this->choose($bea, featured: [(string) $s->id]);
         // Somebody whose only points are a secret masked to the viewer is not listed with 0
         $this->scored('Dani', 'public', [$s]);
-
-        $this->snapshot();
 
         $this->actingAs($viewer)->get('/logros/clasificacion')
             ->assertInertia(fn (Assert $page): Assert => $page
@@ -295,8 +277,6 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $this->scored('Alba', 'public', [$this->thirty]);
         $this->scored('Carla', 'public', [$this->ten]);
 
-        $this->snapshot();
-
         $this->actingAs($viewer)->get('/logros/clasificacion')
             ->assertInertia(fn (Assert $page): Assert => $page
                 ->where('entries.0.publicName', 'Alba')
@@ -315,10 +295,8 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $this->grantAt($ana, (string) $this->thirty->id, '2025-12-31 23:30:00');
         $this->grantAt($ana, (string) $this->ten->id, '2025-06-01 10:00:00');
         $luis = $this->scored('Luis', 'public', []);
-        // A repeatable achievement granted for the 2026 season counts there, whenever it was granted
-        $this->seasonGrant($luis, $this->ten, '2026', '2027-01-02 10:00:00');
-
-        $this->snapshot();
+        // A grant for the 2026 season counts there, whenever it was made: the key decides, not the date
+        $this->seasonGrant($luis, $this->ten, '2026', '2025-11-02 10:00:00');
 
         $this->actingAs($viewer)->get('/logros/clasificacion?temporada=2026')
             ->assertOk()
@@ -355,8 +333,6 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         }
         $viewer = $this->scored('Zoe', 'public', [$this->ten]);
 
-        $this->snapshot();
-
         $this->actingAs($viewer)->get('/logros/clasificacion')
             ->assertInertia(fn (Assert $page): Assert => $page
                 ->has('entries', AchievementLeaderboardInterface::PER_PAGE)
@@ -368,89 +344,125 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
             ->assertInertia(fn (Assert $page): Assert => $page->has('entries', 3)->where('pagination.page', 2));
     }
 
-    public function test_others_see_a_grant_only_after_the_next_photo_and_the_owner_at_once(): void
+    public function test_others_see_a_grant_after_the_cut_and_the_owner_at_once(): void
     {
         $viewer = $this->person('Vera');
         $ana = $this->scored('Ana', 'public', [$this->ten]);
-        $this->snapshot();
 
-        $grant = app(AchievementGranterInterface::class)->grant(new NewGrant((string) $ana->id, (string) $this->thirty->id, GrantSource::Manual, silent: true, actorId: (string) $viewer->id));
-        $this->assertNotNull($grant);
+        app(AchievementGranterInterface::class)->grant(new NewGrant((string) $ana->id, (string) $this->thirty->id, GrantSource::Manual, silent: true, actorId: (string) $viewer->id));
 
-        // Until the night, Vera sees what Ana had: nobody sees two people's points rise at once
+        // Until the cut, Vera sees what Ana had: nobody sees two people's points rise at once
         $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 10));
 
         // Ana sees her own at once
         $this->app['auth']->forgetGuards();
         $this->actingAs($ana)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('viewer.entry.points', 40));
 
-        $this->snapshot();
+        $this->nightPasses();
         $this->app['auth']->forgetGuards();
         $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 40));
+    }
 
-        // A revoke alone changes nothing for others until the next photo either
-        app(AchievementGranterInterface::class)->revoke($grant->id, (string) $viewer->id, 'Por error');
-        $this->app->forgetScopedInstances();
+    public function test_a_revoke_alone_applies_at_once_for_others(): void
+    {
+        $viewer = $this->person('Vera');
+        $ana = $this->scored('Ana', 'public', [$this->ten]);
+        $grant = app(AchievementGranterInterface::class)->grant(new NewGrant((string) $ana->id, (string) $this->thirty->id, GrantSource::Manual, silent: true, actorId: (string) $viewer->id));
+        $this->assertNotNull($grant);
+        $this->nightPasses();
         $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 40));
 
-        $this->snapshot();
+        // What takes away never waits: «total minus what is shown» would give a revoked secret away
+        app(AchievementGranterInterface::class)->revoke($grant->id, (string) $viewer->id, 'Por error');
+        $this->app->forgetScopedInstances();
+
         $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 10));
     }
 
-    public function test_an_achievement_made_secret_is_masked_at_once_without_a_new_photo(): void
+    public function test_a_change_of_points_applies_to_everybody_at_once(): void
+    {
+        $viewer = $this->person('Vera');
+        $this->scored('Ana', 'public', [$this->thirty]);
+        $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 30));
+
+        $this->thirty->refresh()->update(['points' => 5]);
+        $this->app->forgetScopedInstances();
+
+        $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 5));
+    }
+
+    public function test_an_achievement_made_secret_is_masked_at_once(): void
     {
         $viewer = $this->person('Vera');
         $this->scored('Ana', 'public', [$this->ten, $this->thirty]);
-        $this->snapshot();
         $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 40));
 
-        // «total minus what is shown» would give it away if the photo decided what is secret
         $this->thirty->refresh()->update(['is_secret' => true]);
         $this->app->forgetScopedInstances();
 
         $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 10));
     }
 
-    public function test_points_of_an_achievement_deleted_after_the_photo_never_add_up_for_others(): void
+    public function test_a_featured_secret_revoked_today_stops_adding_up_at_once(): void
     {
         $viewer = $this->person('Vera');
         $secret = $this->achievement($this->countRule(), ['name' => 'El secreto', 'points' => 50, 'is_secret' => true]);
         $ana = $this->scored('Ana', 'public', [$this->ten, $secret]);
-        $this->snapshot();
+        $this->choose($ana, featured: [(string) $secret->id]);
+        $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 60));
 
-        // Revoked and deleted before the next photo: the photo still has its 50 points
         DB::table('achievements_grants')->where('achievement_id', $secret->id)->delete();
-        DB::table('achievements_catalogue')->where('id', $secret->id)->delete();
         $this->app->forgetScopedInstances();
 
         $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 10));
-        $this->assertSame(strtolower((string) $ana->id), array_key_first(app(PointsSnapshotRepositoryInterface::class)->forPeriod('all')));
     }
 
-    public function test_without_a_photo_nobody_is_shown_and_nothing_is_said(): void
+    public function test_without_a_cut_nobody_is_shown_and_nothing_is_said(): void
     {
         $viewer = $this->scored('Vera', 'public', [$this->ten]);
         $this->scored('Ana', 'public', [$this->thirty]);
+        $cutoff = $this->createStub(PointsCutoffInterface::class);
+        $cutoff->method('takenAt')->willReturn(null);
+        $this->app->instance(PointsCutoffInterface::class, $cutoff);
 
         $this->actingAs($viewer)->get('/logros/clasificacion')
             ->assertOk()
             ->assertInertia(fn (Assert $page): Assert => $page
                 ->where('available', false)
                 ->has('entries', 0)
+                ->where('seasons', [])
                 ->where('viewer.entry', null)
                 ->where('viewer.status', null));
     }
 
-    public function test_an_anonymized_account_leaves_the_photo_at_once(): void
+    public function test_an_anonymized_account_leaves_the_leaderboard_through_its_event(): void
     {
+        $viewer = $this->person('Vera');
         $ana = $this->scored('Ana', 'public', [$this->ten]);
-        $this->snapshot();
-        $snapshots = app(PointsSnapshotRepositoryInterface::class);
-        $this->assertArrayHasKey(strtolower((string) $ana->id), $snapshots->forPeriod('all'));
+        $this->scored('Luis', 'public', [$this->thirty]);
+        $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->has('entries', 2));
 
-        app(ForgetAnonymizedAccountPoints::class)->handle(new UserAnonymized((string) $ana->id));
+        DB::table('users')->where('id', $ana->id)->update(['anonymized_at' => now()]);
+        event(new UserAnonymized((string) $ana->id));
+        $this->app->forgetScopedInstances();
 
-        $this->assertArrayNotHasKey(strtolower((string) $ana->id), $snapshots->forPeriod('all'));
+        $this->assertSame(0, DB::table('achievements_grants')->where('user_id', strtolower((string) $ana->id))->count());
+        $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page
+            ->has('entries', 1)
+            ->where('entries.0.publicName', 'Luis'));
+    }
+
+    public function test_a_grant_of_today_to_an_old_season_adds_nothing_to_the_list_before_the_cut(): void
+    {
+        $this->settingsWith(['points' => true, 'leaderboard' => true, 'seasons_and_streaks' => true]);
+        $viewer = $this->person('Vera');
+        $ana = $this->scored('Ana', 'public', [$this->ten]);
+        $this->seasonGrant($ana, $this->ten, '2024', '2026-11-22 09:30:00');
+
+        $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('seasons', [2026]));
+
+        $this->nightPasses();
+        $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('seasons', [2026, 2025, 2024]));
     }
 
     public function test_a_grant_for_the_season_before_made_in_january_offers_that_season(): void
@@ -460,8 +472,6 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $viewer = $this->person('Vera');
         $ana = $this->scored('Ana', 'public', []);
         $this->seasonGrant($ana, $this->ten, '2026', '2027-01-05 10:00:00');
-        $this->snapshot();
-
         $this->actingAs($viewer)->get('/logros/clasificacion?temporada=2026')
             ->assertOk()
             ->assertInertia(fn (Assert $page): Assert => $page
@@ -478,8 +488,6 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         // Stored in Madrid: 00:30 on the 1st is already 2026, 23:30 on the 31st still 2025
         $this->grantAt($ana, (string) $this->thirty->id, '2026-01-01 00:30:00');
         $this->grantAt($ana, (string) $this->ten->id, '2025-12-31 23:30:00');
-        $this->snapshot();
-
         $this->actingAs($viewer)->get('/logros/clasificacion?temporada=2026')
             ->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 30));
         $this->actingAs($viewer)->get('/logros/clasificacion?temporada=2025')
@@ -491,7 +499,6 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $this->settingsWith(['points' => true, 'leaderboard' => true, 'seasons_and_streaks' => true]);
         $viewer = $this->person('Vera');
         $this->scored('Ana', 'public', [$this->ten]);
-        $this->snapshot();
         $points = $this->createStub(AchievementPointsRepositoryInterface::class);
         $points->method('firstGrantedAt')->willThrowException(new RuntimeException('down'));
         $points->method('breakdowns')->willThrowException(new RuntimeException('down'));
@@ -526,8 +533,6 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $ana = $this->scored('Ana', 'public', [$this->ten]);
         $this->optOut($ana);
         // Ana is left out of the kept standings
-        $this->snapshot();
-
         $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->has('entries', 0));
 
         $this->app['auth']->forgetGuards();
@@ -546,9 +551,6 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $this->assertContains(ThrottleWhereListed::class.':'.AchievementsServiceProvider::LEADERBOARD_LIMITER, $route->gatherMiddleware());
     }
 
-    /**
-     * Takes the nightly photo of points now, as the schedule does at night.
-     */
     private function useMadridStorage(): void
     {
         $now = now()->toDateTimeString();
@@ -563,9 +565,12 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $this->app->forgetScopedInstances();
     }
 
-    private function snapshot(): void
+    /**
+     * The next day: the cut (midnight in the display zone until #28's photo) has moved past today.
+     */
+    private function nightPasses(): void
     {
-        app(PointsSnapshotTaker::class)->take();
+        $this->travel(1)->days();
         $this->app->forgetScopedInstances();
     }
 
