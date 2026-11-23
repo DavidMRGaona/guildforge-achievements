@@ -5,17 +5,13 @@ declare(strict_types=1);
 namespace Modules\Achievements\Tests\Feature\Leaderboard;
 
 use App\Application\Authorization\Services\AssociationMembershipServiceInterface;
-use App\Application\Services\EmailVerificationPolicyInterface;
-use App\Http\Middleware\ThrottleWhereListed;
-use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use App\Application\Modules\DTOs\ModuleRouteDTO;
+use App\Application\Services\EmailVerificationPolicyInterface;
 use App\Application\Services\SettingsServiceInterface;
 use App\Domain\Events\UserAnonymized;
+use App\Http\Middleware\ThrottleWhereListed;
+use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use App\Infrastructure\Time\StorageTimezoneResolver;
-use Modules\Achievements\Domain\Repositories\PointsSnapshotRepositoryInterface;
-use Modules\Achievements\Listeners\ForgetAnonymizedAccountPoints;
-
-use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -27,9 +23,11 @@ use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\Enums\GrantSource;
 use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\PointsSnapshotRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\NewGrant;
-use Modules\Achievements\Infrastructure\Points\PointsSnapshotTaker;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
+use Modules\Achievements\Infrastructure\Points\PointsSnapshotTaker;
+use Modules\Achievements\Listeners\ForgetAnonymizedAccountPoints;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsActivityFacts;
 use Modules\Achievements\Tests\Support\BuildsShowcase;
@@ -411,6 +409,22 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
         $this->app->forgetScopedInstances();
 
         $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 10));
+    }
+
+    public function test_points_of_an_achievement_deleted_after_the_photo_never_add_up_for_others(): void
+    {
+        $viewer = $this->person('Vera');
+        $secret = $this->achievement($this->countRule(), ['name' => 'El secreto', 'points' => 50, 'is_secret' => true]);
+        $ana = $this->scored('Ana', 'public', [$this->ten, $secret]);
+        $this->snapshot();
+
+        // Revoked and deleted before the next photo: the photo still has its 50 points
+        DB::table('achievements_grants')->where('achievement_id', $secret->id)->delete();
+        DB::table('achievements_catalogue')->where('id', $secret->id)->delete();
+        $this->app->forgetScopedInstances();
+
+        $this->actingAs($viewer)->get('/logros/clasificacion')->assertInertia(fn (Assert $page): Assert => $page->where('entries.0.points', 10));
+        $this->assertSame(strtolower((string) $ana->id), array_key_first(app(PointsSnapshotRepositoryInterface::class)->forPeriod('all')));
     }
 
     public function test_without_a_photo_nobody_is_shown_and_nothing_is_said(): void

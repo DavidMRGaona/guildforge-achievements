@@ -160,7 +160,7 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
         }
 
         $viewerHolds = $this->pointsShown->heldBy($viewerId);
-        $secret = $this->pointsShown->secretIds();
+        $open = $this->pointsShown->openIds();
         $rows = [];
 
         foreach ($this->preferences->forUsers(array_keys($named)) as $userId => $choices) {
@@ -171,7 +171,7 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
             $points = $userId === $viewerId
                 ? $standings[$userId]->total()
                 // Featuring reveals a secret to everybody; holding it too reveals it to the viewer
-                : $standings[$userId]->visibleWith($secret, array_fill_keys($choices->featured, true) + $viewerHolds);
+                : $standings[$userId]->visibleWith($open, array_fill_keys($choices->featured, true) + $viewerHolds);
 
             if ($points > 0) {
                 $rows[] = ['userId' => $userId, 'points' => $points] + $named[$userId];

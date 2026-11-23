@@ -33,11 +33,11 @@ interface AchievementPointsRepositoryInterface
     public function everyone(PointsPeriod $period): array;
 
     /**
-     * The achievements that are secret now, as a set of ids in lower case.
+     * The achievements that exist now and are not secret, as a set of ids in lower case.
      *
      * @return array<string, true>
      */
-    public function secretIds(): array;
+    public function openIds(): array;
 
     /**
      * When the first grant still kept was made (storage zone), or null without any.

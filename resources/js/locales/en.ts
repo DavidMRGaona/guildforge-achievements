@@ -110,7 +110,8 @@ export default {
             },
             changeOnProfile: 'Change it on your profile',
             empty: 'Nobody is in the leaderboard yet.',
-            unavailable: 'The leaderboard is not available right now. It is updated every night: try again later.',
+            unavailable:
+                'The leaderboard is not available right now. It is updated every night: try again later.',
             explained:
                 'Points come from each person’s achievements and are updated every night; yours, at once. Secret ones you do not hold are not added here, unless their owner featured them.',
             pagesLabel: 'Leaderboard pages',

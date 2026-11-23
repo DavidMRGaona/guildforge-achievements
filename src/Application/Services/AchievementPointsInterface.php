@@ -39,11 +39,12 @@ interface AchievementPointsInterface
     public function summary(string $userId, ?string $viewerId): ?PointsSummaryDTO;
 
     /**
-     * The achievements that are secret now, as a set of ids in lower case (read once per request).
+     * The achievements that exist now and are not secret, as a set of ids in lower case (read once
+     * per request): only these, and secret ones revealed to the viewer, add up for others.
      *
      * @return array<string, true>
      */
-    public function secretIds(): array;
+    public function openIds(): array;
 
     /**
      * The secret achievements of an owner revealed to a viewer: those the owner featured (featuring

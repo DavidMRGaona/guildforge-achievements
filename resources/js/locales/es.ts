@@ -110,7 +110,8 @@ export default {
             },
             changeOnProfile: 'Cambiarlo en tu perfil',
             empty: 'Todavía no hay nadie en la clasificación.',
-            unavailable: 'La clasificación no está disponible ahora mismo. Se actualiza cada noche: vuelve a probar más tarde.',
+            unavailable:
+                'La clasificación no está disponible ahora mismo. Se actualiza cada noche: vuelve a probar más tarde.',
             explained:
                 'Los puntos salen de los logros que tiene cada persona y se actualizan cada noche; los tuyos, al momento. Los logros secretos que tú no tienes no se suman aquí, salvo que su dueño los haya destacado.',
             pagesLabel: 'Páginas de la clasificación',

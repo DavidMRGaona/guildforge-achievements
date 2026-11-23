@@ -39,7 +39,7 @@ final class AchievementPoints implements AchievementPointsInterface
     private array $held = [];
 
     /** @var array<string, true>|null */
-    private ?array $secret = null;
+    private ?array $open = null;
 
     public function __construct(
         private readonly AchievementPointsRepositoryInterface $points,
@@ -130,9 +130,9 @@ final class AchievementPoints implements AchievementPointsInterface
         );
     }
 
-    public function secretIds(): array
+    public function openIds(): array
     {
-        return $this->secret ??= $this->points->secretIds();
+        return $this->open ??= $this->points->openIds();
     }
 
     public function revealedSecrets(string $ownerId, ?string $viewerId): array
@@ -164,7 +164,7 @@ final class AchievementPoints implements AchievementPointsInterface
     {
         $points = $this->snapshots->forUsers([$userId], $period->key())[$userId] ?? new PointsBreakdown;
 
-        return $points->visibleWith($this->secretIds(), $revealed);
+        return $points->visibleWith($this->openIds(), $revealed);
     }
 
     private function id(string $id): string

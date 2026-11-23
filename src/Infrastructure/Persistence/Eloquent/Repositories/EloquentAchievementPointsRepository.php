@@ -55,11 +55,11 @@ final readonly class EloquentAchievementPointsRepository implements AchievementP
         return array_filter($this->fold($rows), static fn (PointsBreakdown $points): bool => $points->total() > 0);
     }
 
-    public function secretIds(): array
+    public function openIds(): array
     {
         $ids = [];
 
-        foreach ($this->db->table('achievements_catalogue')->where('is_secret', true)->pluck('id') as $id) {
+        foreach ($this->db->table('achievements_catalogue')->where('is_secret', false)->pluck('id') as $id) {
             $ids[strtolower((string) $id)] = true;
         }
 
