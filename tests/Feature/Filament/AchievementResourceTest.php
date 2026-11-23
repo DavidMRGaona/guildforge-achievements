@@ -368,6 +368,24 @@ final class AchievementResourceTest extends ModuleTestCase
         }
     }
 
+    public function test_whoever_only_views_counts_this_month_s_mentors_once_the_month_is_over(): void
+    {
+        Bus::fake([EvaluateAchievementsJob::class]);
+        $this->useUtcStorage();
+        $this->travelTo('2026-11-23 10:00:00');
+        $mentor = $this->achievement(['version' => 1, 'metric' => 'mentor', 'threshold' => 1], ['name' => 'Mentor']);
+        $this->grantAt($this->person('Ana'), (string) $mentor->id, '2026-10-20 03:00:00');
+        $this->grantAt($this->person('Luis'), (string) $mentor->id, '2026-11-20 03:00:00');
+        $this->refreshRarity();
+        $this->app->forgetScopedInstances();
+
+        $this->actingAs($this->userWith(AchievementPolicy::VIEW_ANY));
+        Livewire::test(ListAchievements::class)->assertTableColumnStateSet('holders_count', 1, $mentor);
+
+        $this->actingAs($this->userWith(AchievementPolicy::GRANT));
+        Livewire::test(ListAchievements::class)->assertTableColumnStateSet('holders_count', 2, $mentor);
+    }
+
     public function test_sorting_never_shows_where_a_secret_name_falls(): void
     {
         Bus::fake([EvaluateAchievementsJob::class]);

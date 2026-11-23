@@ -48,7 +48,7 @@ Algunos logros premian a quien trae y cuida gente: jugar con 10 personas distint
 
 Tu progreso en estos logros puede tardar unos minutos en reflejar una partida nueva.
 
-**Mentor** premia a quien dirige la primera partida de alguien, la primera en la que juega como jugador. No llega al acabar la partida: se revisa cada noche, cuando esa primera partida tiene más de 14 días, y se concede con la fecha de esa noche. Si la mesa tenía varias personas en la dirección, es para quien la creó. Los demás solo ven que lo tienes, nunca a quién diste la bienvenida.
+**Mentor** premia a quien dirige la primera partida de alguien, la primera en la que juega como jugador. No llega al acabar la partida: se revisa cada noche, cuando esa primera partida tiene más de 14 días, y se concede con la fecha de esa noche. Si la mesa tenía varias personas en la dirección, es para quien la creó. Tú lo ves al momento; los demás, cuando termina el mes en que lo conseguiste, y solo que lo tienes, nunca a quién diste la bienvenida.
 
 ## La rareza
 

@@ -28,6 +28,7 @@ Quien juega con alguien consigue sus logros a la vez. Todo lo que ven los demás
 - **Los secretos ajenos solo se cuentan.** A quien no tiene un logro secreto de otra persona solo le llega cuántos tiene, y no le suman a sus puntos, salvo los que el dueño destaca.
 - **Fechas con mes y año.** El dueño ve el instante; los demás, el mes de la zona de visualización.
 - **La foto de cada noche.** Lo que ven los demás (lista, contador, destacadas, puntos, nivel, clasificación y rareza) sale de la foto que se toma cada noche a las 03:30. Lo que solo quita cosas se aplica al momento.
+- **Mentor, por meses cerrados.** Los demás ven una concesión de Mentor solo cuando ha terminado su mes en la zona de visualización: la del 20 de noviembre, desde la foto del 1 de diciembre (ver «Mentor»).
 - **Resumen mensual.** A los demás los logros les llegan solo en el resumen del día 1, con el mes y el nombre.
 - **Retos.** Duran al menos 28 días; los de socios se enseñan con el recuento de la noche y la lista de quién los consiguió solo crece el día 1 de cada mes.
 
@@ -117,7 +118,8 @@ Las reglas `people` y `mentor` cuentan a otras personas, así que no salen de lo
 - **Consultas.** `MentorDecisionRepositoryInterface::undecidedNewcomers()` recorre por bloques de 500 a quien jugó y no tiene decisión, y `AchievementFactRepositoryInterface::firstFacts()` saca la primera partida de cada uno con quién la dirigió y quién la creó (subconsulta correlacionada sobre el índice `achievements_facts_first_fact_index`: `user_id`, `kind`, `role`, `occurred_at`). El evaluador no lee los hechos de nadie para las reglas de comunidad.
 - **Anonimizar.** De un recién llegado, se borra su decisión, y no se vuelve a decidir porque las cuentas anonimizadas nunca salen en la lista; de un mentor, sus recién llegados se quedan decididos sin mentor, para que nadie más lo sea (`ForgetAnonymizedAccountMentorDecisions`). Mientras tanto, un recién llegado anonimizado o borrado ya no cuenta. Las cuentas desactivadas siguen contando, como en `people`.
 - **Idempotente.** Volver a evaluar no duplica: la concesión es única por cuenta y logro, y la decisión, por recién llegado. Como todas, la concesión es permanente.
-- **Lo que ven los demás**, como en cualquier logro: solo que lo tiene, desde la foto de la noche, con mes y año, y nada si oculta sus logros. El progreso solo lo ve el dueño.
+- **Meses cerrados** (#37). Una concesión de Mentor llega un tiempo fijo después de la primera partida del recién llegado (la partida, los 14 días y el lote), así que vista al día siguiente se podría emparejar con la «Primera partida» de alguien dos semanas antes. Por eso los demás solo la ven cuando su mes ha terminado en la zona de visualización: cuenta si `granted_at` es anterior a las 00:00 del día 1 del mes de la foto (`ShownToOthersRule`), además de ser anterior a la foto. Así todos los recién llegados de un mes quedan iguales. Vale para todo lo que ven los demás: la lista, el contador, los destacados, los puntos y el nivel, la clasificación, la rareza y el número de personas del panel para quien no ve las concesiones. En SQL lo aplica `ShownToOthersGrants`, que lee la métrica de la regla guardada. Una regla tiene este trato si `AchievementRule::showsByClosedMonths()` (hoy, solo `mentor`). El dueño ve lo suyo en vivo, como siempre, salvo los destacados, que para todo el mundo salen de la foto.
+- **Lo que ven los demás**, además: solo que lo tiene, con mes y año, y nada si oculta sus logros. El progreso solo lo ve el dueño.
 
 ## Concesiones
 

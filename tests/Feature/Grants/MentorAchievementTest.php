@@ -369,7 +369,7 @@ final class MentorAchievementTest extends ModuleTestCase
         );
     }
 
-    public function test_others_see_it_only_after_the_nightly_photo_by_month_and_never_its_progress(): void
+    public function test_others_see_it_once_its_month_is_over_by_month_and_never_its_progress(): void
     {
         $ana = $this->person('Ana');
         $luis = $this->person('Luis');
@@ -391,7 +391,12 @@ final class MentorAchievementTest extends ModuleTestCase
         // Not in tonight's photo yet
         $this->assertNotContains('Mentor', array_column($this->achievementsSection($this->render($ana, $luis))?->props['earned'] ?? [], 'name'));
 
+        // Nor in the next one: others see it once its month is over (#37)
         $this->travelTo('2026-11-24 03:30:00');
+        $this->refreshRarity();
+        $this->assertNotContains('Mentor', array_column($this->achievementsSection($this->render($ana, $luis))?->props['earned'] ?? [], 'name'));
+
+        $this->travelTo('2026-12-01 03:30:00');
         $this->refreshRarity();
 
         $earned = array_column($this->achievementsSection($this->render($ana, $luis))?->props['earned'] ?? [], null, 'name');
