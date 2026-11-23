@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentChallengeRepository;
 
 /**
  * A collective challenge (#12). The rule is kept as the array it was stored as: ChallengeRule
@@ -68,8 +70,37 @@ final class ChallengeModel extends Model
     protected static function booted(): void
     {
         self::updating(static function (ChallengeModel $challenge): void {
-            if ($challenge->isDirty(self::COUNTED)) {
-                $challenge->count_version += 1;
+            if (! $challenge->isDirty(self::COUNTED)) {
+                return;
+            }
+
+            // Another audience: neither the count of the old one nor its picture is shown. The
+            // queued count starts again; a challenge of members shows nothing until the next night
+            if ($challenge->isDirty('audience')) {
+                $challenge->progress = 0;
+                $challenge->contributors = 0;
+                $challenge->progress_at = null;
+                $challenge->shown_progress = 0;
+                $challenge->shown_contributors = 0;
+                $challenge->shown_completed_at = null;
+                $challenge->shown_at = null;
+            }
+        });
+
+        self::updated(static function (ChallengeModel $challenge): void {
+            if (! $challenge->wasChanged(self::COUNTED)) {
+                return;
+            }
+
+            // In SQL (`count_version + 1`), so two saves at once never write the same version
+            self::query()->whereKey($challenge->getKey())->increment('count_version');
+            $challenge->setAttribute('count_version', (int) self::query()->whereKey($challenge->getKey())->value('count_version'));
+            $challenge->syncOriginalAttribute('count_version');
+
+            if ($challenge->wasChanged('audience')) {
+                // Each one's part was of the old audience
+                DB::table(EloquentChallengeRepository::CONTRIBUTORS_TABLE)->where('challenge_id', $challenge->id)->delete();
+                DB::table(EloquentChallengeRepository::AUDIENCE_TABLE)->where('challenge_id', $challenge->id)->delete();
             }
         });
     }

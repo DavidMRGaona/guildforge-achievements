@@ -23,6 +23,7 @@ use Modules\Achievements\Domain\ValueObjects\MetricKinds;
 use Modules\Achievements\Filament\Pages\AchievementsSettingsPage;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Jobs\EvaluateChallengesJob;
+use Modules\Achievements\Jobs\ListChallengeCompletersJob;
 use Tests\Support\Modules\ModuleTestCase;
 
 final class AchievementsSettingsPageTest extends ModuleTestCase
@@ -286,15 +287,19 @@ final class AchievementsSettingsPageTest extends ModuleTestCase
 
     public function test_switching_the_challenges_on_counts_them(): void
     {
-        Bus::fake([EvaluateChallengesJob::class]);
+        Bus::fake([EvaluateChallengesJob::class, ListChallengeCompletersJob::class]);
         $this->actingAs($this->userWith(AchievementsSettingsPage::PERMISSION));
 
         Livewire::test(AchievementsSettingsPage::class)->fillForm(['points' => true])->call('save');
         Bus::assertNotDispatched(EvaluateChallengesJob::class);
+        Bus::assertNotDispatched(ListChallengeCompletersJob::class);
 
         $this->app->forgetScopedInstances();
         Livewire::test(AchievementsSettingsPage::class)->fillForm(['challenges' => true])->call('save');
         Bus::assertDispatched(EvaluateChallengesJob::class, static fn (EvaluateChallengesJob $job): bool => $job->challengeIds === null && ! $job->silent);
+        // Its lists are made once, now, not on the 1st
+        Bus::assertDispatchedTimes(ListChallengeCompletersJob::class, 1);
+        Bus::assertDispatched(ListChallengeCompletersJob::class, static fn (ListChallengeCompletersJob $job): bool => $job->catchUp && $job->delay !== null);
     }
 
     public function test_switching_seasons_and_streaks_back_on_evaluates_everybody_again(): void

@@ -27,12 +27,14 @@ use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\ChallengeRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\NewGrant;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\ChallengeModel;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentChallengeRepository;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Jobs\EvaluateChallengesJob;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountContributions;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsActivityFacts;
 use Modules\Achievements\Tests\Support\BuildsChallenges;
+use Modules\Achievements\Tests\Support\ClosingAfterSaveRepository;
 use RuntimeException;
 use Tests\Support\Activity\InMemoryActivitySource;
 use Tests\Support\Modules\ModuleTestCase;
@@ -180,6 +182,49 @@ final class ChallengeEvaluatorTest extends ModuleTestCase
 
         $this->assertSame(0, $this->challenges()->evaluate([$challenge->id], silent: false)->granted);
         $this->assertSame(0, DB::table('achievements_grants')->count());
+    }
+
+    public function test_closing_between_the_count_and_the_rewards_grants_nothing(): void
+    {
+        $ana = $this->account();
+        $this->ledgerSubject(self::SESSIONS, 't1', 'game_session', [$this->recordedFact($ana, when: '2026-12-02 18:00:00')]);
+        $challenge = $this->challenge(['target' => 1]);
+        // Closed by hand right after the count stored the completion, before any reward
+        $this->app->instance(ChallengeRepositoryInterface::class, new ClosingAfterSaveRepository($this->app->make(EloquentChallengeRepository::class)));
+
+        $result = $this->challenges()->evaluate([$challenge->id], silent: false);
+
+        $this->assertSame([$challenge->id], $result->completed);
+        $this->assertSame(0, $result->granted);
+        $this->assertSame(0, DB::table('achievements_grants')->count());
+        $challenge->refresh();
+        $this->assertNotNull($challenge->completed_at);
+        $this->assertNotNull($challenge->closed_at);
+    }
+
+    public function test_an_account_anonymized_while_it_is_counted_adds_no_row(): void
+    {
+        [$ana, $luis] = [$this->account(), $this->account()];
+        $this->ledgerSubject(self::SESSIONS, 't1', 'game_session', [$this->recordedFact($ana, when: '2026-12-02 18:00:00'), $this->recordedFact($luis, when: '2026-12-02 18:00:00')]);
+        $challenge = $this->challenge(['target' => 10]);
+        $repository = $this->app->make(ChallengeRepositoryInterface::class);
+        $loaded = $repository->find($challenge->id);
+        $this->assertNotNull($loaded);
+        $rule = $loaded->rule;
+        $this->assertInstanceOf(ChallengeRule::class, $rule);
+        // The facts were read with Ana still there; she is anonymized before the count is stored
+        $facts = $this->app->make(AchievementFactRepositoryInterface::class)->forKindBetween('game_session', new DateTimeImmutable('2026-12-01 00:00:00'), new DateTimeImmutable('2026-12-31 23:59:59'));
+        $progress = $this->app->make(ChallengeCalculator::class)->progress($rule, $facts);
+        $this->assertCount(2, $progress->contributions);
+        DB::table('users')->where('id', $ana)->update(['anonymized_at' => '2026-12-20 11:00:00']);
+
+        $saved = $repository->saveProgress($challenge->id, $progress, new DateTimeImmutable('2026-12-20 12:00:00'), $loaded->countVersion);
+        $repository->replaceListed($challenge->id, [$ana, $luis], new DateTimeImmutable('2026-12-20 12:00:00'));
+
+        $this->assertNotNull($saved);
+        $this->assertSame(1, $saved->contributors);
+        $this->assertSame([$luis], DB::table('achievements_challenge_contributors')->pluck('user_id')->all());
+        $this->assertSame([$luis], DB::table('achievements_challenge_listed')->pluck('user_id')->all());
     }
 
     public function test_no_membership_is_remembered_for_an_anonymized_account(): void

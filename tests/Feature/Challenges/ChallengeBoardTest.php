@@ -23,11 +23,13 @@ use Modules\Achievements\Filament\SiteBlocks\ChallengeSiteBlock;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\ChallengeModel;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Jobs\EvaluateChallengesJob;
+use Modules\Achievements\Jobs\ListChallengeCompletersJob;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsActivityFacts;
 use Modules\Achievements\Tests\Support\BuildsChallenges;
 use Modules\Achievements\Tests\Support\BuildsShowcase;
 use Modules\Achievements\Tests\Support\FakeProfileCards;
+use RuntimeException;
 use Tests\Support\Activity\InMemoryActivitySource;
 use Tests\Support\Modules\ModuleTestCase;
 use Tests\Support\Time\UsesUtcStorage;
@@ -306,6 +308,31 @@ final class ChallengeBoardTest extends ModuleTestCase
                 ->where('challenges.0.contributors', 2));
     }
 
+    public function test_a_challenge_of_members_closed_today_is_not_shown_as_completed_until_the_night(): void
+    {
+        $challenge = $this->challenge(['target' => 2], ['audience' => 'members']);
+        // Shown as running last night; completed during the day, then closed by hand
+        $this->publishShown();
+        ChallengeModel::query()->whereKey($challenge->id)->update([
+            'progress' => 2,
+            'contributors' => 2,
+            'completed_at' => '2026-12-20 09:00:00',
+            'progress_at' => '2026-12-20 09:30:00',
+            'closed_at' => '2026-12-20 09:45:00',
+        ]);
+
+        $this->get(route('achievements.index'))
+            ->assertInertia(fn (Assert $page): Assert => $page->has('challenges', 0));
+
+        $this->travelTo('2026-12-21 04:10:00');
+        $this->publishShown();
+
+        $this->get(route('achievements.index'))
+            ->assertInertia(fn (Assert $page): Assert => $page
+                ->where('challenges.0.state', 'completed')
+                ->where('challenges.0.progress', 2));
+    }
+
     public function test_a_challenge_for_everybody_shows_each_count_as_it_comes(): void
     {
         $ana = $this->person('Ana');
@@ -391,6 +418,19 @@ final class ChallengeBoardTest extends ModuleTestCase
         $command->assertSuccessful()->run();
 
         Bus::assertDispatched(EvaluateChallengesJob::class, static fn (EvaluateChallengesJob $job): bool => $job->publish && $job->challengeIds === null && ! $job->silent);
+    }
+
+    public function test_a_monthly_list_that_fails_for_good_is_made_once_more_a_day_later(): void
+    {
+        Bus::fake([ListChallengeCompletersJob::class]);
+
+        new ListChallengeCompletersJob()->failed(new RuntimeException('settings unreadable'));
+        Bus::assertDispatchedTimes(ListChallengeCompletersJob::class, 1);
+        Bus::assertDispatched(ListChallengeCompletersJob::class, static fn (ListChallengeCompletersJob $job): bool => $job->catchUp && $job->delay !== null);
+
+        // The catch-up itself is not made again
+        new ListChallengeCompletersJob(catchUp: true)->failed(new RuntimeException('settings unreadable'));
+        Bus::assertDispatchedTimes(ListChallengeCompletersJob::class, 1);
     }
 
     private function everybodyIsAMember(): void

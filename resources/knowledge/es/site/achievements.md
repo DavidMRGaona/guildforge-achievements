@@ -32,7 +32,7 @@ No se compite: todo lo que haces dentro de las fechas suma al total. Algunos ret
 
 Un reto dura al menos 28 días. En un reto para socios, el total y cuántas personas han contribuido se actualizan una vez al día, por la noche. Así, el total no cambia justo al acabar una partida y no dice quién estaba en ella.
 
-Cuando se llega al objetivo, cada persona que contribuyó recibe el logro de recompensa. También lo recibe quien contribuye después con algo que ocurrió dentro de las fechas, si se registra como mucho 30 días después del último día. En un reto para socios, lo que se registra pasado el último día cuenta si eras socio cuando se descubrió.
+Cuando se llega al objetivo, cada persona que contribuyó recibe el logro de recompensa en ese momento, con un aviso en la campana, aunque los demás no vean el reto conseguido hasta la noche. También lo recibe quien contribuye después con algo que ocurrió dentro de las fechas, si se registra como mucho 30 días después del último día. En un reto para socios, lo que se registra pasado el último día cuenta así: si ya contabas en el reto, vale si eras socio la última vez que se miró dentro de las fechas; si es la primera vez que apareces, se mira si eres socio cuando se descubre.
 
 Los retos solo enseñan totales: nunca dicen qué partidas o eventos han contado. De un reto conseguido se nombra a algunas de las personas que lo tienen, solo si puedes ver su perfil y con su nombre público. Si ocultas tus logros, no se te nombra. En un reto para socios, solo se nombra a quien ya enseña en su perfil que es socio. Esa lista solo crece el día 1 de cada mes: si consigues la recompensa a mitad de mes, tu nombre sale a partir del día 1 siguiente, sin decir cuándo la conseguiste.
 

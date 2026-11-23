@@ -44,7 +44,7 @@ El reto se cuenta al guardarlo y otra vez cada vez que un módulo registra activ
 
 ## Editar un reto
 
-Mientras no se haya conseguido, puedes cambiarlo todo. Si un reto guardado dura menos de 28 días, no se puede volver a guardar hasta que alargues sus fechas. Si ya ha empezado, el formulario te avisa: cambiar lo que se cuenta, sus fechas o quién participa hace que se vuelva a contar, y el progreso puede bajar. Las recompensas ya concedidas se quedan.
+Mientras no se haya conseguido, puedes cambiarlo todo. Si un reto guardado dura menos de 28 días, no se puede volver a guardar hasta que alargues sus fechas. Si cambias **Quién participa**, el reto se vuelve a contar desde cero con el nuevo público: no se enseña nada del recuento anterior, y un reto que pasa a ser para socios no enseña su total hasta la noche siguiente. Si ya ha empezado, el formulario te avisa: cambiar lo que se cuenta, sus fechas o quién participa hace que se vuelva a contar, y el progreso puede bajar. Las recompensas ya concedidas se quedan.
 
 Cuando el reto se consigue, lo que cuenta, sus fechas, quién participa y la recompensa quedan fijos, porque las recompensas se concedieron por eso. Solo puedes cambiar el nombre y la descripción.
 
@@ -58,7 +58,7 @@ Cuando el reto se consigue, lo que cuenta, sus fechas, quién participa y la rec
 
 ## Quién recibe la recompensa
 
-Al conseguirse el reto, recibe el logro cada persona que contribuyó con algo que cuenta. Quien contribuye después también lo recibe, mientras el reto se siga contando. Lo que se registra tarde, como una mesa que se marca como terminada unos días después, sigue contando hasta 30 días después del último día, siempre que haya ocurrido dentro de las fechas.
+Al conseguirse el reto, recibe el logro cada persona que contribuyó con algo que cuenta, en ese mismo momento y con un aviso en su campana, también en un reto para socios, aunque los demás no lo vean conseguido hasta la noche. Quien contribuye después también lo recibe, mientras el reto se siga contando. Lo que se registra tarde, como una mesa que se marca como terminada unos días después, sigue contando hasta 30 días después del último día, siempre que haya ocurrido dentro de las fechas.
 
 La recompensa se concede en los recuentos normales, nunca en un recálculo. Si un recálculo descubre que el reto se ha conseguido, la recompensa llega en el siguiente recuento, como mucho a la noche siguiente. Cada persona sabe enseguida, en la campana, que ha recibido la recompensa. Si los anuncios de logros están encendidos, quien puede ver su perfil lo sabe en el resumen del mes siguiente, solo si esa persona eligió anunciar sus logros. El resumen la cuenta en el mes en que se concedió, que es cuando se descubrió que el reto se había conseguido.
 
@@ -74,7 +74,7 @@ En un reto para socios, el total, cuántas personas han contribuido y si se ha c
 
 De un reto conseguido se nombra a algunas de las personas que tienen la recompensa, hasta doce. Solo salen perfiles que quien mira puede ver, con su nombre público y nunca quien oculta sus logros. En un reto para socios, además, solo salen quienes ya enseñan en su perfil que son socios. No se dice cuántas personas tienen la recompensa.
 
-Esa lista se actualiza solo el día 1 de cada mes, a la misma hora que el resumen de anuncios. Hasta entonces no aparece nadie nuevo, aunque ya tenga la recompensa, para que un nombre nuevo no diga cuándo la consiguió. Así, un reto conseguido a mitad de mes no nombra a nadie hasta el día 1 siguiente. Sí desaparece antes quien pierde la recompensa u oculta sus logros o su perfil.
+Esa lista se actualiza solo el día 1 de cada mes, a la misma hora que el resumen de anuncios. Al encender **Retos** se hace una vez en ese momento, y si la del día 1 falla, se repite una vez al día siguiente. Hasta entonces no aparece nadie nuevo, aunque ya tenga la recompensa, para que un nombre nuevo no diga cuándo la consiguió. Así, un reto conseguido a mitad de mes no nombra a nadie hasta el día 1 siguiente. Sí desaparece antes quien pierde la recompensa u oculta sus logros o su perfil.
 
 ## El bloque del reto
 
@@ -82,6 +82,6 @@ El bloque **Reto de la asociación** enseña un reto con su barra de progreso y 
 
 ## Cerrar o borrar un reto
 
-Para terminar un reto antes de tiempo, abre el reto o su menú **⋯** y pulsa **Cerrar**. Al cerrarlo deja de contar y nadie más recibe la recompensa. Quien ya la tiene la conserva. Un reto cerrado no se puede volver a abrir ni editar.
+Para terminar un reto antes de tiempo, abre el reto o su menú **⋯** y pulsa **Cerrar**. Al cerrarlo deja de contar y nadie más recibe la recompensa. Quien ya la tiene la conserva. Un reto cerrado no se puede volver a abrir ni editar. En la web, un reto cerrado solo se sigue viendo si se consiguió; en uno para socios, si ya se veía conseguido la noche anterior o desde la noche siguiente.
 
 Solo se puede borrar un reto que no se ha conseguido. Uno conseguido se cierra, porque explica por qué se concedieron sus recompensas.

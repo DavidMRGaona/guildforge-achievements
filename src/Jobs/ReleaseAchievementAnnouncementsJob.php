@@ -25,6 +25,7 @@ use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\PendingAchievementNoticeRepositoryInterface;
 use Modules\Achievements\Domain\Rules\AnnouncementRule;
+use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Modules\Achievements\Notifications\AchievementsAnnouncedNotification;
 use Throwable;
 
@@ -82,17 +83,19 @@ final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, Should
         // after this release, a month whose release failed) goes in the next one, under its own month
         $before = $timezone->displayMonthRange($timezone->today())[0];
 
-        $pending->releaseAnnouncements($before, function (array $waiting) use ($settings, $grants, $preferences, $rarityService, $timezone): void {
+        $pending->releaseAnnouncements($before, function (array $waiting) use ($settings, $grants, $preferences, $rarityService, $timezone): array {
             // Off: what waited is dropped, never told once the mechanic comes back
             if (! $settings->announcements) {
-                return;
+                return [];
             }
+
+            $kept = [];
 
             $rarity = $rarityService->current();
             $byMonth = [];
 
             foreach ($waiting as $ownerId => $grantIds) {
-                foreach ($this->announced((string) $ownerId, $grantIds, $grants, $preferences, $settings, $rarity) as $grant) {
+                foreach ($this->announced((string) $ownerId, $grantIds, $grants, $preferences, $settings, $rarity, $kept) as $grant) {
                     $month = $timezone->toDisplay($grant->grantedAt)->format('Y-m');
                     $achievementId = strtolower($grant->achievementId);
                     $kind = $grant->source->isChallenge() ? AchievementsAnnouncedNotification::CHALLENGE : AchievementsAnnouncedNotification::RARE;
@@ -107,6 +110,15 @@ final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, Should
             foreach ($byMonth as $month => $entries) {
                 $this->queue((string) $month, $entries);
             }
+
+            if ($kept !== []) {
+                app(AchievementWarnings::class)->warn('announcements_membership_unavailable', '[Achievements] Whether profiles show the membership could not be read: rewards of challenges for members wait for the next summary.', [
+                    'grants' => count($kept),
+                    'reason' => 'membership_unavailable',
+                ]);
+            }
+
+            return $kept;
         });
     }
 
@@ -130,6 +142,8 @@ final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, Should
 
     /**
      * @param  list<string>  $grantIds
+     * @param  list<string>  $kept  grant ids left waiting are added here: rewards of challenges for
+     *                              members while the membership display cannot be read
      * @return list<AchievementGrant> the grants others may hear of
      */
     private function announced(
@@ -139,6 +153,7 @@ final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, Should
         AchievementPreferencesRepositoryInterface $preferences,
         AchievementsSettings $settings,
         AchievementRarityDTO $rarity,
+        array &$kept,
     ): array {
         $owner = UserModel::query()->find($ownerId);
 
@@ -155,9 +170,16 @@ final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, Should
 
         $wanted = array_flip($grantIds);
         $mine = array_values(array_filter($grants->forUser($ownerId), static fn (AchievementGrant $grant): bool => isset($wanted[strtolower($grant->id)])));
-        // Asked only when a reward of a challenge for members waits (#12)
-        $showsMembership = array_any($mine, static fn (AchievementGrant $grant): bool => $grant->source === GrantSource::MemberChallenge)
-            && $this->showsMembership($ownerId);
+        // Asked only when a reward of a challenge for members waits (#12). Unreadable: those wait
+        // for the next summary (under their own month then), never dropped as if it said no
+        $memberRewards = array_values(array_filter($mine, static fn (AchievementGrant $grant): bool => $grant->source === GrantSource::MemberChallenge));
+        $showsMembership = $memberRewards !== [] ? $this->showsMembership($ownerId) : false;
+
+        if ($showsMembership === null) {
+            array_push($kept, ...array_map(static fn (AchievementGrant $grant): string => strtolower($grant->id), $memberRewards));
+            $mine = array_values(array_filter($mine, static fn (AchievementGrant $grant): bool => $grant->source !== GrantSource::MemberChallenge));
+            $showsMembership = false;
+        }
 
         // Any season: a repeatable achievement got again is told again
         return array_values(array_filter(
@@ -174,14 +196,14 @@ final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, Should
 
     /**
      * Whether the owner's profile already shows the membership badge (the core's rule, never the
-     * reader's). Fails closed: a read that fails says no.
+     * reader's); null when it cannot be read.
      */
-    private function showsMembership(string $ownerId): bool
+    private function showsMembership(string $ownerId): ?bool
     {
         try {
             return app(ProfileMembershipDisplayInterface::class)->showsMembership([strtolower($ownerId)])[strtolower($ownerId)] ?? false;
         } catch (Throwable) {
-            return false;
+            return null;
         }
     }
 

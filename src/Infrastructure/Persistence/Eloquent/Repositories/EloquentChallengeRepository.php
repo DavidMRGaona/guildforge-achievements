@@ -85,7 +85,11 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
         $day = new DateTimeImmutable($today);
 
         return $this->entities(ChallengeModel::query()
-            ->where(static fn (Builder $query): Builder => $query->whereNull('closed_at')->orWhereNotNull('completed_at'))
+            // Closed ones only once complete, as others see it: for members, the nightly picture, so
+            // a challenge closed today never tells it was completed since last night
+            ->where(static fn (Builder $query): Builder => $query->whereNull('closed_at')
+                ->orWhere(static fn (Builder $everybody): Builder => $everybody->where('audience', ChallengeAudience::Everybody->value)->whereNotNull('completed_at'))
+                ->orWhere(static fn (Builder $members): Builder => $members->where('audience', '!=', ChallengeAudience::Everybody->value)->whereNotNull('shown_completed_at')))
             ->whereDate('starts_on', '<=', $day->modify('+'.$aheadDays.' days')->format('Y-m-d'))
             ->whereDate('ends_on', '>=', $day->modify('-'.$recentDays.' days')->format('Y-m-d'))
             ->orderBy('ends_on')
@@ -113,6 +117,15 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
             if ($model->count_version !== $loadedVersion) {
                 return null;
             }
+
+            // An account anonymized since its facts were read adds no row (see presentAccounts())
+            $present = $this->presentAccounts(array_map(strval(...), array_keys($progress->contributions)));
+            $progress = new ChallengeProgress(
+                $progress->total,
+                array_intersect_key($progress->contributions, $present),
+                array_intersect_key($progress->lastContributions, $present),
+                $progress->completedAt,
+            );
 
             $model->progress = $progress->total;
             $model->contributors = count($progress->contributions);
@@ -289,15 +302,7 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
                 $table->clone()->where('challenge_id', $challengeId)->delete();
             }
 
-            // An account anonymized meanwhile leaves no row: its accounts are read under a shared
-            // lock, so an anonymization that starts now waits, and its listener then deletes them
-            $present = [];
-
-            foreach (array_chunk(array_map(strval(...), array_keys($audience)), self::CHUNK) as $chunk) {
-                foreach (UserModel::withTrashed()->whereIn('id', $chunk)->whereNull('anonymized_at')->sharedLock()->pluck('id') as $id) {
-                    $present[strtolower((string) $id)] = true;
-                }
-            }
+            $present = $this->presentAccounts(array_map(strval(...), array_keys($audience)));
 
             $rows = [];
 
@@ -364,13 +369,15 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
         }
 
         $challengeId = strtolower($challengeId);
-        $rows = array_map(fn (string $userId): array => [
-            'challenge_id' => $challengeId,
-            'user_id' => strtolower($userId),
-            'listed_at' => $this->stored($at),
-        ], array_values(array_unique(array_map(strtolower(...), $userIds))));
+        $userIds = array_values(array_unique(array_map(strtolower(...), $userIds)));
 
-        $this->db->transaction(function () use ($challengeId, $rows): void {
+        $this->db->transaction(function () use ($challengeId, $userIds, $at): void {
+            $present = $this->presentAccounts($userIds);
+            $rows = array_map(fn (string $userId): array => [
+                'challenge_id' => $challengeId,
+                'user_id' => $userId,
+                'listed_at' => $this->stored($at),
+            ], array_values(array_filter($userIds, static fn (string $userId): bool => isset($present[$userId]))));
             $table = $this->db->table(self::LISTED_TABLE);
             $table->clone()->where('challenge_id', $challengeId)->delete();
 
@@ -438,6 +445,27 @@ final readonly class EloquentChallengeRepository implements ChallengeRepositoryI
         foreach (array_chunk($rows, self::CHUNK) as $chunk) {
             $table->clone()->upsert($chunk, ['challenge_id', 'user_id'], ['contribution', 'last_contribution_at', 'updated_at']);
         }
+    }
+
+    /**
+     * Which of these accounts are not anonymized, in lower case, read under a shared lock inside the
+     * caller's transaction: an anonymization that starts now waits until the rows are written, and
+     * its listener then deletes them; one already done leaves no row.
+     *
+     * @param  list<string>  $userIds
+     * @return array<string, true>
+     */
+    private function presentAccounts(array $userIds): array
+    {
+        $present = [];
+
+        foreach (array_chunk($userIds, self::CHUNK) as $chunk) {
+            foreach (UserModel::withTrashed()->whereIn('id', $chunk)->whereNull('anonymized_at')->sharedLock()->pluck('id') as $id) {
+                $present[strtolower((string) $id)] = true;
+            }
+        }
+
+        return $present;
     }
 
     private function stored(DateTimeInterface $instant): string

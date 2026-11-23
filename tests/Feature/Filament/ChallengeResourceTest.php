@@ -16,6 +16,7 @@ use Filament\Tables\Columns\Column;
 use Illuminate\Bus\UniqueLock;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Modules\Achievements\AchievementsServiceProvider;
@@ -236,6 +237,48 @@ final class ChallengeResourceTest extends ModuleTestCase
         $rule = $challenge->refresh()->rule;
         $this->assertIsArray($rule);
         $this->assertSame(15, $rule['target']);
+    }
+
+    public function test_another_audience_never_shows_the_count_of_the_old_one(): void
+    {
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+        $challenge = $this->challenge([], ['audience' => 'members']);
+        $ana = $this->account();
+        ChallengeModel::query()->whereKey($challenge->id)->update([
+            'progress' => 7, 'contributors' => 3, 'progress_at' => '2026-12-20 09:00:00',
+            'shown_progress' => 5, 'shown_contributors' => 2, 'shown_at' => '2026-12-20 04:10:00',
+        ]);
+        DB::table('achievements_challenge_contributors')->insert([
+            'challenge_id' => $challenge->id, 'user_id' => $ana, 'contribution' => 2,
+            'last_contribution_at' => '2026-12-10 18:00:00', 'created_at' => '2026-12-10 18:00:00', 'updated_at' => '2026-12-10 18:00:00',
+        ]);
+        $version = $challenge->refresh()->count_version;
+
+        Livewire::test(EditChallenge::class, ['record' => $challenge->id])
+            ->fillForm(['audience' => 'everybody'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $challenge->refresh();
+        $this->assertSame($version + 1, $challenge->count_version);
+        $this->assertSame([0, 0, null, 0, 0, null], [$challenge->progress, $challenge->contributors, $challenge->progress_at, $challenge->shown_progress, $challenge->shown_contributors, $challenge->shown_at]);
+        $this->assertSame(0, DB::table('achievements_challenge_contributors')->where('challenge_id', $challenge->id)->count());
+        Bus::assertDispatched(EvaluateChallengesJob::class, static fn (EvaluateChallengesJob $job): bool => $job->challengeIds === [$challenge->id]);
+    }
+
+    public function test_the_count_version_goes_up_by_one_per_change_in_sql(): void
+    {
+        $challenge = $this->challenge();
+        $version = $challenge->refresh()->count_version;
+        // Somebody else saved it meanwhile
+        ChallengeModel::query()->whereKey($challenge->id)->update(['count_version' => $version + 5]);
+
+        $challenge->update(['ends_on' => '2027-01-10']);
+
+        $this->assertSame($version + 6, $challenge->count_version);
+        $this->assertSame($version + 6, $challenge->refresh()->count_version);
+        $challenge->update(['name' => 'Otro nombre']);
+        $this->assertSame($version + 6, $challenge->refresh()->count_version);
     }
 
     public function test_closing_needs_the_box_and_is_for_good(): void

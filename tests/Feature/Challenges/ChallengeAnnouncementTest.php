@@ -21,6 +21,7 @@ use Modules\Achievements\Tests\Support\BuildsChallenges;
 use Modules\Achievements\Tests\Support\BuildsNotices;
 use Modules\Achievements\Tests\Support\BuildsShowcase;
 use Modules\Achievements\Tests\Support\MembershipShown;
+use RuntimeException;
 use Tests\Support\Activity\InMemoryActivitySource;
 use Tests\Support\Modules\ModuleTestCase;
 use Tests\Support\Time\UsesUtcStorage;
@@ -167,6 +168,41 @@ final class ChallengeAnnouncementTest extends ModuleTestCase
         $this->release();
 
         $this->assertSame('Ana consiguió un logro de un reto en diciembre', $this->announcementsOf($this->bea)[0]->title ?? null);
+    }
+
+    public function test_a_reward_of_a_challenge_for_members_waits_while_the_membership_cannot_be_read(): void
+    {
+        $this->played($this->ana, '2026-12-10 18:00:00');
+        $this->challenge(['target' => 1], ['audience' => 'members']);
+        $ana = strtolower((string) $this->ana->id);
+        $this->app->instance(AssociationMembersAmongInterface::class, new readonly class($ana) implements AssociationMembersAmongInterface
+        {
+            public function __construct(private string $member) {}
+
+            public function among(array $userIds): array
+            {
+                return in_array($this->member, $userIds, true) ? [$this->member => true] : [];
+            }
+        });
+        $this->app->instance(ProfileMembershipDisplayInterface::class, new class implements ProfileMembershipDisplayInterface
+        {
+            public function showsMembership(array $userIds): array
+            {
+                throw new RuntimeException('profiles unavailable');
+            }
+        });
+        $this->challenges()->evaluate(null, silent: false);
+
+        // January: unreadable, so it is neither told nor dropped
+        $this->release();
+        $this->assertSame([], $this->announcementsOf($this->bea));
+        $this->assertSame(1, DB::table('achievements_pending_notices')->where('kind', 'announcement')->count());
+
+        // February: readable again, told under the month it was got in
+        $this->app->instance(ProfileMembershipDisplayInterface::class, new MembershipShown(true));
+        $this->release();
+        $this->assertSame('Ana consiguió un logro de un reto en diciembre', $this->announcementsOf($this->bea)[0]->title ?? null);
+        $this->assertSame(0, DB::table('achievements_pending_notices')->where('kind', 'announcement')->count());
     }
 
     private function played(UserModel $user, string $when): void
