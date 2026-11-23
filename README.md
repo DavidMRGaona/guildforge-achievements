@@ -314,6 +314,10 @@ Quienes juegan juntos se reconocen lo bueno («Gran narración», «Buen compañ
 - **Avisos** (categoría opcional `achievements.recognitions`, solo campana): «Ana te ha reconocido: «Gran narración»» a quien lo recibe, y una invitación al día como mucho (`achievements:recognition-prompts`, 10:00) a quien participó, una vez por cosa. Nada a los demás.
 - **Se borran** cuando el registro deja de tener a cualquiera de los dos en esa cosa (`ActivityLedger`, bajo el bloqueo de la cosa), al anonimizar a cualquiera de los dos (`ForgetAnonymizedAccountRecognitions`) y desde la ficha de la persona en el panel, con `achievements.moderate_recognitions` y `UserPolicy::view()` (tabla `AccountRecognitions`, nombres enmascarados, sin la cosa, con mes y año, diálogo y casilla). No hay lista general.
 - Límite `achievements-recognitions`: 20 por minuto y 100 por hora por cuenta, al dar y al quitar.
+- Los ids son aleatorios (UUID v4), nunca ordenados por tiempo: el id llega a las dos personas y al panel, y uno v7 diría el instante exacto.
+- Dar se hace bajo el bloqueo de la cosa en el registro (`withSubjectLock()`), igual que su actualización: una que quita a alguien espera y después borra lo dado.
+- El aviso «recibido» tiene como sujeto el reconocimiento (`achievements.recognition`). Lo borre quien lo borre, su aviso se olvida con `MailSubjectMuteServiceInterface::forgetSubject()`.
+- En la web, quitar uno se confirma en un diálogo con casilla obligatoria.
 
 ## Catálogo inicial
 
