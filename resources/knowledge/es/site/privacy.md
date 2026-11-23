@@ -20,7 +20,7 @@ Quien juega contigo consigue sus logros a la vez que tú. Si los logros dijeran 
 - **Retos de al menos 28 días.** En los retos **Solo socios**, el total se actualiza cada noche, y la lista de quién consiguió un reto solo crece una vez al mes, el día 1.
 - **Tu progreso es solo tuyo.** Nadie más ve lo que te falta ni cuánto llevas.
 - **Reconocimientos.** Quien recibe uno ve quién se lo dio, pero no de qué partida, y quien lo dio ve a quién. Los demás solo ven en tu perfil cuántos tienes de cada tipo, y lo nuevo se les suma una vez al mes, el día 1. Solo se te puede reconocer si estuviste en la misma partida o campaña y si quien reconoce puede ver tu perfil. Si ocultas tus logros, nadie puede reconocerte y tus totales tampoco se ven.
-- **Una excepción: Mentor.** Si diriges la primera partida de alguien, el logro **Mentor** te dice que esa persona no había jugado antes. Por eso se decide cada noche, semanas después de la partida, y los demás solo ven que lo tienes.
+- **Una excepción: Mentor.** Si diriges la primera partida de alguien, el logro **Mentor** te dice que esa persona no había jugado antes. Por eso se decide cada noche, semanas después de la partida, y los demás solo ven que lo tienes cuando ha terminado el mes en que lo conseguiste: un Mentor de noviembre lo ven a partir del 1 de diciembre, junto a todos los de ese mes.
 
 ## Lo que decides tú
 

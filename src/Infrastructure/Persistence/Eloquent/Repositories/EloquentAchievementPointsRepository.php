@@ -96,12 +96,13 @@ final readonly class EloquentAchievementPointsRepository implements AchievementP
     }
 
     /**
-     * Only grants made before the instant, when there is one (compared in the storage zone).
+     * Only grants others see at the cut, when there is one (ShownToOthersRule: before it, and before
+     * its month for the achievements shown by closed months).
      */
     private function before(Builder $query, ?DateTimeImmutable $before): Builder
     {
         return $before instanceof DateTimeImmutable
-            ? $query->where('achievements_grants.granted_at', '<', $this->time->toStorage($before)->format(self::STORAGE_FORMAT))
+            ? ShownToOthersGrants::apply($query, $before, $this->time)
             : $query;
     }
 

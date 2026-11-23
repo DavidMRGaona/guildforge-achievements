@@ -296,35 +296,6 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
         return $this->sortedInstants($meetings);
     }
 
-    public function othersSharingSubjects(array $userIds, string $kind, string $role, string $othersRole): array
-    {
-        $others = [];
-
-        foreach (array_chunk($this->userIds(array_map(strtolower(...), $userIds)), 500) as $chunk) {
-            $ids = $this->db->table(self::TABLE.' as mine')
-                ->join(self::TABLE.' as others', static function (JoinClause $join): void {
-                    $join->on('others.source_type', '=', 'mine.source_type')
-                        ->on('others.subject_id', '=', 'mine.subject_id')
-                        ->on('others.user_id', '<>', 'mine.user_id');
-                })
-                // Anonymized or deleted for good: never listed, even before the ledger forgets them
-                ->join('users', 'users.id', '=', 'others.user_id')
-                ->whereNull('users.anonymized_at')
-                ->whereIn('mine.user_id', $chunk)
-                ->where('mine.kind', $kind)
-                ->where('mine.role', $role)
-                ->where('others.role', $othersRole)
-                ->distinct()
-                ->pluck('others.user_id');
-
-            foreach ($ids as $id) {
-                $others[strtolower((string) $id)] = true;
-            }
-        }
-
-        return $this->userIds(array_keys($others));
-    }
-
     public function firstFacts(array $userIds, string $kind, string $role, string $hostRole, string $creatorRole): array
     {
         $zone = new DateTimeZone(date_default_timezone_get());
@@ -462,10 +433,13 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
         foreach ($bySource as $sourceType => $ids) {
             foreach (array_chunk(array_map(strval(...), array_keys($ids)), 500) as $chunk) {
                 $rows = $this->table()
-                    ->where('source_type', $sourceType)
-                    ->whereIn('subject_id', $chunk)
-                    ->whereIn('role', [$hostRole, $creatorRole])
-                    ->get(['subject_id', 'user_id', 'role']);
+                    // Anonymized or deleted for good: nobody's mentor, even before the ledger forgets them
+                    ->join('users', 'users.id', '=', self::TABLE.'.user_id')
+                    ->whereNull('users.anonymized_at')
+                    ->where(self::TABLE.'.source_type', $sourceType)
+                    ->whereIn(self::TABLE.'.subject_id', $chunk)
+                    ->whereIn(self::TABLE.'.role', [$hostRole, $creatorRole])
+                    ->get([self::TABLE.'.subject_id', self::TABLE.'.user_id', self::TABLE.'.role']);
 
                 foreach ($rows as $row) {
                     /** @var stdClass $row */

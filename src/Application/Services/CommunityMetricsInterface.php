@@ -18,7 +18,8 @@ interface CommunityMetricsInterface
 {
     /**
      * For each account asked, one instant per different person the rule counts (when they were
-     * first met; for `mentor`, when the newcomer's first game was decided), oldest first; accounts with nobody
+     * first met; for `mentor`, when the newcomer's first game was decided, as the nightly batch
+     * recorded it: MentorDecisionsInterface), oldest first; accounts with nobody
      * are missing. Read fresh from the ledger, for granting: it throws when the ledger cannot be
      * read, so nothing is granted on a guess. Empty for a rule that is not a community rule.
      *

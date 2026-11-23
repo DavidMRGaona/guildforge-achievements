@@ -66,7 +66,7 @@ Un tipo solo cuenta si algún módulo instalado lo registra. Sin ese módulo, su
 
 Estas tareas van solas, a la hora de {{site_name}}:
 
-- **A las 03:00**, se decide quién es **Mentor**: las primeras partidas de hace más de 14 días. Lo concedido entra en la foto de esa misma noche.
+- **A las 03:00**, se decide quién es **Mentor**: las primeras partidas de hace más de 14 días. Los demás lo ven cuando ha terminado el mes en que se concedió.
 - **A las 03:30**, la foto de la noche: se calcula la rareza y se fija lo que los demás ven de cada perfil (logros, contador, destacados, puntos, nivel y clasificación). Lo conseguido después sale a los demás la noche siguiente.
 - **A las 04:10**, se cuentan los retos. Es lo que actualiza el total de los retos **Solo socios**.
 - **Cada día**, se conceden los logros de años en la web.
@@ -82,7 +82,7 @@ Los logros se calculan con la actividad que registran los módulos. Lo que pasó
 php artisan achievements:recalculate
 ```
 
-Vuelve a leer toda la actividad de cada módulo y concede lo que ya se cumplía, **sin avisos**. Se puede repetir sin miedo: una segunda pasada no cambia nada. Conviene repetirlo si un módulo ha fallado durante un tiempo. Al terminar dice, por módulo, cuánto ha leído y cambiado, y acaba con error si alguno no se ha podido leer entero.
+Vuelve a leer toda la actividad de cada módulo y concede lo que ya se cumplía, **sin avisos**. Hasta que se haga entero una vez, nadie consigue **Mentor**: decidir quién dio la bienvenida a quién necesita todas las partidas de antes. Se puede repetir sin miedo: una segunda pasada no cambia nada. Conviene repetirlo si un módulo ha fallado durante un tiempo. Al terminar dice, por módulo, cuánto ha leído y cambiado, y acaba con error si alguno no se ha podido leer entero.
 
 Otras opciones del mismo comando:
 

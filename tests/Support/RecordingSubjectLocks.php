@@ -101,11 +101,6 @@ final class RecordingSubjectLocks implements AchievementFactRepositoryInterface
         return $this->inner->firstMeetings($userIds, $kind, $role, $withRole);
     }
 
-    public function othersSharingSubjects(array $userIds, string $kind, string $role, string $othersRole): array
-    {
-        return $this->inner->othersSharingSubjects($userIds, $kind, $role, $othersRole);
-    }
-
     public function firstFacts(array $userIds, string $kind, string $role, string $hostRole, string $creatorRole): array
     {
         return $this->inner->firstFacts($userIds, $kind, $role, $hostRole, $creatorRole);

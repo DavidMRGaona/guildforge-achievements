@@ -17,6 +17,7 @@ use Modules\Achievements\Application\Services\ActivityLedgerInterface;
 use Modules\Achievements\Application\Services\ActivityMetricsInterface;
 use Modules\Achievements\Domain\Entities\Achievement;
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\RecalculationMarkRepositoryInterface;
 
 /**
  * Rebuilds the ledger from the history of the activity sources: once after installing the module,
@@ -56,6 +57,17 @@ final class RecalculateAchievementFactsCommand extends Command
         }
 
         $results = $ledger->recalculate($source, $dryRun);
+
+        // A source read whole: mentors of its kind can be decided for good from now on (#37)
+        if (! $dryRun) {
+            $marks = $this->laravel->make(RecalculationMarkRepositoryInterface::class);
+
+            foreach ($results as $result) {
+                if ($result->isComplete()) {
+                    $marks->markComplete($result->sourceType);
+                }
+            }
+        }
 
         if ($results === []) {
             $this->components->info((string) __('achievements::messages.recalculate.no_sources'));

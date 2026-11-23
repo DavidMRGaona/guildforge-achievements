@@ -34,6 +34,7 @@ use Modules\Achievements\Domain\Repositories\RecognitionRepositoryInterface;
 use Modules\Achievements\Domain\Rules\AchievementRule;
 use Modules\Achievements\Domain\Rules\MetricType;
 use Modules\Achievements\Domain\Rules\RuleEvaluator;
+use Modules\Achievements\Domain\Rules\ShownToOthersRule;
 use Modules\Achievements\Domain\ValueObjects\AchievementPreferences;
 use Modules\Achievements\Domain\ValueObjects\Season;
 
@@ -473,8 +474,9 @@ final class AchievementShowcase implements AchievementShowcaseInterface
     }
 
     /**
-     * The grants made before the last nightly photo, whatever the rarity switch says; none without a
-     * photo. A grant revoked since is gone from the table, so it is gone here too, at once.
+     * The grants made before the last nightly photo, whatever the rarity switch says, and for those
+     * shown by closed months, before the photo's month (ShownToOthersRule); none without a photo. A
+     * grant revoked since is gone from the table, so it is gone here too, at once.
      *
      * @param  list<AchievementGrant>  $grants
      * @return list<AchievementGrant>
@@ -487,8 +489,17 @@ final class AchievementShowcase implements AchievementShowcaseInterface
             return [];
         }
 
+        $zone = $this->time->displayTimezone();
+        $catalogue = $this->catalogue();
+
         // Strictly before, as the photo counts them: one written in its own second waits a night
-        return array_values(array_filter($grants, static fn (AchievementGrant $grant): bool => $grant->grantedAt < $takenAt));
+        // An achievement missing from the catalogue read is held back like a mentor: fails closed
+        return array_values(array_filter($grants, static fn (AchievementGrant $grant): bool => ShownToOthersRule::shows(
+            isset($catalogue[strtolower($grant->achievementId)]) ? $catalogue[strtolower($grant->achievementId)]->showsByClosedMonths : true,
+            $grant->grantedAt,
+            $takenAt,
+            $zone,
+        )));
     }
 
     /**

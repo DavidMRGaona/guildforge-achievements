@@ -86,11 +86,15 @@ final class AchievementRuleForm
         return [
             Select::make(self::METRIC)
                 ->label(self::text('fields.metric'))
-                ->helperText(self::text('helpers.metric'))
+                ->helperText(static fn (?Model $record): string => self::text(self::windowLocked($record) ? 'helpers.metric_locked' : 'helpers.metric'))
                 ->options(self::metricOptions())
                 ->default(MetricType::Count->value)
                 ->native(false)
                 ->required()
+                // Locked once somebody holds it, and still sent, so the save keeps the stored one:
+                // which grants others see by closed months follows the metric (ShownToOthersRule)
+                ->disabled(static fn (?Model $record): bool => self::windowLocked($record))
+                ->dehydrated()
                 ->live()
                 // A streak only counts activities: another metric falls back to «always», unless the
                 // window is locked, which the save then refuses with its own message
@@ -274,6 +278,10 @@ final class AchievementRuleForm
         }
 
         // Checked here too: a disabled field can still be sent changed
+        if ($stored instanceof AchievementRule && self::windowLocked($record) && $stored->metric !== $rule->metric) {
+            throw ValidationException::withMessages(['data.'.self::METRIC => self::text('validation.metric_locked')]);
+        }
+
         if ($stored instanceof AchievementRule && self::windowLocked($record) && ! self::sameKindOfWindow($stored, $rule)) {
             throw ValidationException::withMessages(['data.'.self::WINDOW => self::text('validation.window_locked')]);
         }

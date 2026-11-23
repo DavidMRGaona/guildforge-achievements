@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Log;
 use Modules\Achievements\Application\Exceptions\AchievementSettingsUnreadableException;
 use Modules\Achievements\Application\Services\AchievementEvaluatorInterface;
 use Modules\Achievements\Application\Services\ActivityMetricsInterface;
+use Modules\Achievements\Application\Services\MentorDecisionsInterface;
 
 /**
  * Evaluates achievements for everybody with facts in the ledger, without reading the sources again:
@@ -84,8 +85,14 @@ final class EvaluateAchievementsJob implements ShouldBeUniqueUntilProcessing, Sh
         return sha1((string) json_encode([$ids, $this->silent, $this->onlyAccountYears, $this->module, $this->onlyNightly]));
     }
 
-    public function handle(AchievementEvaluatorInterface $evaluator, ActivityMetricsInterface $metrics, ModuleLoader $modules): void
+    public function handle(AchievementEvaluatorInterface $evaluator, ActivityMetricsInterface $metrics, ModuleLoader $modules, MentorDecisionsInterface $mentors): void
     {
+        // The mentors of newcomers past the grace are decided first, once (#37): the mentor rules
+        // count only what is decided here
+        if ($this->onlyNightly) {
+            $mentors->decide();
+        }
+
         $kinds = null;
 
         if ($this->module !== null) {
