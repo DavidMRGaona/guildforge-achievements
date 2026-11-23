@@ -38,7 +38,11 @@ Quién ve tu perfil lo decides en **Editar perfil**. Tus logros solo los ve quie
 
 ## La rareza
 
-La rareza es la parte de la gente activa que tiene un logro: «Lo tiene el 4 % de la gente activa». Cuenta como activa quien ha participado en algo en los últimos doce meses. Si llevas más de un año sin participar, tus logros salen sin rareza. Se calcula cada noche y cada vez que alguien consigue un logro.
+La rareza es la parte de la gente activa que tiene un logro: «Lo tiene el 4 % de la gente activa». Cuenta como activa quien ha participado en algo en los últimos doce meses. Si llevas más de un año sin participar, tus logros salen sin rareza. Se calcula una vez al día, por la noche, y sale en porcentajes enteros («menos del 1 %» para los más raros).
+
+## Lo que ven los demás cambia una vez al día
+
+Tú ves tus logros nuevos al momento. Los demás los ven al día siguiente: tu perfil, tu contador de logros y tus destacados se les actualizan por la noche. Así, si juegas con alguien, vuestros logros no aparecen a la vez y nadie puede deducir que jugasteis juntos. Lo que quita cosas, en cambio, se ve al momento: si ocultas tus logros o te retiran uno, deja de verse enseguida.
 
 ## Destacar tres logros
 
@@ -50,7 +54,7 @@ Para elegirlos tú:
 2. En la sección **Logros**, pulsa la **estrella** de un logro que tengas. Se guarda al momento.
 3. Repite hasta tres. Para quitar uno, pulsa otra vez su estrella.
 
-Si destacas un logro secreto, lo enseñas a todo el mundo con su nombre. Si un logro que tenías destacado pasa a ser secreto, deja de estar destacado: vuelve a marcarlo si quieres enseñarlo.
+Un logro que consigues hoy sale destacado desde mañana, como todo lo nuevo que ven los demás. Si destacas un logro secreto, lo enseñas a todo el mundo con su nombre. Si un logro que tenías destacado pasa a ser secreto, deja de estar destacado: vuelve a marcarlo si quieres enseñarlo.
 
 ## Ocultar tus logros
 

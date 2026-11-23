@@ -19,7 +19,10 @@ use Modules\Achievements\Domain\ValueObjects\AchievementPreferences;
  * - a secret achievement shows as «Logro secreto» (with no rarity) to anybody who does not hold it,
  *   unless the owner featured it, which shows it to everybody;
  * - only totals: never the tables, sessions or events behind an achievement, and to anybody but
- *   the owner never the instant of a grant (only its month).
+ *   the owner never the instant of a grant (only its month);
+ * - anybody but the owner sees what the last nightly photo holds (AchievementRarityInterface):
+ *   a grant of today shows to them tomorrow, so totals never rise at the moment; whatever only
+ *   takes away (a revoke, hiding, a secret) acts at once.
  */
 interface AchievementShowcaseInterface
 {
@@ -72,9 +75,10 @@ interface AchievementShowcaseInterface
     public function seasonStandings(?string $viewerId): array;
 
     /**
-     * How many achievements the owner holds.
+     * How many achievements the owner holds: now for the owner, as of the last nightly photo for
+     * anybody else.
      */
-    public function heldCount(string $ownerId): int;
+    public function heldCount(string $ownerId, ?string $viewerId = null): int;
 
     /**
      * Featured badges of each account, in one read for all of them: the held ones the owner chose,

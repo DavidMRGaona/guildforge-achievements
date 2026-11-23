@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Application\DTOs;
 
+use DateTimeImmutable;
+
 /**
- * How rare each achievement is: the share (in percent, 0 to 100) of the people active in the last
- * twelve months who hold it. Active people are accounts with a fact in the ledger in that time,
+ * How rare each achievement was at the last nightly photo (`takenAt`, null while there is none):
+ * the share (in percent, 0 to 100) of the people active in the twelve months before it who held it. Active people are accounts with a fact in the ledger in that time,
  * neither deactivated nor anonymized, and only accounts that still exist (the facts of an account
  * deleted for good are left out).
  */
@@ -19,6 +21,7 @@ final readonly class AchievementRarityDTO
         public int $activePeople,
         public array $shares,
         public ?string $computedAt = null,
+        public ?DateTimeImmutable $takenAt = null,
     ) {}
 
     public static function unknown(): self

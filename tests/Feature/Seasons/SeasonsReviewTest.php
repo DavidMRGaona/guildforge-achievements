@@ -286,6 +286,8 @@ final class SeasonsReviewTest extends ModuleTestCase
         $this->grantAt($ana, (string) $secret->id, '2027-01-02 18:00:00', '2025');
         $this->factAt($ana, '2027-02-01 18:00:00');
 
+        // The night passes: others see what the nightly photo holds
+        $this->refreshRarity();
         $own = $this->achievementsSection($this->render($ana, $ana))?->props;
 
         $this->assertNotNull($own);

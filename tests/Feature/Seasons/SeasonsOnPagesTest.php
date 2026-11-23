@@ -57,6 +57,8 @@ final class SeasonsOnPagesTest extends ModuleTestCase
         $this->factAt($this->ana, '2026-12-20 18:00:00');
         $this->factAt($this->ana, '2026-12-31 23:15:00');
 
+        // The night passes: others see what the nightly photo holds
+        $this->refreshRarity();
         $others = $this->achievementsSection($this->render($this->ana, $this->luis))?->props;
 
         $this->assertNotNull($others);

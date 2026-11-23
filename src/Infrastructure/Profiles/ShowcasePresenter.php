@@ -44,6 +44,20 @@ final readonly class ShowcasePresenter
     }
 
     /**
+     * A share as the browser gets it: a whole percent (it changes once a night, and a finer one would
+     * tell a single new holder), 0 for anything under 1 % («< 1 %»), null for none or unknown. The
+     * exact share stays on the server (featured badges sort by it).
+     */
+    public static function shownRarity(?float $share): ?int
+    {
+        if ($share === null || $share <= 0.0) {
+            return null;
+        }
+
+        return $share < 1.0 ? 0 : (int) round($share);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function earned(ShowcaseItemDTO $item): array
@@ -52,7 +66,7 @@ final readonly class ShowcasePresenter
             // The instant for the owner only; anybody else gets the month (ShowcaseItemDTO)
             'grantedAt' => $this->time->iso($item->grantedAt),
             'grantedMonth' => $item->grantedMonth,
-            'rarity' => $item->rarity,
+            'rarity' => self::shownRarity($item->rarity),
             'featured' => $item->featured,
             'seasons' => $item->seasons,
         ];

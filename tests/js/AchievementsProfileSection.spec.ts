@@ -19,7 +19,7 @@ function earned(overrides: Partial<EarnedAchievement> = {}): EarnedAchievement {
         masked: false,
         grantedAt: '2026-10-01T20:00:00+02:00',
         grantedMonth: '2026-10',
-        rarity: 4.5,
+        rarity: 4,
         featured: false,
         repeats: false,
         seasons: [],
@@ -62,7 +62,7 @@ describe('AchievementsProfileSection', () => {
         });
 
         expect(wrapper.text()).toContain('Primera partida');
-        expect(wrapper.text()).toContain('Lo tiene el 4,5 % de la gente activa');
+        expect(wrapper.text()).toContain('Lo tiene el 4 % de la gente activa');
         expect(wrapper.find('time').attributes('datetime')).toBe('2026-10-01T20:00:00+02:00');
         expect(wrapper.find('[data-test="feature"]').exists()).toBe(false);
         expect(wrapper.find('[data-test="visibility-switch"]').exists()).toBe(false);

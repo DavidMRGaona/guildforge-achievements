@@ -70,7 +70,7 @@ final class AchievementCataloguePageTest extends ModuleTestCase
                 ->where('achievements.0.id', null)
                 ->missing('achievements.0.grantedAt')
                 ->where('achievements.1.name', 'Primera partida')
-                ->where('achievements.1.rarity', 50.0)
+                ->where('achievements.1.rarity', 50)
                 ->where('achievements.1.held', false)
                 ->missing('achievements.1.rule')
                 ->where('seo.title', fn (string $title): bool => str_contains($title, 'Logros')));
@@ -132,7 +132,8 @@ final class AchievementCataloguePageTest extends ModuleTestCase
         $this->actingAs($ana)->get('/logros')->assertInertia(fn (Assert $page): Assert => $page
             ->where('achievements.0.name', 'A mano')
             ->where('achievements.0.rarity', null)
-            ->where('achievements.1.rarity', 0.0));
+            ->where('achievements.1.rarity', null)
+            ->where('achievements.1.heldByNobody', true));
     }
 
     public function test_rarity_switched_off_is_not_shown(): void

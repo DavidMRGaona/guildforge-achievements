@@ -47,7 +47,6 @@ use Modules\Achievements\Console\Commands\InstallStarterCatalogueCommand;
 use Modules\Achievements\Console\Commands\RecalculateAchievementFactsCommand;
 use Modules\Achievements\Domain\Events\AchievementFactsChanged;
 use Modules\Achievements\Domain\Events\AchievementGranted;
-use Modules\Achievements\Domain\Events\AchievementRevoked;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
@@ -78,7 +77,7 @@ use Modules\Achievements\Infrastructure\Profiles\AchievementsCountProfileStat;
 use Modules\Achievements\Infrastructure\Profiles\AchievementShowcase;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsProfileSection;
 use Modules\Achievements\Infrastructure\Profiles\FeaturedAchievementBadges;
-use Modules\Achievements\Infrastructure\Rarity\CachedAchievementRarity;
+use Modules\Achievements\Infrastructure\Rarity\NightlyAchievementRarity;
 use Modules\Achievements\Infrastructure\Services\ActivityLedger;
 use Modules\Achievements\Infrastructure\Settings\ModuleAchievementsSettings;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
@@ -93,7 +92,6 @@ use Modules\Achievements\Listeners\ForgetAnonymizedAccountPreferences;
 use Modules\Achievements\Listeners\ForgetCommunityProgress;
 use Modules\Achievements\Listeners\QueueAchievementNotice;
 use Modules\Achievements\Listeners\RecordActivityFacts;
-use Modules\Achievements\Listeners\RefreshRarityAfterGrant;
 use Modules\Achievements\Notifications\AchievementNoticeCategories;
 use Modules\Achievements\Policies\AchievementPolicy;
 
@@ -148,7 +146,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
 
         // What profiles show: the choices, the catalogue and the rarity, read once per request or job
         $this->app->bind(AchievementPreferencesRepositoryInterface::class, EloquentAchievementPreferencesRepository::class);
-        $this->app->scoped(AchievementRarityInterface::class, CachedAchievementRarity::class);
+        $this->app->scoped(AchievementRarityInterface::class, NightlyAchievementRarity::class);
         $this->app->scoped(AchievementShowcaseInterface::class, AchievementShowcase::class);
 
         // Grants waiting to be told to their holders, a little later and together (#6)
@@ -163,9 +161,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountFacts::class);
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountGrants::class);
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountPreferences::class);
-        Event::listen(AchievementGranted::class, RefreshRarityAfterGrant::class);
         Event::listen(AchievementGranted::class, QueueAchievementNotice::class);
-        Event::listen(AchievementRevoked::class, RefreshRarityAfterGrant::class);
         Event::listen(AchievementFactsChanged::class, EvaluateAchievementsForChangedFacts::class);
         Event::listen(AchievementFactsChanged::class, ForgetCommunityProgress::class);
         Event::listen(ModuleEnabled::class, EvaluateAchievementsOfEnabledModule::class);
