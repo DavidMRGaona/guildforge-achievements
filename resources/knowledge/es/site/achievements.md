@@ -1,11 +1,11 @@
 ---
 id: achievements.site.achievements
 title: Tus logros
-summary: Qué son los logros, cómo se consiguen, qué es la rareza, cómo destacar tres junto a tu nombre, cómo ocultarlos y qué avisos llegan.
+summary: Qué son los logros, cómo se consiguen, las temporadas y las rachas, qué es la rareza, cómo destacar tres junto a tu nombre, cómo ocultarlos y qué avisos llegan.
 category: community
 audience: site
 order: 40
-keywords: [logros, insignias, medallas, trofeos, conseguir, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, destacar, destacados, estrella, junto a mi nombre, foro, tarjeta, perfil, ocultar, privacidad, catálogo, comunidad, personas distintas, aviso, avisos, campana, anunciar, anuncio, logros raros, clasificación, ajustes de la cuenta]
+keywords: [logros, insignias, medallas, trofeos, conseguir, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, destacar, destacados, estrella, junto a mi nombre, foro, tarjeta, perfil, ocultar, privacidad, catálogo, temporada, cada año, racha, meses seguidos, constancia, comunidad, personas distintas, aviso, avisos, campana, anunciar, anuncio, logros raros, clasificación, ajustes de la cuenta]
 related: [core.site.public-profile]
 ---
 Un logro es una insignia que se consigue con lo que haces en {{site_name}}: jugar o dirigir partidas, probar sistemas distintos, ir a eventos, participar en torneos, cumplir años en la web… Se concede solo, en cuanto cumples lo que pide, y no se pierde nunca: aunque una partida deje de contar, lo conseguido se queda.
@@ -16,11 +16,19 @@ En el menú, abre **Logros**. Ahí están los que se pueden conseguir ahora, con
 
 Algunos son **secretos**: salen como «Logro secreto», sin nombre ni descripción, hasta que los consigues.
 
+## Temporadas y rachas
+
+Algunos logros se pueden volver a conseguir cada **temporada**, que dura un año natural: en **Logros** llevan «Cada temporada». Solo cuenta lo que haces ese año, y el 1 de enero empieza otra temporada desde cero. Los que ya conseguiste se quedan, con su año: «Conseguido en 2025 y 2026».
+
+Otros piden una **racha**: actividad en varios meses seguidos, por ejemplo una partida al mes durante tres meses. Si un mes no haces nada, la racha vuelve a empezar. Algunas rachas también se repiten cada temporada.
+
+En **Logros**, con la sesión iniciada, cada logro por temporada te dice si ya lo tienes este año, cuánto llevas («Esta temporada: 3 de 10») y en qué temporadas anteriores lo conseguiste. Eso solo lo ves tú.
+
 ## Tus logros en tu perfil
 
-En tu perfil público, la sección **Logros** enseña los que tienes y su rareza. Tú ves el día en que conseguiste cada uno; los demás solo ven el mes y el año («noviembre de 2026»), porque quienes juegan juntos consiguen sus logros a la vez y la hora exacta diría con quién jugaste. Tú ves además los que te faltan y cuánto llevas («7 de 10»); los demás no ven lo que te falta.
+En tu perfil público, la sección **Logros** enseña los que tienes y su rareza. Tú ves el día en que conseguiste cada uno; los demás solo ven el mes y el año («noviembre de 2026»), porque quienes juegan juntos consiguen sus logros a la vez y la hora exacta diría con quién jugaste. Tú ves además los que te faltan y cuánto llevas («7 de 10»; en una racha, «2 de 6 meses seguidos»); los demás no ven lo que te falta. Un logro por temporada sale una vez, con los años en que lo conseguiste, y mientras no tengas el de este año también sale entre los que te faltan, con lo que llevas esta temporada.
 
-Los logros solo dicen totales: «10 partidas», «3 sistemas». Nunca dicen en qué mesa, sesión o evento estuviste.
+Los logros solo dicen totales: «10 partidas», «3 sistemas», «5 meses seguidos», «Temporada 2026». Nunca dicen en qué mesa, sesión o evento estuviste.
 
 ## Logros de comunidad
 

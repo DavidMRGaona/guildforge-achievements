@@ -12,8 +12,10 @@ function achievement(overrides: Partial<CatalogueAchievement> = {}): CatalogueAc
         colour: 'amber',
         imageUrl: null,
         masked: false,
+        repeats: false,
         held: false,
         rarity: 50,
+        standing: null,
         ...overrides,
     };
 }
@@ -55,6 +57,50 @@ describe('Achievements/Index', () => {
 
         expect(wrapper.text()).toContain('Tienes 1 de 2.');
         expect(wrapper.text()).toContain('Lo tienes');
+    });
+
+    it('tells the viewer where they stand this season in one that repeats', () => {
+        const wrapper = mount(Index, {
+            props: {
+                achievements: [
+                    achievement({
+                        repeats: true,
+                        held: true,
+                        standing: {
+                            season: '2027',
+                            heldNow: false,
+                            pastSeasons: ['2026', '2025'],
+                            progress: { value: 3, threshold: 10, inMonths: false },
+                        },
+                    }),
+                    achievement({
+                        id: 'b',
+                        repeats: true,
+                        held: true,
+                        standing: {
+                            season: '2027',
+                            heldNow: true,
+                            pastSeasons: [],
+                            progress: null,
+                        },
+                    }),
+                ],
+                signedIn: true,
+                season: '2027',
+            },
+            global: { stubs },
+        });
+
+        const items = wrapper.findAll('[data-test="catalogue"] li');
+        expect(wrapper.find('[data-test="season-explained"]').text()).toContain('temporada 2027');
+        expect(wrapper.text()).toContain('Tienes 1 de 2.');
+        expect(items[0]?.find('[data-test="repeats"]').text()).toBe('Cada temporada');
+        expect(items[0]?.find('[data-test="standing"]').text()).toContain(
+            'Esta temporada: 3 de 10'
+        );
+        expect(items[0]?.find('[data-test="standing"]').text()).toContain('También en 2025 y 2026');
+        expect(items[0]?.text()).not.toContain('Lo tienes');
+        expect(items[1]?.text()).toContain('Lo tienes esta temporada');
     });
 
     it('says so when there is none', () => {

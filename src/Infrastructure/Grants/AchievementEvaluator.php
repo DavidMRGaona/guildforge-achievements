@@ -112,9 +112,9 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
 
         foreach (array_chunk($userIds, self::USERS_PER_CHUNK) as $chunk) {
             $facts = $this->facts->forUsers($chunk, $kinds);
-            $held = $this->grants->heldAchievementIds($chunk);
+            $held = $this->grants->heldSeasonKeys($chunk);
             // Taken away by hand: never granted again by a rule, nor counted by a dry run
-            $revoked = $this->grants->revokedAchievementIds($chunk);
+            $revoked = $this->grants->revokedSeasonKeys($chunk);
             $people = $this->communityPeople($evaluable, $chunk);
 
             foreach ($chunk as $userId) {
@@ -125,32 +125,44 @@ final readonly class AchievementEvaluator implements AchievementEvaluatorInterfa
                     continue;
                 }
 
-                $holds = array_fill_keys([...$held[$userId] ?? [], ...$revoked[$userId] ?? []], true);
+                $taken = $held[$userId] ?? [];
+
+                foreach ($revoked[$userId] ?? [] as $achievementId => $seasons) {
+                    $taken[$achievementId] = ($taken[$achievementId] ?? []) + $seasons;
+                }
 
                 foreach ($evaluable as [$achievement, $rule]) {
-                    if (isset($holds[$achievement->id])) {
-                        continue;
-                    }
+                    // A seasonal rule is asked about every season it has facts in (a recalculation
+                    // grants past seasons too); any other rule once, without a season
+                    $seasons = $rule->isSeasonal() ? $this->rules->seasons($rule, $personFacts, $now, $zone) : [null];
 
-                    $metAt = $this->rules->metAt($rule, $personFacts, $now, $zone, $people[$achievement->id][$userId] ?? null);
+                    foreach ($seasons as $season) {
+                        $seasonKey = $season?->key() ?? '';
 
-                    if (! $metAt instanceof DateTimeImmutable) {
-                        continue;
-                    }
+                        if (isset($taken[strtolower($achievement->id)][$seasonKey])) {
+                            continue;
+                        }
 
-                    // Met long ago: granted without a notice, whatever asked for this evaluation
-                    $quiet = $silent || ! $this->window->isRecent($rule, $metAt, $now, $zone);
+                        $metAt = $this->rules->metAt($rule, $personFacts, $now, $zone, $people[$achievement->id][$userId] ?? null, $season);
 
-                    if ($dryRun) {
-                        $granted[] = new GrantedAchievementDTO($userId, $achievement->id, $quiet);
+                        if (! $metAt instanceof DateTimeImmutable) {
+                            continue;
+                        }
 
-                        continue;
-                    }
+                        // Met long ago: granted without a notice, whatever asked for this evaluation
+                        $quiet = $silent || ! $this->window->isRecent($rule, $metAt, $now, $zone);
 
-                    $grant = $this->granter->grant(new NewGrant($userId, $achievement->id, GrantSource::Rule, $quiet));
+                        if ($dryRun) {
+                            $granted[] = new GrantedAchievementDTO($userId, $achievement->id, $quiet, $season?->key());
 
-                    if ($grant instanceof AchievementGrant) {
-                        $granted[] = new GrantedAchievementDTO($userId, $achievement->id, $quiet);
+                            continue;
+                        }
+
+                        $grant = $this->granter->grant(new NewGrant($userId, $achievement->id, GrantSource::Rule, $quiet, season: $season?->key()));
+
+                        if ($grant instanceof AchievementGrant) {
+                            $granted[] = new GrantedAchievementDTO($userId, $achievement->id, $quiet, $season?->key());
+                        }
                     }
                 }
             }

@@ -11,7 +11,10 @@ export default {
             earned: 'Earned ({count})',
             locked: 'Still to get ({count})',
             progress: '{value} of {threshold}',
+            progressMonths: '{value} of {threshold} months in a row',
             manual: 'Granted by hand.',
+            thisSeason: 'Season {season}',
+            seasonsGot: 'Got in {seasons}',
             featured: 'Featured',
             feature: 'Feature «{name}»',
             featuredFull: 'You already feature {max}: remove one to feature another.',
@@ -62,6 +65,13 @@ export default {
             rarityExplained:
                 'Rarity is the share of active people (who took part in something in the last twelve months) holding each achievement.',
             youHoldIt: 'You hold it',
+            seasonExplained:
+                'Some achievements can be got again every season, which lasts a calendar year. This is season {season}.',
+            repeats: 'Every season',
+            youHoldItThisSeason: 'You hold it this season',
+            pastSeasons: 'Also in {seasons}',
+            progress: 'This season: {value} of {threshold}',
+            progressMonths: 'This season: {value} of {threshold} months in a row',
         },
     },
 };

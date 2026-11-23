@@ -11,7 +11,10 @@ export default {
             earned: 'Conseguido ({count}) | Conseguidos ({count})',
             locked: 'Te falta ({count}) | Te faltan ({count})',
             progress: '{value} de {threshold}',
+            progressMonths: '{value} de {threshold} meses seguidos',
             manual: 'Se concede a mano.',
+            thisSeason: 'Temporada {season}',
+            seasonsGot: 'Conseguido en {seasons}',
             featured: 'Destacado',
             feature: 'Destacar «{name}»',
             featuredFull: 'Ya tienes {max} destacados: quita uno para destacar otro.',
@@ -62,6 +65,13 @@ export default {
             rarityExplained:
                 'La rareza es la parte de la gente activa (quien ha participado en algo en los últimos doce meses) que tiene cada logro.',
             youHoldIt: 'Lo tienes',
+            seasonExplained:
+                'Algunos logros se pueden volver a conseguir cada temporada, que dura un año natural. Ahora es la temporada {season}.',
+            repeats: 'Cada temporada',
+            youHoldItThisSeason: 'Lo tienes esta temporada',
+            pastSeasons: 'También en {seasons}',
+            progress: 'Esta temporada: {value} de {threshold}',
+            progressMonths: 'Esta temporada: {value} de {threshold} meses seguidos',
         },
     },
 };

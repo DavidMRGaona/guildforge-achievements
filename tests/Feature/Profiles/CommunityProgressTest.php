@@ -70,7 +70,7 @@ final class CommunityProgressTest extends ModuleTestCase
         $props = $this->achievementsSection($this->render($this->ana, $this->ana))?->props;
 
         $this->assertNotNull($props);
-        $this->assertSame(['value' => 2, 'threshold' => 10], $props['locked'][0]['progress']);
+        $this->assertSame(['value' => 2, 'threshold' => 10, 'inMonths' => false], $props['locked'][0]['progress']);
         $encoded = (string) json_encode($props);
         $this->assertStringNotContainsString((string) $luis->id, $encoded);
         $this->assertStringNotContainsString('Luis', $encoded);
@@ -126,7 +126,7 @@ final class CommunityProgressTest extends ModuleTestCase
         $this->assertNotNull($props);
         $locked = array_column($props['locked'], null, 'name');
         $this->assertNull($locked['Tres personas']['progress']);
-        $this->assertSame(['value' => 1, 'threshold' => 5], $locked['Cinco partidas']['progress']);
+        $this->assertSame(['value' => 1, 'threshold' => 5, 'inMonths' => false], $locked['Cinco partidas']['progress']);
         // The failure is not kept: once the ledger reads again, the count shows
         $this->assertNull($this->app->make('cache.store')->get(LedgerCommunityMetrics::CACHE_PREFIX.strtolower((string) $this->ana->id)));
         $log->shouldHaveReceived('warning')->withArgs(static fn (string $message, array $context): bool => ($context['reason'] ?? null) === 'community_unavailable' && ! str_contains((string) json_encode($context), 'Ana'));
