@@ -615,4 +615,29 @@ return [
             'placeholder' => 'El que antes termina',
         ],
     ],
+
+    'recognition_types' => [
+        'navigation' => 'Tipos de reconocimiento',
+        'model' => [
+            'singular' => 'tipo de reconocimiento',
+            'plural' => 'tipos de reconocimiento',
+        ],
+        'sections' => [
+            'type' => 'Tipo de reconocimiento',
+            'type_description' => 'Lo que una persona puede reconocer a otra con la que ha jugado. Siempre en positivo.',
+        ],
+        'fields' => [
+            'name' => 'Nombre',
+            'icon' => 'Icono',
+            'colour' => 'Color',
+            'is_active' => 'Activo',
+        ],
+        'helpers' => [
+            'is_active' => 'Apagado, nadie puede darlo, pero los que ya se dieron siguen contando.',
+        ],
+        'delete' => [
+            'description' => 'Se borra el tipo. No se puede deshacer.',
+            'confirmation' => 'Entiendo que el borrado no se puede deshacer',
+        ],
+    ],
 ];

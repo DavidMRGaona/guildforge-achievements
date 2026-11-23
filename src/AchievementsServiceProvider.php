@@ -49,6 +49,7 @@ use Modules\Achievements\Application\Services\ChallengeEvaluatorInterface;
 use Modules\Achievements\Application\Services\CommunityMetricsInterface;
 use Modules\Achievements\Application\Services\PointsCutoffInterface;
 use Modules\Achievements\Application\Services\StarterCatalogueInterface;
+use Modules\Achievements\Application\Services\StarterRecognitionTypesInterface;
 use Modules\Achievements\Console\Commands\InstallStarterCatalogueCommand;
 use Modules\Achievements\Console\Commands\RecalculateAchievementFactsCommand;
 use Modules\Achievements\Domain\Events\AchievementFactsChanged;
@@ -81,6 +82,7 @@ use Modules\Achievements\Infrastructure\Observers\EvaluateChangedAchievements;
 use Modules\Achievements\Infrastructure\Observers\ForgetFeaturedWhenMadeSecret;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\ChallengeModel;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\RecognitionTypeModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementFactRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementGrantRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementPointsRepository;
@@ -97,6 +99,7 @@ use Modules\Achievements\Infrastructure\Profiles\AchievementsLevelProfileStat;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsProfileSection;
 use Modules\Achievements\Infrastructure\Profiles\FeaturedAchievementBadges;
 use Modules\Achievements\Infrastructure\Rarity\NightlyAchievementRarity;
+use Modules\Achievements\Infrastructure\Recognitions\StarterRecognitionTypes;
 use Modules\Achievements\Infrastructure\Services\ActivityLedger;
 use Modules\Achievements\Infrastructure\Settings\ModuleAchievementsSettings;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
@@ -118,6 +121,7 @@ use Modules\Achievements\Listeners\RecordActivityFacts;
 use Modules\Achievements\Notifications\AchievementNoticeCategories;
 use Modules\Achievements\Policies\AchievementPolicy;
 use Modules\Achievements\Policies\ChallengePolicy;
+use Modules\Achievements\Policies\RecognitionTypePolicy;
 use Throwable;
 
 /**
@@ -172,6 +176,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         $this->app->bind(CommunityMetricsInterface::class, LedgerCommunityMetrics::class);
         $this->app->bind(AchievementCatalogueInterface::class, AchievementCatalogue::class);
         $this->app->bind(StarterCatalogueInterface::class, StarterCatalogue::class);
+        $this->app->bind(StarterRecognitionTypesInterface::class, StarterRecognitionTypes::class);
         $this->app->singleton(AchievementWarnings::class);
 
         // What profiles show: the choices, the catalogue and the rarity, read once per request or job
@@ -237,6 +242,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         return [
             AchievementModel::class => AchievementPolicy::class,
             ChallengeModel::class => ChallengePolicy::class,
+            RecognitionTypeModel::class => RecognitionTypePolicy::class,
         ];
     }
 

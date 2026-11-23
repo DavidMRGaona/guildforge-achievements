@@ -96,4 +96,12 @@ return [
         'name' => 'Mesa abierta',
         'description' => 'Dirige partidas a 20 personas distintas.',
     ],
+
+    // Starter recognition types (#11), copied when created
+    'recognitions' => [
+        'great_storytelling' => 'Gran narración',
+        'good_companion' => 'Buen compañero',
+        'helps_newcomers' => 'Ayuda a quien empieza',
+        'great_atmosphere' => 'Gran ambiente',
+    ],
 ];
