@@ -8,6 +8,8 @@ use App\Application\Services\TimezoneServiceInterface;
 use App\Filament\Actions\RowDetailsAction;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Support\PanelNavigationGroup;
+use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use DateTimeImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
@@ -19,10 +21,12 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Date;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\Challenges\ChallengeRule;
 use Modules\Achievements\Domain\Challenges\ChallengeState;
+use Modules\Achievements\Domain\Entities\Challenge;
 use Modules\Achievements\Domain\Repositories\ChallengeRepositoryInterface;
 use Modules\Achievements\Filament\Resources\ChallengeResource\Pages\CreateChallenge;
 use Modules\Achievements\Filament\Resources\ChallengeResource\Pages\EditChallenge;
@@ -31,6 +35,7 @@ use Modules\Achievements\Filament\Support\AchievementRuleForm;
 use Modules\Achievements\Filament\Support\ChallengeForm;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\ChallengeModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentChallengeRepository;
+use Modules\Achievements\Policies\AchievementPolicy;
 
 /**
  * «Personas → Logros → Retos»: collective challenges (#12). Listed with `achievements.view_any`,
@@ -132,6 +137,7 @@ final class ChallengeResource extends BaseResource
 
                 TextColumn::make('contributors')
                     ->label(self::text('fields.contributors'))
+                    ->state(static fn (ChallengeModel $record): int => self::seen($record)->contributors)
                     ->alignCenter()
                     ->visibleFrom('2xl'),
             ])
@@ -219,7 +225,21 @@ final class ChallengeResource extends BaseResource
 
     public static function state(ChallengeModel $record): ChallengeState
     {
-        return EloquentChallengeRepository::toEntity($record)->state(app(TimezoneServiceInterface::class)->today()->format('Y-m-d'));
+        return self::seen($record)->state(app(TimezoneServiceInterface::class)->today()->format('Y-m-d'));
+    }
+
+    /**
+     * The challenge as this viewer of the panel may see it: as counted now for whoever may grant or
+     * manage (they see who holds the reward anyway), as of the last nightly count for anybody else
+     * (Challenge::asOthersSeeIt(), only challenges of members differ), like the holders column of
+     * the catalogue.
+     */
+    public static function seen(ChallengeModel $record): Challenge
+    {
+        $challenge = EloquentChallengeRepository::toEntity($record);
+        $viewer = Auth::user();
+
+        return $viewer instanceof UserModel && AchievementPolicy::seesGrants($viewer) ? $challenge : $challenge->asOthersSeeIt();
     }
 
     public static function stateColour(ChallengeState $state): string
@@ -235,9 +255,10 @@ final class ChallengeResource extends BaseResource
     public static function progressSummary(ChallengeModel $record): string
     {
         $rule = ChallengeRule::tryFrom($record->getRawOriginal('rule'));
+        $seen = self::seen($record);
 
-        return $rule instanceof ChallengeRule
-            ? self::text('progress', ['progress' => $record->progress, 'target' => $rule->target])
+        return $rule instanceof ChallengeRule && $seen->progressAt instanceof DateTimeImmutable
+            ? self::text('progress', ['progress' => (string) $seen->progress, 'target' => (string) $rule->target])
             : '—';
     }
 

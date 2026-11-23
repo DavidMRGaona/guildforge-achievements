@@ -13,6 +13,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Date;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Exceptions\AchievementSettingsUnreadableException;
+use Modules\Achievements\Application\Services\AchievementRarityInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\Repositories\ChallengeRepositoryInterface;
 use Modules\Achievements\Infrastructure\Challenges\ChallengeHolders;
@@ -21,7 +22,8 @@ use Throwable;
 /**
  * The lists of who completed a challenge (#12) are made again once a month, at the hour of the
  * month's summary of announcements (ReleaseAchievementAnnouncementsJob::RELEASE_DAY at RELEASE_AT,
- * display zone): whoever added to a completed challenge and holds its reward then. Between two
+ * display zone): whoever added to a completed challenge and holds its reward then, got by the last
+ * nightly photo (what others see of each profile; without a photo nothing changes). Between two
  * runs nobody is added to a list, however many got the reward meanwhile, so a name that turns up
  * never tells when that person got it. The page still drops, as it draws the list, whoever no
  * longer holds the reward, hides their achievements or their profile.
@@ -74,6 +76,7 @@ final class ListChallengeCompletersJob implements ShouldBeUnique, ShouldQueue
         AchievementsSettingsInterface $settings,
         ChallengeRepositoryInterface $challenges,
         ChallengeHolders $holders,
+        AchievementRarityInterface $rarity,
     ): void {
         $read = $settings->readStrictly();
 
@@ -85,12 +88,20 @@ final class ListChallengeCompletersJob implements ShouldBeUnique, ShouldQueue
             return;
         }
 
+        // Only rewards got by the last nightly photo, as others see each profile; without one the
+        // lists stay as they are
+        $takenAt = $rarity->current()->takenAt;
+
+        if (! $takenAt instanceof DateTimeImmutable) {
+            return;
+        }
+
         $now = DateTimeImmutable::createFromInterface(Date::now());
 
         foreach ($challenges->completed() as $challenge) {
             $challenges->replaceListed(
                 $challenge->id,
-                $holders->among($challenge->rewardAchievementId, $challenges->contributorIds($challenge->id)),
+                $holders->among($challenge->rewardAchievementId, $challenges->contributorIds($challenge->id), $takenAt),
                 $now,
             );
         }

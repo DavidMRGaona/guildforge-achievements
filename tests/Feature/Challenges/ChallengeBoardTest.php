@@ -7,6 +7,7 @@ namespace Modules\Achievements\Tests\Feature\Challenges;
 use App\Application\Authorization\Services\AssociationMembersAmongInterface;
 use App\Application\Authorization\Services\AssociationMembershipServiceInterface;
 use App\Application\Exceptions\NothingToDrawException;
+use App\Application\Profiles\DTOs\ResolvedProfileStatDTO;
 use App\Application\Profiles\Services\ProfileCardServiceInterface;
 use App\Application\Services\TimezoneServiceInterface;
 use App\Application\SiteBlocks\Services\SiteBlockRegistryInterface;
@@ -335,7 +336,7 @@ final class ChallengeBoardTest extends ModuleTestCase
                 ->where('challenges.0.progress', 2));
     }
 
-    public function test_completing_a_challenge_of_members_never_moves_its_rewards_rarity_until_the_night(): void
+    public function test_completing_a_challenge_of_members_shows_to_others_only_with_the_next_photo(): void
     {
         [$ana, $luis] = [$this->person('Ana'), $this->person('Luis')];
         $this->everybodyIsAMember();
@@ -350,12 +351,22 @@ final class ChallengeBoardTest extends ModuleTestCase
         $this->challenges()->evaluate(null, silent: false);
         $this->assertSame(1, DB::table('achievements_grants')->count());
 
+        // Others: neither its rarity nor Ana's profile move
         $this->assertNull($this->rewardRarity($reward));
+        $profile = $this->render($ana, $luis);
+        $this->assertSame([], $this->achievementsSection($profile)?->props['earned'] ?? []);
+        $count = $this->countStat($profile);
+        $this->assertTrue(! $count instanceof ResolvedProfileStatDTO || $count->value === 0);
+        // Ana sees her own reward at once
+        $this->assertCount(1, $this->achievementsSection($this->render($ana, $ana))?->props['earned'] ?? []);
 
         // The next night
         $this->travelTo('2026-12-21 04:10:00');
         $this->refreshRarity();
         $this->assertSame(50, $this->rewardRarity($reward));
+        $profile = $this->render($ana, $luis);
+        $this->assertCount(1, $this->achievementsSection($profile)?->props['earned'] ?? []);
+        $this->assertSame(1, $this->countStat($profile)?->value);
     }
 
     public function test_a_challenge_for_everybody_shows_each_count_as_it_comes(): void
@@ -389,6 +400,7 @@ final class ChallengeBoardTest extends ModuleTestCase
         }
 
         $this->travelTo('2027-01-01 10:00:00');
+        $this->refreshRarity();
         $this->listCompleters();
         $this->app['auth']->forgetGuards();
 
@@ -397,6 +409,26 @@ final class ChallengeBoardTest extends ModuleTestCase
                 ->has('challenges.0.people', 2)
                 ->where('challenges.0.people.0.name', 'Ana')
                 ->where('challenges.0.people.1.name', 'Luis'));
+    }
+
+    public function test_the_list_names_only_rewards_the_nightly_photo_holds(): void
+    {
+        $challenge = $this->challenge(['target' => 1]);
+        [$ana, $luis] = [$this->person('Ana'), $this->person('Luis')];
+        $this->grantAt($ana, $challenge->reward_achievement_id);
+        $this->counted($challenge, progress: 2, contributors: 2, contributions: [(string) $ana->id => 1, (string) $luis->id => 1], completed: true);
+
+        // The 1st: the photo of 03:30 is taken, Luis gets the reward at 06:00, the list is made at 10:00
+        $this->travelTo('2027-01-01 03:30:00');
+        $this->refreshRarity();
+        $this->grantAt($luis, $challenge->reward_achievement_id, when: '2027-01-01 06:00:00');
+        $this->travelTo('2027-01-01 10:00:00');
+        $this->listCompleters();
+
+        $this->actingAs($this->person('Quien mira'))->get(route('achievements.index'))
+            ->assertInertia(fn (Assert $page): Assert => $page
+                ->has('challenges.0.people', 1)
+                ->where('challenges.0.people.0.name', 'Ana'));
     }
 
     public function test_the_kept_list_is_the_monthly_one(): void
@@ -458,13 +490,6 @@ final class ChallengeBoardTest extends ModuleTestCase
         Bus::assertDispatchedTimes(ListChallengeCompletersJob::class, 1);
     }
 
-    private function refreshRarity(): void
-    {
-        $this->app->forgetScopedInstances();
-        $this->app->make(AchievementRarityInterface::class)->refresh();
-        $this->app->forgetScopedInstances();
-    }
-
     /**
      * The reward's rarity as `/logros` shows it to anybody: a whole percent of the last nightly photo.
      */
@@ -512,8 +537,9 @@ final class ChallengeBoardTest extends ModuleTestCase
             ]);
         }
 
-        // As after the nightly count and the monthly list
+        // As after the nightly count and photo and the monthly list
         $this->publishShown();
+        $this->refreshRarity();
         $this->listCompleters();
     }
 }

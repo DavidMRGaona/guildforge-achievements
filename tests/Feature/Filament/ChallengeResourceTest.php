@@ -266,6 +266,24 @@ final class ChallengeResourceTest extends ModuleTestCase
         Bus::assertDispatched(EvaluateChallengesJob::class, static fn (EvaluateChallengesJob $job): bool => $job->challengeIds === [$challenge->id]);
     }
 
+    public function test_who_cannot_grant_sees_a_challenge_of_members_as_the_nightly_count_left_it(): void
+    {
+        $challenge = $this->challenge(['target' => 40], ['audience' => 'members']);
+        ChallengeModel::query()->whereKey($challenge->id)->update([
+            'progress' => 7, 'contributors' => 3, 'progress_at' => '2026-12-20 09:00:00',
+            'shown_progress' => 5, 'shown_contributors' => 2, 'shown_at' => '2026-12-20 04:10:00',
+        ]);
+        $challenge->refresh();
+
+        $this->actingAs($this->userWith(AchievementPolicy::VIEW_ANY));
+        $this->assertSame(ChallengeResource::progressSummary($this->challengeWith(5)), ChallengeResource::progressSummary($challenge));
+        $this->assertSame(2, ChallengeResource::seen($challenge)->contributors);
+
+        $this->actingAs($this->userWith(AchievementPolicy::MANAGE));
+        $this->assertSame(7, ChallengeResource::seen($challenge)->progress);
+        $this->assertSame(3, ChallengeResource::seen($challenge)->contributors);
+    }
+
     public function test_the_count_version_goes_up_by_one_per_change_in_sql(): void
     {
         $challenge = $this->challenge();
@@ -498,5 +516,16 @@ final class ChallengeResourceTest extends ModuleTestCase
             'rule_metric' => 'subjects',
             'rule_target' => 10,
         ];
+    }
+
+    /**
+     * A challenge for everybody counted at this total, to compare the panel's text with.
+     */
+    private function challengeWith(int $progress): ChallengeModel
+    {
+        $challenge = $this->challenge(['target' => 40]);
+        ChallengeModel::query()->whereKey($challenge->id)->update(['progress' => $progress, 'progress_at' => '2026-12-20 09:00:00']);
+
+        return $challenge->refresh();
     }
 }
