@@ -11,7 +11,10 @@ export default {
             earned: 'Earned ({count})',
             locked: 'Still to get ({count})',
             progress: '{value} of {threshold}',
+            progressMonths: '{value} of {threshold} months in a row',
             manual: 'Granted by hand.',
+            thisSeason: 'Season {season}',
+            seasonsGot: 'Got in {seasons}',
             featured: 'Featured',
             feature: 'Feature «{name}»',
             featuredFull: 'You already feature {max}: remove one to feature another.',
@@ -45,7 +48,7 @@ export default {
             title: 'Achievements',
             announceRare: {
                 label: 'Announce my rare achievements',
-                help: 'Whoever can see your profile gets a notice when you get an achievement held by fewer than {threshold} % of active people, or a challenge one. Only the achievement’s name is told.',
+                help: 'Once a month, whoever can see your profile gets a summary with last month’s achievements of yours held by fewer than {threshold} % of active people and your challenge ones. It only tells each achievement’s name: neither the day nor the time.',
                 hidden: 'Your achievements are hidden right now: none is announced.',
                 on: 'Your rare achievements will be announced.',
                 off: 'Your achievements are no longer announced.',
@@ -53,6 +56,8 @@ export default {
             inLeaderboard: {
                 label: 'Appear in the leaderboard',
                 help: 'Your name and points show in the achievements leaderboard, which only signed-in people who can see your profile see.',
+                helpOff:
+                    'The leaderboard is off right now. If it is switched on, you only appear if this is on.',
                 on: 'You appear in the leaderboard.',
                 off: 'You no longer appear in the leaderboard.',
             },
@@ -68,6 +73,13 @@ export default {
                 'Rarity is the share of active people (who took part in something in the last twelve months) holding each achievement.',
             seeLeaderboard: 'See the leaderboard',
             youHoldIt: 'You hold it',
+            seasonExplained:
+                'Some achievements can be got again every season, which lasts a calendar year. This is season {season}.',
+            repeats: 'Every season',
+            youHoldItThisSeason: 'You hold it this season',
+            pastSeasons: 'Also in {seasons}',
+            progress: 'This season: {value} of {threshold}',
+            progressMonths: 'This season: {value} of {threshold} months in a row',
         },
         points: {
             count: '{points} point | {points} points',

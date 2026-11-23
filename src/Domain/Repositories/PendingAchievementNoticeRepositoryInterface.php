@@ -4,23 +4,39 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Domain\Repositories;
 
+use Closure;
+use DateTimeInterface;
+
 /**
- * Grants waiting to be told (`achievements_pending_notices`): each one is told once, together with
- * the rest of the same person's, and a revoked grant leaves the queue with its row.
+ * Grants waiting to be told (`achievements_pending_notices`): once to the holder, together with the
+ * rest of theirs, and once in the monthly summary of announcements. A revoked grant leaves the queue
+ * with its row.
+ *
+ * Each delivery holds what it tells locked while it tells it and deletes it only once the work given
+ * returned: work that throws leaves everything waiting for a retry, and a concurrent delivery waits
+ * and then finds nothing.
  */
 interface PendingAchievementNoticeRepositoryInterface
 {
     /**
-     * Queues the notice of a grant for its holder. A grant already queued, or gone meanwhile (revoked,
-     * its account anonymized), changes nothing.
+     * Queues both notices of a grant. A grant already queued, or gone meanwhile (revoked, its account
+     * anonymized), changes nothing.
      */
     public function add(string $grantId): void;
 
     /**
-     * Takes every grant waiting for this person, oldest first, and leaves none: a second claim, even a
-     * concurrent one, gets nothing of what the first took.
+     * Hands every grant waiting to be told to this person (oldest first) to the work, then forgets
+     * them, in one transaction. Nothing waiting: the work is not called.
      *
-     * @return list<string> grant ids
+     * @param  Closure(list<string>): void  $work  receives grant ids
      */
-    public function claim(string $userId): array;
+    public function deliverEarned(string $userId, Closure $work): void;
+
+    /**
+     * Hands every grant got before the instant and waiting to be announced, keyed by holder in lower
+     * case, to the work, then forgets them, in one transaction. Nothing waiting: the work is not called.
+     *
+     * @param  Closure(array<string, list<string>>): void  $work  receives holder id => grant ids
+     */
+    public function releaseAnnouncements(DateTimeInterface $before, Closure $work): void;
 }

@@ -18,21 +18,61 @@ use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
 /**
  * «Has conseguido…» (achievements#6), in the owner's bell only: one notice for every achievement of
  * one delivery, so an evaluation that grants many tells them once. What the owner no longer holds
- * when it is delivered (revoked meanwhile) is left out; with nothing left, nothing is stored. Their
- * own achievements, so secret ones are named.
+ * (revoked meanwhile, in any season) is left out; with nothing left, there is no notice. Their own
+ * achievements, so secret ones are named.
  *
- * Sent by DeliverAchievementNoticesJob, already queued, so the notification itself is not.
+ * Built by for() before it is sent (DeliverAchievementNoticesJob does it right then, in its
+ * transaction): the core's site channel swallows what fails while it builds a notice, so whatever
+ * may fail happens before, where it fails the job and leaves the grants waiting for the retry.
  */
 final class AchievementsEarnedNotification extends Notification implements HasMailCategory, HasSiteNotification
 {
     public const string GROUP_KEY = 'achievements.earned';
 
-    /**
-     * @param  list<string>  $achievementIds  in the order they were got
-     */
-    public function __construct(
-        public readonly array $achievementIds,
+    private function __construct(
+        public readonly SiteNotificationDTO $notice,
     ) {}
+
+    /**
+     * The notice for these achievements of the owner, in the order they were got; null when none is
+     * still held.
+     *
+     * @param  list<string>  $achievementIds
+     */
+    public static function for(Authenticatable $owner, array $achievementIds): ?self
+    {
+        $ownerId = strtolower((string) $owner->getAuthIdentifier());
+        $held = array_flip(app(AchievementGrantRepositoryInterface::class)->heldAchievementIds([$ownerId])[$ownerId] ?? []);
+        $catalogue = app(AchievementRepositoryInterface::class);
+        $achievements = [];
+
+        foreach ($achievementIds as $id) {
+            $achievement = isset($held[strtolower($id)]) ? $catalogue->find($id) : null;
+
+            if ($achievement instanceof Achievement) {
+                $achievements[] = $achievement;
+            }
+        }
+
+        if ($achievements === []) {
+            return null;
+        }
+
+        $single = count($achievements) === 1 ? $achievements[0] : null;
+
+        return new self(new SiteNotificationDTO(
+            title: $single instanceof Achievement
+                ? __('achievements::notifications.earned.one', ['name' => AchievementList::quoted($single->name)])
+                : __('achievements::notifications.earned.many', ['count' => count($achievements)]),
+            url: self::url($ownerId, $owner),
+            body: $single instanceof Achievement
+                ? ($single->description === '' ? null : $single->description)
+                : AchievementList::sentence(array_map(static fn (Achievement $achievement): string => $achievement->name, $achievements)),
+            icon: AchievementNoticeCategories::ICON,
+            groupKey: self::GROUP_KEY,
+            groupedTitle: static fn (): string => __('achievements::notifications.earned.grouped'),
+        ));
+    }
 
     /**
      * @return list<string>
@@ -47,49 +87,15 @@ final class AchievementsEarnedNotification extends Notification implements HasMa
         return AchievementNoticeCategories::EARNED;
     }
 
-    public function toSiteNotification(object $notifiable): ?SiteNotificationDTO
+    public function toSiteNotification(object $notifiable): SiteNotificationDTO
     {
-        if (! $notifiable instanceof Authenticatable) {
-            return null;
-        }
-
-        $ownerId = strtolower((string) $notifiable->getAuthIdentifier());
-        $held = array_flip(app(AchievementGrantRepositoryInterface::class)->heldAchievementIds([$ownerId])[$ownerId] ?? []);
-        $catalogue = app(AchievementRepositoryInterface::class);
-        $achievements = [];
-
-        foreach ($this->achievementIds as $id) {
-            $achievement = isset($held[strtolower($id)]) ? $catalogue->find($id) : null;
-
-            if ($achievement instanceof Achievement) {
-                $achievements[] = $achievement;
-            }
-        }
-
-        if ($achievements === []) {
-            return null;
-        }
-
-        $single = count($achievements) === 1 ? $achievements[0] : null;
-
-        return new SiteNotificationDTO(
-            title: $single instanceof Achievement
-                ? __('achievements::notifications.earned.one', ['name' => AchievementList::quoted($single->name)])
-                : __('achievements::notifications.earned.many', ['count' => count($achievements)]),
-            url: $this->url($ownerId, $notifiable),
-            body: $single instanceof Achievement
-                ? ($single->description === '' ? null : $single->description)
-                : AchievementList::sentence(array_map(static fn (Achievement $achievement): string => $achievement->name, $achievements)),
-            icon: AchievementNoticeCategories::ICON,
-            groupKey: self::GROUP_KEY,
-            groupedTitle: static fn (): string => __('achievements::notifications.earned.grouped'),
-        );
+        return $this->notice;
     }
 
     /**
      * The owner's public profile, where the section lists them; the catalogue without one.
      */
-    private function url(string $ownerId, Authenticatable $owner): string
+    private static function url(string $ownerId, Authenticatable $owner): string
     {
         $card = app(ProfileCardServiceInterface::class)->card($ownerId, $owner);
 

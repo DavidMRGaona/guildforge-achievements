@@ -8,27 +8,22 @@ use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
-use Modules\Achievements\Application\DTOs\AchievementsSettings;
-use Modules\Achievements\Application\Services\AchievementRarityInterface;
-use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\Entities\AchievementGrant;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
-use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\PendingAchievementNoticeRepositoryInterface;
-use Modules\Achievements\Domain\Rules\AnnouncementRule;
 use Modules\Achievements\Notifications\AchievementsEarnedNotification;
 
 /**
  * Tells one person, in one notice, every achievement they got since the last delivery
- * (achievements#6), and queues the announcement of the rare ones to everybody else.
+ * (achievements#6). What others hear goes out apart, in the monthly summary
+ * (ReleaseAchievementAnnouncementsJob), so it never says when it was got.
  *
  * Each grant queues it a little later (DELAY_SECONDS) and only once while one is waiting for that
  * person (unique until it starts), so an evaluation that grants hundreds gives one notice. It takes
- * the waiting grants and leaves none, so running twice tells nothing twice, and a retry after a
- * failure before taking them loses nothing.
+ * the waiting grants only once the notice is stored, in one transaction: running twice tells
+ * nothing twice, and a notice that fails leaves them all for the retry.
  */
 final class DeliverAchievementNoticesJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
@@ -63,93 +58,37 @@ final class DeliverAchievementNoticesJob implements ShouldBeUniqueUntilProcessin
         PendingAchievementNoticeRepositoryInterface $pending,
         AchievementGrantRepositoryInterface $grants,
     ): void {
-        $grantIds = $pending->claim($this->userId);
+        // What waits is forgotten only once told: a notice that fails leaves it all for the retry
+        $pending->deliverEarned($this->userId, function (array $grantIds) use ($grants): void {
+            $owner = UserModel::query()->find($this->userId);
 
-        if ($grantIds === []) {
-            return;
-        }
+            // Deactivated (not found) or anonymized: nobody to tell
+            if (! $owner instanceof UserModel || $owner->anonymized_at !== null) {
+                return;
+            }
 
-        $owner = UserModel::query()->find($this->userId);
+            $byId = [];
 
-        // Deactivated (not found) or anonymized: nobody to tell, and nothing to tell about them
-        if (! $owner instanceof UserModel || $owner->anonymized_at !== null) {
-            return;
-        }
+            foreach ($grants->forUser($this->userId) as $grant) {
+                $byId[strtolower($grant->id)] = $grant;
+            }
 
-        $byId = [];
+            $achievementIds = [];
 
-        foreach ($grants->forUser($this->userId) as $grant) {
-            $byId[strtolower($grant->id)] = $grant;
-        }
+            foreach ($grantIds as $grantId) {
+                $grant = $byId[$grantId] ?? null;
 
-        /** @var list<AchievementGrant> $told */
-        $told = array_values(array_filter(array_map(static fn (string $id): ?AchievementGrant => $byId[$id] ?? null, $grantIds)));
+                if ($grant instanceof AchievementGrant) {
+                    $achievementIds[strtolower($grant->achievementId)] = true;
+                }
+            }
 
-        if ($told === []) {
-            return;
-        }
+            // Built first: what fails while building fails the job, the channel would swallow it
+            $notification = AchievementsEarnedNotification::for($owner, array_keys($achievementIds));
 
-        $owner->notify(new AchievementsEarnedNotification($this->achievementIds($told)));
-
-        $announced = $this->announced($told);
-
-        if ($announced === []) {
-            return;
-        }
-
-        UserModel::query()
-            ->whereNull('anonymized_at')
-            ->whereKeyNot($this->userId)
-            ->select('id')
-            ->chunkById(DeliverAchievementAnnouncementsJob::BATCH_SIZE, function (Collection $accounts) use ($announced): void {
-                /** @var list<string> $ids */
-                $ids = array_map(strval(...), $accounts->modelKeys());
-
-                DeliverAchievementAnnouncementsJob::dispatch($this->userId, $announced, $ids);
-            });
-    }
-
-    /**
-     * The grants others may hear of, as decided now: the mechanic on (settings read strictly, so an
-     * unreadable row announces nothing), the owner allowing it and showing their achievements, and
-     * each grant a challenge one or rare (AnnouncementRule).
-     *
-     * @param  list<AchievementGrant>  $grants
-     * @return list<string> achievement ids
-     */
-    private function announced(array $grants): array
-    {
-        $settings = app(AchievementsSettingsInterface::class)->readStrictly();
-
-        if (! $settings instanceof AchievementsSettings || ! $settings->announcements) {
-            return [];
-        }
-
-        $preferences = app(AchievementPreferencesRepositoryInterface::class)->find($this->userId);
-
-        if (! $preferences->announceRare || $preferences->hidden) {
-            return [];
-        }
-
-        $rarity = app(AchievementRarityInterface::class)->current();
-
-        return $this->achievementIds(array_values(array_filter(
-            $grants,
-            static fn (AchievementGrant $grant): bool => AnnouncementRule::announces(
-                $grant->source,
-                $grant->silent,
-                $rarity->shareOf($grant->achievementId),
-                $settings->announcementsRarityThreshold,
-            ),
-        )));
-    }
-
-    /**
-     * @param  list<AchievementGrant>  $grants
-     * @return list<string>
-     */
-    private function achievementIds(array $grants): array
-    {
-        return array_values(array_unique(array_map(static fn (AchievementGrant $grant): string => strtolower($grant->achievementId), $grants)));
+            if ($notification instanceof AchievementsEarnedNotification) {
+                $owner->notify($notification);
+            }
+        });
     }
 }

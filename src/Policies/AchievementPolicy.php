@@ -6,6 +6,8 @@ namespace Modules\Achievements\Policies;
 
 use App\Infrastructure\Authorization\Policies\AuthorizesWithPermissions;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Domain\Rules\AchievementRule;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 
 /**
@@ -15,8 +17,8 @@ use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementM
  * Grants are permanent, so an achievement somebody holds is never deleted, only switched off (the
  * database refuses it too).
  *
- * Grants (#4): `achievements.grant` grants by hand or in bulk (an achievement switched on) and revokes
- * (switched on or off). Who holds an achievement and its history are seen with `grant` or `manage`,
+ * Grants (#4): `achievements.grant` grants by hand or in bulk (an achievement switched on, and for a
+ * season or a streak only while seasons and streaks are on) and revokes (switched on or off). Who holds an achievement and its history are seen with `grant` or `manage`,
  * never with `view_any` alone.
  */
 final class AchievementPolicy
@@ -45,7 +47,21 @@ final class AchievementPolicy
     {
         return $achievement->is_active
             && $this->authorize($user, self::GRANT)
-            && $this->seesUnmasked($user, $achievement);
+            && $this->seesUnmasked($user, $achievement)
+            && ! $this->seasonalWhileOff($achievement);
+    }
+
+    /**
+     * A season or a streak while seasons and streaks are switched off: the mechanic is off, so no
+     * season of it is granted, by hand either (what was granted stays, and can still be revoked).
+     */
+    private function seasonalWhileOff(AchievementModel $achievement): bool
+    {
+        $rule = AchievementRule::tryFrom($achievement->getRawOriginal('rule'));
+
+        return $rule instanceof AchievementRule
+            && ! $rule->window->isAllTime()
+            && ! app(AchievementsSettingsInterface::class)->seasonsAndStreaksEnabled();
     }
 
     public function revoke(UserModel $user, AchievementModel $achievement): bool

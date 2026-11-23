@@ -21,10 +21,15 @@ final class ProfileAchievementsController extends Controller
         AchievementPreferencesRepositoryInterface $preferences,
         AchievementLeaderboardInterface $leaderboard,
     ): RedirectResponse {
-        $choices = $preferences->find($request->ownerId())->with($request->hidden(), $request->featuredIds());
+        $preferences->saveShowcase($request->ownerId(), $request->hidden(), $request->featuredIds());
+
+        // «Aparecer en la clasificación» from the section too (#10); left out, it stays as it was
         $appears = $request->leaderboard();
 
-        $preferences->save($appears === null ? $choices : $choices->withChoices(announceRare: $choices->announceRare, inLeaderboard: $appears));
+        if ($appears !== null) {
+            $preferences->saveChoices($request->ownerId(), announceRare: null, inLeaderboard: $appears);
+        }
+
         // Choices are read again on every request; this only lets someone who came back appear at once
         $leaderboard->forget();
 

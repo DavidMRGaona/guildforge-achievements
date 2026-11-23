@@ -1,11 +1,11 @@
 ---
 id: achievements.site.achievements
 title: Tus logros
-summary: Qué son los logros, cómo se consiguen, qué es la rareza, los puntos, los niveles y la clasificación, cómo destacar tres junto a tu nombre, cómo ocultarlos y qué avisos llegan.
+summary: Qué son los logros, cómo se consiguen, las temporadas y las rachas, qué es la rareza, los puntos, los niveles y la clasificación, cómo destacar tres junto a tu nombre, cómo ocultarlos y qué avisos llegan.
 category: community
 audience: site
 order: 40
-keywords: [logros, insignias, medallas, trofeos, conseguir, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, destacar, destacados, estrella, junto a mi nombre, foro, tarjeta, perfil, ocultar, privacidad, catálogo, aviso, avisos, campana, anunciar, anuncio, logros raros, clasificación, ajustes de la cuenta, puntos, nivel, niveles, ranking, puesto, temporada, salir de la clasificación, comunidad, personas distintas]
+keywords: [logros, insignias, medallas, trofeos, conseguir, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, destacar, destacados, estrella, junto a mi nombre, foro, tarjeta, perfil, ocultar, privacidad, catálogo, aviso, avisos, campana, anunciar, anuncio, logros raros, clasificación, ajustes de la cuenta, puntos, nivel, niveles, ranking, puesto, temporada, salir de la clasificación, comunidad, personas distintas, cada año, racha, meses seguidos, constancia]
 related: [core.site.public-profile]
 ---
 Un logro es una insignia que se consigue con lo que haces en {{site_name}}: jugar o dirigir partidas, probar sistemas distintos, ir a eventos, participar en torneos, cumplir años en la web… Se concede solo, en cuanto cumples lo que pide, y no se pierde nunca: aunque una partida deje de contar, lo conseguido se queda.
@@ -16,11 +16,19 @@ En el menú, abre **Logros**. Ahí están los que se pueden conseguir ahora, con
 
 Algunos son **secretos**: salen como «Logro secreto», sin nombre ni descripción, hasta que los consigues.
 
+## Temporadas y rachas
+
+Algunos logros se pueden volver a conseguir cada **temporada**, que dura un año natural: en **Logros** llevan «Cada temporada». Solo cuenta lo que haces ese año, y el 1 de enero empieza otra temporada desde cero. Los que ya conseguiste se quedan, con su año: «Conseguido en 2025 y 2026».
+
+Otros piden una **racha**: actividad en varios meses seguidos, por ejemplo una partida al mes durante tres meses. Si un mes no haces nada, la racha vuelve a empezar. Algunas rachas también se repiten cada temporada.
+
+En **Logros**, con la sesión iniciada, cada logro por temporada te dice si ya lo tienes este año, cuánto llevas («Esta temporada: 3 de 10») y en qué temporadas anteriores lo conseguiste. Eso solo lo ves tú.
+
 ## Tus logros en tu perfil
 
-En tu perfil público, la sección **Logros** enseña los que tienes y su rareza. Tú ves el día en que conseguiste cada uno; los demás solo ven el mes y el año («noviembre de 2026»), porque quienes juegan juntos consiguen sus logros a la vez y la hora exacta diría con quién jugaste. Tú ves además los que te faltan y cuánto llevas («7 de 10»); los demás no ven lo que te falta.
+En tu perfil público, la sección **Logros** enseña los que tienes y su rareza. Tú ves el día en que conseguiste cada uno; los demás solo ven el mes y el año («noviembre de 2026»), porque quienes juegan juntos consiguen sus logros a la vez y la hora exacta diría con quién jugaste. Tú ves además los que te faltan y cuánto llevas («7 de 10»; en una racha, «2 de 6 meses seguidos»); los demás no ven lo que te falta. Un logro por temporada sale una vez, con los años en que lo conseguiste, y mientras no tengas el de este año también sale entre los que te faltan, con lo que llevas esta temporada.
 
-Los logros solo dicen totales: «10 partidas», «3 sistemas». Nunca dicen en qué mesa, sesión o evento estuviste.
+Los logros solo dicen totales: «10 partidas», «3 sistemas», «5 meses seguidos», «Temporada 2026». Nunca dicen en qué mesa, sesión o evento estuviste.
 
 ## Logros de comunidad
 
@@ -52,7 +60,7 @@ Si no quieres la sección en tu perfil pero sí los destacados junto a tu nombre
 
 ## Avisos de logros
 
-Cuando consigues un logro, te llega un aviso a la campana: «Has conseguido «Diez partidas»». Si consigues varios a la vez, llegan juntos en un solo aviso. No llegan correos.
+Cuando consigues un logro, te llega un aviso a la campana: «Has conseguido “Diez partidas”». Si consigues varios a la vez, llegan juntos en un solo aviso. No llegan correos.
 
 No hay aviso de lo que ya tenías ganado antes de que existiera el logro, ni de lo que la asociación concede en lote sin aviso.
 
@@ -60,16 +68,18 @@ Puedes apagar estos avisos en **Ajustes de la cuenta → Avisos**, en **Logros q
 
 ## Anunciar tus logros raros
 
-Si quieres, la gente que puede ver tu perfil recibe un aviso cuando consigues un logro raro, que tiene poca gente activa (menos del 10 %, o lo que decida la asociación), o el logro de un reto: «Ana ha conseguido «Maestro de campañas»». Viene apagado.
+Si quieres, la gente que puede ver tu perfil recibe una vez al mes un resumen con tus logros raros del mes anterior: los que tiene poca gente activa (menos del 10 %, o lo que decida la asociación) y los de retos. Por ejemplo: «Ana, Bob y 3 más consiguieron logros raros en noviembre». Viene apagado.
 
 Para encenderlo:
 
 1. Abre **Ajustes de la cuenta** y entra en la pestaña **Logros**.
 2. Enciende **Anunciar mis logros raros**. Se guarda al momento.
 
-El anuncio solo dice el nombre del logro: nunca en qué mesa, sesión o evento estuviste. Solo llega a quien puede ver tu perfil en ese momento. Un logro secreto solo se nombra a quien también lo tiene, o si lo has destacado; a los demás les llega «Ana ha conseguido un logro secreto». Lo que la asociación concede en lote no se anuncia nunca. Si ocultas tus logros, no se anuncia ninguno.
+El resumen sale el día 1 de cada mes y solo dice el mes y el nombre de cada logro: ni el día, ni la hora, ni en qué mesa, sesión o evento estuviste, ni con quién. Solo llega a quien puede ver tu perfil en ese momento. Un logro secreto solo se nombra a quien también lo tiene, o si lo has destacado; a los demás les llega «un logro secreto». Lo que la asociación concede en lote no se anuncia nunca. Si ocultas tus logros, no se anuncia ninguno.
 
-Cada persona elige si recibe estos anuncios en **Ajustes de la cuenta → Avisos**, en **Logros poco comunes de otras personas**.
+Puedes cambiar de idea cuando quieras: cuenta lo que tengas elegido el día del resumen. Un resumen que ya llegó se queda en la campana de quien lo recibió.
+
+Cada persona elige si recibe estos resúmenes en **Ajustes de la cuenta → Avisos**, en **Logros poco comunes de otras personas**.
 
 ## Puntos y niveles
 
@@ -87,4 +97,4 @@ En **Logros**, con la sesión iniciada, **Ver la clasificación** enseña quién
 
 En la clasificación solo salen los perfiles que tú puedes ver, con su nombre público y los puntos que tú puedes ver de cada uno, y tu puesto se cuenta solo entre ellos. No salen las cuentas desactivadas o anonimizadas, las que no tienen nombre público, quien oculta sus logros ni quien ha elegido no salir.
 
-Apareces en ella salvo que no quieras. Para salir, apaga **Aparecer en la clasificación** en **Ajustes de la cuenta → Logros** o en la sección **Logros** de tu perfil público: es el mismo ajuste y se guarda al momento. Puedes volver a encenderlo cuando quieras. Si ocultas tus logros, tampoco sales en la clasificación.
+Apareces en ella salvo que no quieras. Para salir, apaga **Aparecer en la clasificación** en **Ajustes de la cuenta → Logros**, o en la sección **Logros** de tu perfil público mientras haya clasificación: es el mismo ajuste y se guarda al momento. En la pestaña puedes elegirlo aunque la clasificación todavía esté apagada. Puedes volver a encenderlo cuando quieras. Si ocultas tus logros, tampoco sales en la clasificación.

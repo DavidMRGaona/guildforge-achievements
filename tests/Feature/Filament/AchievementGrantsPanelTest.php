@@ -155,17 +155,21 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
     {
         $this->actingAs($this->userWith(AchievementPolicy::GRANT));
         $ana = $this->account(self::ANA);
-        UserModel::query()->whereKey($ana)->update(['name' => 'Ana Ejemplo']);
+        // A word the factory never writes in a name: the other accounts of the test have random
+        // names, and «Ana» is in «Adriana» or «Ana María»
+        UserModel::query()->whereKey($ana)->update(['name' => 'Ana Ejemplo', 'display_name' => 'Ana Ejemplo']);
+        // The name a random account once had (#19): it holds «ana», never «Ejemplo»
+        UserModel::factory()->create(['name' => 'Adriana Terrazas', 'display_name' => 'Adriana Terrazas']);
 
         $search = new \ReflectionMethod(GrantActions::class, 'accountsWithout');
-        $this->assertSame([], $search->invoke(null, $this->fundadora, 'Ana'));
+        $this->assertSame([], $search->invoke(null, $this->fundadora, 'Ejemplo'));
         $this->holders()
             ->callAction(TestAction::make('grantAchievement')->table(), data: ['user_id' => $ana])
             ->assertHasFormErrors(['user_id']);
         $this->assertSame(0, AchievementGrantModel::query()->count());
 
         $this->actingAs($this->userWith(AchievementPolicy::GRANT, 'users.view'));
-        $this->assertSame([$ana => 'Ana Ejemplo'], $search->invoke(null, $this->fundadora, 'Ana'));
+        $this->assertSame([$ana => 'Ana Ejemplo'], $search->invoke(null, $this->fundadora, 'Ejemplo'));
     }
 
     public function test_only_whoever_may_grant_sees_the_grant_actions(): void
@@ -222,8 +226,8 @@ final class AchievementGrantsPanelTest extends ModuleTestCase
 
         $visibleFrom = static fn (array $columns): array => array_map(static fn ($column): ?string => $column->getVisibleFrom(), $columns);
 
-        $this->assertSame(['account' => null, 'source' => 'sm', 'granted_at' => 'md', 'actor' => 'xl'], $visibleFrom($holders));
-        $this->assertSame(['created_at' => 'sm', 'action' => null, 'account' => null, 'source' => 'md', 'actor' => 'xl', 'reason' => 'xl'], $visibleFrom($log));
+        $this->assertSame(['account' => null, 'source' => 'sm', 'season' => 'xl', 'granted_at' => 'md', 'actor' => 'xl'], $visibleFrom($holders));
+        $this->assertSame(['created_at' => 'sm', 'action' => null, 'account' => null, 'season_key' => 'xl', 'source' => 'md', 'actor' => 'xl', 'reason' => 'xl'], $visibleFrom($log));
         $this->assertInstanceOf(TextColumn::class, $holders['account']);
         $this->assertTrue($holders['account']->canWrap());
     }

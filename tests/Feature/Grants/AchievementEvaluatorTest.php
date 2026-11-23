@@ -266,7 +266,7 @@ final class AchievementEvaluatorTest extends ModuleTestCase
     public function test_an_unreadable_rule_is_skipped_and_warned_once(): void
     {
         $ana = $this->account(self::ANA);
-        $broken = $this->achievement('{"version":1,"metric":"count","kind":"game_session","threshold":1,"window":{"type":"season"}}');
+        $broken = $this->achievement('{"version":1,"metric":"count","kind":"game_session","threshold":1,"window":{"type":"fortnight"}}');
         $this->played($ana, 's1');
         $log = Log::spy();
 

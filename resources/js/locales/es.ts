@@ -11,7 +11,10 @@ export default {
             earned: 'Conseguido ({count}) | Conseguidos ({count})',
             locked: 'Te falta ({count}) | Te faltan ({count})',
             progress: '{value} de {threshold}',
+            progressMonths: '{value} de {threshold} meses seguidos',
             manual: 'Se concede a mano.',
+            thisSeason: 'Temporada {season}',
+            seasonsGot: 'Conseguido en {seasons}',
             featured: 'Destacado',
             feature: 'Destacar «{name}»',
             featuredFull: 'Ya tienes {max} destacados: quita uno para destacar otro.',
@@ -44,7 +47,7 @@ export default {
             title: 'Logros',
             announceRare: {
                 label: 'Anunciar mis logros raros',
-                help: 'Quien puede ver tu perfil recibe un aviso cuando consigues un logro que tiene menos del {threshold} % de la gente activa o el de un reto. Solo se dice el nombre del logro.',
+                help: 'Una vez al mes, quien puede ver tu perfil recibe un resumen con tus logros del mes anterior que tiene menos del {threshold} % de la gente activa y los de retos. Solo dice el nombre de cada logro: ni el día ni la hora.',
                 hidden: 'Ahora mismo tus logros están ocultos: no se anuncia ninguno.',
                 on: 'Tus logros raros se anunciarán.',
                 off: 'Tus logros ya no se anuncian.',
@@ -52,6 +55,8 @@ export default {
             inLeaderboard: {
                 label: 'Aparecer en la clasificación',
                 help: 'Tu nombre y tus puntos salen en la clasificación de logros, que solo ve la gente con sesión iniciada que puede ver tu perfil.',
+                helpOff:
+                    'La clasificación está apagada ahora mismo. Si se enciende, solo aparecerás si esto está encendido.',
                 on: 'Apareces en la clasificación.',
                 off: 'Ya no apareces en la clasificación.',
             },
@@ -68,6 +73,13 @@ export default {
                 'La rareza es la parte de la gente activa (quien ha participado en algo en los últimos doce meses) que tiene cada logro.',
             seeLeaderboard: 'Ver la clasificación',
             youHoldIt: 'Lo tienes',
+            seasonExplained:
+                'Algunos logros se pueden volver a conseguir cada temporada, que dura un año natural. Ahora es la temporada {season}.',
+            repeats: 'Cada temporada',
+            youHoldItThisSeason: 'Lo tienes esta temporada',
+            pastSeasons: 'También en {seasons}',
+            progress: 'Esta temporada: {value} de {threshold}',
+            progressMonths: 'Esta temporada: {value} de {threshold} meses seguidos',
         },
         points: {
             count: '{points} punto | {points} puntos',

@@ -15,6 +15,7 @@ use Modules\Achievements\Application\DTOs\AchievementViewDTO;
 use Modules\Achievements\Application\Services\AchievementRarityInterface;
 use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Application\Services\SeasonClock;
 use Modules\Achievements\Infrastructure\Profiles\AchievementShowcase;
 use Modules\Achievements\Infrastructure\Profiles\ShowcasePresenter;
 
@@ -32,6 +33,7 @@ final class AchievementCatalogueController extends Controller
         private readonly AchievementsSettingsInterface $settings,
         private readonly ShowcasePresenter $presenter,
         private readonly SeoMetadataFactoryInterface $seo,
+        private readonly SeasonClock $seasons,
     ) {}
 
     public function __invoke(Request $request): Response
@@ -41,12 +43,15 @@ final class AchievementCatalogueController extends Controller
         $showsRarity = $this->settings->rarityEnabled();
         $rarity = $showsRarity ? $this->rarity->current() : null;
         $showsPoints = $this->settings->pointsEnabled();
+        // The viewer's own seasons only: nobody else's standing is ever built
+        $standings = $this->showcase->seasonStandings($viewerId);
 
         return Inertia::render('Achievements/Index', [
             'achievements' => array_map(fn (AchievementViewDTO $view): array => $this->presenter->achievement($view) + [
                 'held' => $view->held,
                 // What it gives (#10); a masked secret keeps it to itself
                 'points' => $showsPoints && ! $view->masked ? $view->points : null,
+                'standing' => $view->masked || ! isset($standings[strtolower($view->id)]) ? null : $this->presenter->standing($standings[strtolower($view->id)]),
                 // 0 of what the viewer holds only says they are not active: not shown
                 'rarity' => match (true) {
                     $view->masked => null,
@@ -59,6 +64,7 @@ final class AchievementCatalogueController extends Controller
             'showsPoints' => $showsPoints,
             // Only signed-in accounts open it
             'leaderboardUrl' => $viewer !== null && $this->settings->leaderboardShown() ? route('achievements.leaderboard', absolute: false) : null,
+            'season' => $this->settings->seasonsAndStreaksEnabled() ? $this->seasons->current()->key() : null,
             'seo' => $this->seo->forPage(new SeoPageDTO(
                 title: __('achievements::messages.pages.index_title'),
                 description: __('achievements::messages.pages.index_description'),

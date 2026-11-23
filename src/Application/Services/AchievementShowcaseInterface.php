@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Achievements\Application\Services;
 
 use Modules\Achievements\Application\DTOs\AchievementViewDTO;
+use Modules\Achievements\Application\DTOs\SeasonStandingDTO;
 use Modules\Achievements\Application\DTOs\ShowcaseItemDTO;
 use Modules\Achievements\Domain\ValueObjects\AchievementPreferences;
 
@@ -43,7 +44,8 @@ interface AchievementShowcaseInterface
 
     /**
      * What the owner does not hold yet and can still get, with their progress, closest first; the
-     * secret ones masked and last. Only for the owner, and empty while progress is switched off.
+     * secret ones masked and last. One that repeats per season is still to get while this season's
+     * is not held, with this season's progress. Only for the owner, and empty while progress is switched off.
      *
      * @return list<ShowcaseItemDTO>
      */
@@ -58,6 +60,16 @@ interface AchievementShowcaseInterface
      * @return list<AchievementViewDTO>
      */
     public function catalogueFor(?string $viewerId): array;
+
+    /**
+     * For `/logros`, each achievement that repeats per season (keyed by id in lower case) with where
+     * the viewer stands in it: the season going on, whether they hold it, the earlier seasons they got
+     * it in and their progress this season (the owner's own data only; a guest gets the season and
+     * nothing else; no progress for secret ones). Empty while seasons and streaks are off.
+     *
+     * @return array<string, SeasonStandingDTO>
+     */
+    public function seasonStandings(?string $viewerId): array;
 
     /**
      * How many achievements the owner holds.

@@ -19,12 +19,14 @@ use Modules\Achievements\Application\Enums\BulkGrantOutcome;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Application\Services\BulkGrantInterface;
+use Modules\Achievements\Application\Services\SeasonClock;
 use Modules\Achievements\Domain\Entities\Achievement;
 use Modules\Achievements\Domain\Entities\AchievementGrant;
 use Modules\Achievements\Domain\Enums\GrantSource;
 use Modules\Achievements\Domain\Repositories\AchievementFactRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
+use Modules\Achievements\Domain\Rules\RuleWindow;
 use Modules\Achievements\Domain\ValueObjects\NewGrant;
 
 final readonly class BulkGranter implements BulkGrantInterface
@@ -36,6 +38,7 @@ final readonly class BulkGranter implements BulkGrantInterface
         private AchievementGrantRepositoryInterface $grants,
         private AchievementGranterInterface $granter,
         private AchievementsSettingsInterface $settings,
+        private SeasonClock $seasons,
         private Connection $db,
     ) {}
 
@@ -87,35 +90,41 @@ final readonly class BulkGranter implements BulkGrantInterface
 
     public function preview(BulkGrantRequestDTO $request, Authenticatable $viewer): BulkGrantCountDTO
     {
-        $people = $this->participants($request, $viewer);
+        $prepared = $this->participants($request, $viewer);
 
-        if (! is_array($people)) {
-            return BulkGrantCountDTO::refused($people);
+        if (! is_array($prepared)) {
+            return BulkGrantCountDTO::refused($prepared);
         }
+
+        [$people, $seasonKey] = $prepared;
 
         if (count($people) > self::MAX_PEOPLE) {
             return new BulkGrantCountDTO(BulkGrantOutcome::TooMany, count($people));
         }
 
-        [$held, $revoked] = $this->alreadyDecided($request->achievementId, $people);
+        [$held, $revoked] = $this->alreadyDecided($request->achievementId, $people, $seasonKey);
 
         return new BulkGrantCountDTO(BulkGrantOutcome::Ready, count($people), count($held), count($revoked));
     }
 
     public function grant(BulkGrantRequestDTO $request, bool $silent, ?string $reason, Authenticatable $actor): BulkGrantCountDTO
     {
-        $people = $this->participants($request, $actor);
+        $prepared = $this->participants($request, $actor);
 
-        if (! is_array($people)) {
-            return BulkGrantCountDTO::refused($people);
+        if (! is_array($prepared)) {
+            return BulkGrantCountDTO::refused($prepared);
         }
+
+        // The season is decided once for the whole request: a grant that runs across midnight on
+        // New Year's Eve never splits between two seasons
+        [$people, $seasonKey] = $prepared;
 
         if (count($people) > self::MAX_PEOPLE) {
             return new BulkGrantCountDTO(BulkGrantOutcome::TooMany, count($people));
         }
 
         $actorId = (string) $actor->getAuthIdentifier();
-        [$held, $revoked] = $this->alreadyDecided($request->achievementId, $people);
+        [$held, $revoked] = $this->alreadyDecided($request->achievementId, $people, $seasonKey);
         $granted = 0;
 
         // A transaction per batch keeps each lock short; a batch that fails (a deadlock, say) is
@@ -125,14 +134,14 @@ final readonly class BulkGranter implements BulkGrantInterface
             $batchGranted = 0;
 
             try {
-                $this->db->transaction(function () use ($batch, $request, $silent, $reason, $actorId, &$committed, &$batchGranted): void {
+                $this->db->transaction(function () use ($batch, $request, $silent, $reason, $actorId, $seasonKey, &$committed, &$batchGranted): void {
                     // Registered first, so it runs before the notices queued by the grants below: a
                     // listener failing after the commit never makes a committed batch look rolled back
                     $this->db->afterCommit(static function () use (&$committed): void {
                         $committed = true;
                     });
 
-                    $batchGranted = $this->grantBatch($batch, $request, $silent, $reason, $actorId);
+                    $batchGranted = $this->grantBatch($batch, $request, $silent, $reason, $actorId, $seasonKey);
                 });
             } catch (QueryException|DeadlockException $exception) {
                 if (! $committed) {
@@ -163,7 +172,7 @@ final readonly class BulkGranter implements BulkGrantInterface
     /**
      * @param  list<string>  $batch
      */
-    private function grantBatch(array $batch, BulkGrantRequestDTO $request, bool $silent, ?string $reason, string $actorId): int
+    private function grantBatch(array $batch, BulkGrantRequestDTO $request, bool $silent, ?string $reason, string $actorId, string $seasonKey): int
     {
         $granted = 0;
 
@@ -174,6 +183,7 @@ final readonly class BulkGranter implements BulkGrantInterface
                 source: GrantSource::Bulk,
                 silent: $silent,
                 actorId: $actorId,
+                season: $seasonKey === '' ? null : $seasonKey,
                 reason: $reason,
             ));
 
@@ -186,9 +196,10 @@ final readonly class BulkGranter implements BulkGrantInterface
     }
 
     /**
-     * The accounts (lower case, each once) that held the role, or why nothing can be granted.
+     * The accounts (lower case, each once) that held the role with the season key the grant goes to
+     * ('' without one), or why nothing can be granted.
      *
-     * @return list<string>|BulkGrantOutcome
+     * @return array{list<string>, string}|BulkGrantOutcome
      */
     private function participants(BulkGrantRequestDTO $request, Authenticatable $viewer): array|BulkGrantOutcome
     {
@@ -206,6 +217,19 @@ final readonly class BulkGranter implements BulkGrantInterface
 
         if (! $achievement instanceof Achievement || ! $achievement->active) {
             return BulkGrantOutcome::AchievementUnavailable;
+        }
+
+        // Checked here, not only by the panel: a season or a streak is not granted while they are off
+        $window = $achievement->rule?->window;
+
+        if ($window instanceof RuleWindow && ! $window->isAllTime() && ! $settings->seasonsAndStreaks) {
+            return BulkGrantOutcome::SeasonUnavailable;
+        }
+
+        $seasonKey = $this->seasons->keyForChoice($achievement, $request->season);
+
+        if ($seasonKey === null) {
+            return BulkGrantOutcome::SeasonUnavailable;
         }
 
         // Only from a subject whoever grants may see
@@ -227,27 +251,28 @@ final readonly class BulkGranter implements BulkGrantInterface
             }
         }
 
-        return array_keys($people);
+        return [array_keys($people), $seasonKey];
     }
 
     /**
-     * Of these accounts, who already holds the achievement and who had it taken away.
+     * Of these accounts, who already holds the achievement and who had it taken away (this season,
+     * for one that repeats per season).
      *
      * @param  list<string>  $people
      * @return array{list<string>, list<string>}
      */
-    private function alreadyDecided(string $achievementId, array $people): array
+    private function alreadyDecided(string $achievementId, array $people, string $seasonKey): array
     {
         $achievementId = strtolower($achievementId);
         $held = [];
 
-        foreach ($this->grants->heldAchievementIds($people) as $userId => $achievementIds) {
-            if (in_array($achievementId, $achievementIds, true)) {
+        foreach ($this->grants->heldSeasonKeys($people) as $userId => $achievements) {
+            if (isset($achievements[$achievementId][$seasonKey])) {
                 $held[] = (string) $userId;
             }
         }
 
-        $revoked = array_values(array_diff($this->grants->revokedAmong($achievementId, $people), $held));
+        $revoked = array_values(array_diff($this->grants->revokedAmong($achievementId, $people, $seasonKey), $held));
 
         return [$held, $revoked];
     }

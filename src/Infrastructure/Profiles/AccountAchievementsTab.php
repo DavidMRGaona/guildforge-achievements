@@ -13,9 +13,9 @@ use Throwable;
 
 /**
  * The «Logros» tab of the account settings (`/perfil?tab=achievements`, achievements#6): whether the
- * owner's rare achievements are announced and whether they appear in the leaderboard. Each choice is
- * offered only while its mechanic is on; with neither, or while the email must be verified (the save
- * route would refuse it), there is no tab.
+ * owner's rare achievements are announced (offered while announcements are on) and whether they
+ * appear in the leaderboard (always offered, so anybody can leave it before it is switched on).
+ * While the email must be verified (the save route would refuse it) there is no tab.
  */
 final readonly class AccountAchievementsTab
 {
@@ -28,7 +28,7 @@ final readonly class AccountAchievementsTab
     ) {}
 
     /**
-     * @return array{announceRare: bool, inLeaderboard: bool, hidden: bool, offersAnnouncements: bool, offersLeaderboard: bool, threshold: float, updateUrl: string, noticesUrl: string}|null
+     * @return array{announceRare: bool, inLeaderboard: bool, hidden: bool, offersAnnouncements: bool, leaderboardOn: bool, threshold: float, updateUrl: string, noticesUrl: string}|null
      */
     public function props(Authenticatable $user): ?array
     {
@@ -37,11 +37,6 @@ final readonly class AccountAchievementsTab
         }
 
         $settings = $this->settings->settings();
-
-        if (! $settings->announcements && ! $settings->leaderboardShown()) {
-            return null;
-        }
-
         $preferences = $this->preferences->find((string) $user->getAuthIdentifier());
 
         return [
@@ -49,7 +44,8 @@ final readonly class AccountAchievementsTab
             'inLeaderboard' => $preferences->inLeaderboard,
             'hidden' => $preferences->hidden,
             'offersAnnouncements' => $settings->announcements,
-            'offersLeaderboard' => $settings->leaderboardShown(),
+            // Without points there is no leaderboard to show
+            'leaderboardOn' => $settings->leaderboardShown(),
             'threshold' => $settings->announcementsRarityThreshold,
             'updateUrl' => route('achievements.account.update', [], false),
             'noticesUrl' => route('profile.show', ['tab' => 'mail'], false),

@@ -73,6 +73,43 @@ final readonly class EloquentAchievementPreferencesRepository implements Achieve
         );
     }
 
+    public function saveShowcase(string $userId, bool $hidden, array $featured): void
+    {
+        $this->upsertOnly($userId, [
+            'hidden' => $hidden,
+            'featured' => json_encode(AchievementPreferences::normalise($featured), JSON_THROW_ON_ERROR),
+        ]);
+    }
+
+    public function saveChoices(string $userId, ?bool $announceRare, ?bool $inLeaderboard): void
+    {
+        $this->upsertOnly($userId, array_filter(
+            ['announce_rare' => $announceRare, 'in_leaderboard' => $inLeaderboard],
+            static fn (?bool $value): bool => $value !== null,
+        ));
+    }
+
+    /**
+     * One statement that creates the row with the defaults for everything else, or changes only these
+     * columns: what another writer saved meanwhile in the other columns stays.
+     *
+     * @param  array<string, mixed>  $columns
+     */
+    private function upsertOnly(string $userId, array $columns): void
+    {
+        if ($columns === []) {
+            return;
+        }
+
+        $now = now();
+
+        $this->table()->upsert(
+            [['user_id' => strtolower($userId)] + $columns + ['created_at' => $now, 'updated_at' => $now]],
+            ['user_id'],
+            [...array_keys($columns), 'updated_at'],
+        );
+    }
+
     public function forgetFeatured(string $achievementId): int
     {
         $achievementId = strtolower($achievementId);

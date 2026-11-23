@@ -47,6 +47,12 @@ final class GrantLogTable
                 ->wrap();
         }
 
+        $columns[] = TextColumn::make('season_key')
+            ->label(self::text('fields.season'))
+            ->formatStateUsing(static fn (?string $state): ?string => GrantDisplay::seasonLabel($state))
+            ->placeholder('—')
+            ->visibleFrom('xl');
+
         $columns[] = TextColumn::make('source')
             ->label(self::text('fields.source'))
             ->formatStateUsing(static fn (string $state): string => GrantDisplay::sourceLabel($state))

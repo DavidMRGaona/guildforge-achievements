@@ -6,6 +6,8 @@ namespace Modules\Achievements\Tests\Unit;
 
 use Modules\Achievements\Domain\Rules\AchievementRule;
 use Modules\Achievements\Domain\Rules\MetricType;
+use Modules\Achievements\Domain\Rules\RuleWindow;
+use Modules\Achievements\Domain\Rules\WindowType;
 use Modules\Achievements\Domain\Rules\YearsBasis;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -149,8 +151,67 @@ final class AchievementRuleTest extends TestCase
         yield 'distinct' => [['version' => 1, 'metric' => 'distinct', 'kind' => 'game_session', 'key' => 'game_system', 'threshold' => 3]];
         yield 'years' => [['version' => 1, 'metric' => 'years', 'basis' => 'account', 'threshold' => 5]];
         yield 'manual' => [['version' => 1, 'metric' => 'manual']];
+        yield 'count per season' => [['version' => 1, 'metric' => 'count', 'kind' => 'game_session', 'threshold' => 10, 'window' => ['type' => 'season']]];
+        yield 'distinct per season' => [['version' => 1, 'metric' => 'distinct', 'kind' => 'game_session', 'key' => 'game_system', 'threshold' => 3, 'window' => ['type' => 'season']]];
+        yield 'streak' => [['version' => 1, 'metric' => 'count', 'kind' => 'game_session', 'threshold' => 1, 'window' => ['type' => 'streak', 'months' => 3]]];
+        yield 'streak per season' => [['version' => 1, 'metric' => 'count', 'kind' => 'event', 'threshold' => 2, 'window' => ['type' => 'streak', 'months' => 12, 'per_season' => true]]];
+        yield 'manual per season' => [['version' => 1, 'metric' => 'manual', 'window' => ['type' => 'season']]];
         yield 'people' => [['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'filters' => ['role' => 'director', 'with_role' => 'player'], 'threshold' => 20]];
         yield 'people without roles' => [['version' => 1, 'metric' => 'people', 'kind' => 'event', 'threshold' => 3]];
+    }
+
+    public function test_a_rule_without_a_window_counts_every_fact_once(): void
+    {
+        $rule = AchievementRule::tryFrom(['version' => 1, 'metric' => 'count', 'kind' => 'event', 'threshold' => 5]);
+
+        $this->assertInstanceOf(AchievementRule::class, $rule);
+        $this->assertSame(WindowType::AllTime, $rule->window->type);
+        $this->assertFalse($rule->isSeasonal());
+        $this->assertSame(5, $rule->target());
+    }
+
+    public function test_a_season_window_repeats_every_season(): void
+    {
+        $rule = AchievementRule::count('game_session', 10, window: RuleWindow::season());
+
+        $this->assertInstanceOf(AchievementRule::class, $rule);
+        $this->assertSame(WindowType::Season, $rule->window->type);
+        $this->assertTrue($rule->isSeasonal());
+        $this->assertSame(10, $rule->target());
+        $this->assertSame(['type' => 'season'], $rule->toArray()['window']);
+    }
+
+    public function test_a_streak_is_measured_in_months_and_repeats_only_per_season(): void
+    {
+        $once = AchievementRule::count('game_session', 2, window: RuleWindow::streak(6));
+        $yearly = AchievementRule::count('game_session', 1, window: RuleWindow::streak(4, perSeason: true));
+
+        $this->assertInstanceOf(AchievementRule::class, $once);
+        $this->assertInstanceOf(AchievementRule::class, $yearly);
+        $this->assertFalse($once->isSeasonal());
+        $this->assertTrue($yearly->isSeasonal());
+        $this->assertSame(6, $once->target());
+        $this->assertSame(2, $once->threshold);
+        $this->assertSame(['type' => 'streak', 'months' => 6], $once->toArray()['window']);
+        $this->assertSame(['type' => 'streak', 'months' => 4, 'per_season' => true], $yearly->toArray()['window']);
+    }
+
+    public function test_a_manual_rule_may_repeat_per_season(): void
+    {
+        $rule = AchievementRule::manual(perSeason: true);
+
+        $this->assertTrue($rule->isSeasonal());
+        $this->assertSame(['version' => 1, 'metric' => 'manual', 'window' => ['type' => 'season']], $rule->toArray());
+        $this->assertSame(['version' => 1, 'metric' => 'manual'], AchievementRule::manual()->toArray());
+    }
+
+    public function test_streak_lengths_out_of_range_build_nothing(): void
+    {
+        $this->assertNull(RuleWindow::streak(1));
+        $this->assertNull(RuleWindow::streak(37));
+        $this->assertNull(RuleWindow::streak(13, perSeason: true));
+        $this->assertInstanceOf(RuleWindow::class, RuleWindow::streak(36));
+        $this->assertInstanceOf(RuleWindow::class, RuleWindow::streak(12, perSeason: true));
     }
 
     #[DataProvider('unreadableRules')]
@@ -203,8 +264,19 @@ final class AchievementRuleTest extends TestCase
         yield 'unknown filter' => [['filters' => ['season' => '2026']] + $count];
         yield 'filters as a list' => [['filters' => ['player']] + $count];
         yield 'unknown key' => [['streak' => 3] + $count];
-        yield 'a season window' => [['window' => ['type' => 'season']] + $count];
-        yield 'a streak window' => [['window' => ['type' => 'streak', 'months' => 3]] + $count];
+        yield 'unknown window' => [['window' => ['type' => 'fortnight']] + $count];
+        yield 'season window with a length' => [['window' => ['type' => 'season', 'months' => 3]] + $count];
+        yield 'streak without months' => [['window' => ['type' => 'streak']] + $count];
+        yield 'streak of one month' => [['window' => ['type' => 'streak', 'months' => 1]] + $count];
+        yield 'streak too long' => [['window' => ['type' => 'streak', 'months' => 37]] + $count];
+        yield 'season streak longer than a season' => [['window' => ['type' => 'streak', 'months' => 13, 'per_season' => true]] + $count];
+        yield 'streak months as text' => [['window' => ['type' => 'streak', 'months' => '3']] + $count];
+        yield 'per season as text' => [['window' => ['type' => 'streak', 'months' => 3, 'per_season' => 'yes']] + $count];
+        yield 'streak with an unknown key' => [['window' => ['type' => 'streak', 'months' => 3, 'weeks' => 2]] + $count];
+        yield 'distinct streak' => [['version' => 1, 'metric' => 'distinct', 'kind' => 'game_session', 'key' => 'game_system', 'threshold' => 3, 'window' => ['type' => 'streak', 'months' => 3]]];
+        yield 'years per season' => [['version' => 1, 'metric' => 'years', 'basis' => 'account', 'threshold' => 1, 'window' => ['type' => 'season']]];
+        yield 'manual streak' => [['version' => 1, 'metric' => 'manual', 'window' => ['type' => 'streak', 'months' => 3]]];
+        yield 'people per season' => [['version' => 1, 'metric' => 'people', 'kind' => 'game_session', 'threshold' => 3, 'window' => ['type' => 'season']]];
         yield 'window as text' => [['window' => 'all_time'] + $count];
         yield 'years without basis' => [['version' => 1, 'metric' => 'years', 'threshold' => 1]];
         yield 'years with a kind' => [['version' => 1, 'metric' => 'years', 'basis' => 'account', 'kind' => 'event', 'threshold' => 1]];

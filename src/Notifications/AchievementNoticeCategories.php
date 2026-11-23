@@ -15,7 +15,7 @@ final class AchievementNoticeCategories
     /** «Has conseguido…»: the owner hears of what they just got */
     public const string EARNED = 'achievements.earned';
 
-    /** «Ana ha conseguido…»: rare and challenge achievements of people whose profile one may see */
+    /** «Ana, Bob y 3 más consiguieron…»: the monthly summary of rare and challenge achievements of people whose profile one may see */
     public const string ANNOUNCEMENTS = 'achievements.announcements';
 
     public const string ICON = 'trophy';

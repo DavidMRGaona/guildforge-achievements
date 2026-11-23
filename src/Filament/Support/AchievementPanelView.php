@@ -10,6 +10,8 @@ use Modules\Achievements\Application\Services\AchievementStatusRule;
 use Modules\Achievements\Application\Services\ActivityMetricsInterface;
 use Modules\Achievements\Domain\Rules\AchievementRule;
 use Modules\Achievements\Domain\Rules\MetricType;
+use Modules\Achievements\Domain\Rules\RuleWindow;
+use Modules\Achievements\Domain\Rules\WindowType;
 use Modules\Achievements\Domain\Rules\YearsBasis;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementRepository;
@@ -41,11 +43,31 @@ final class AchievementPanelView
             return self::text('summary.invalid');
         }
 
-        return match ($rule->metric) {
+        $summary = match ($rule->metric) {
             MetricType::Manual => self::text('summary.manual'),
             MetricType::Years => self::text($rule->basis === YearsBasis::Membership ? 'summary.membership_years' : 'summary.account_years', ['threshold' => (string) $rule->threshold]),
             MetricType::Count, MetricType::Distinct => self::activitySummary($rule),
             MetricType::People => self::peopleSummary($rule),
+        };
+
+        $window = self::windowSummary($rule->window);
+
+        return $window === null ? $summary : $summary.' · '.$window;
+    }
+
+    /**
+     * «por temporada», «racha de 3 meses», «racha de 3 meses en la temporada»; null for every fact.
+     */
+    public static function windowSummary(RuleWindow $window): ?string
+    {
+        return match ($window->type) {
+            WindowType::AllTime => null,
+            WindowType::Season => self::text('summary.season'),
+            WindowType::Streak => trans_choice(
+                'achievements::messages.catalogue.rule.summary.'.($window->perSeason ? 'season_streak' : 'streak'),
+                (int) $window->months,
+                ['months' => (string) $window->months],
+            ),
         };
     }
 

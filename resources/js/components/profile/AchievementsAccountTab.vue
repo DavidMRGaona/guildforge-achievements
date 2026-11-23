@@ -7,8 +7,8 @@ import type { AccountAchievements } from '../../types/achievements';
 
 /**
  * «Logros» in the account settings (`/perfil?tab=achievements`): whether others hear of the owner's
- * rare achievements and whether they appear in the leaderboard. Each switch saves at once; the server
- * only sends the choices whose mechanic is on.
+ * rare achievements (only while announcements are on) and whether they appear in the leaderboard
+ * (always, so anybody can leave it before it is switched on). Each switch saves at once.
  */
 type Choice = 'announceRare' | 'inLeaderboard';
 
@@ -85,8 +85,9 @@ function toggle(choice: Choice): void {
                 saved = true;
                 status.value = t(`achievements.account.${choice}.${value ? 'on' : 'off'}`);
             },
-            onError: () => {
-                error.value = t('achievements.profile.saveFailed');
+            // A refusal the server explains (announcements switched off meanwhile) is shown as it is
+            onError: (errors: Record<string, string>) => {
+                error.value = errors[choice] ?? t('achievements.profile.saveFailed');
             },
             // A refusal (read-only impersonation, too many requests) is told here, not in Inertia's dialog
             onHttpException: (response: { status?: number; data?: unknown }) => {
@@ -115,6 +116,7 @@ function toggle(choice: Choice): void {
     );
 }
 
+// Announcing only while announcements are on; the leaderboard always, to leave it beforehand
 const choices = computed<Choice[]>(() => {
     const current = account.value;
 
@@ -122,10 +124,7 @@ const choices = computed<Choice[]>(() => {
         return [];
     }
 
-    return [
-        ...(current.offersAnnouncements ? (['announceRare'] as const) : []),
-        ...(current.offersLeaderboard ? (['inLeaderboard'] as const) : []),
-    ];
+    return [...(current.offersAnnouncements ? (['announceRare'] as const) : []), 'inLeaderboard'];
 });
 
 function help(choice: Choice): string {
@@ -133,7 +132,9 @@ function help(choice: Choice): string {
         return t('achievements.account.announceRare.help', { threshold: threshold.value });
     }
 
-    return t('achievements.account.inLeaderboard.help');
+    return account.value?.leaderboardOn === true
+        ? t('achievements.account.inLeaderboard.help')
+        : t('achievements.account.inLeaderboard.helpOff');
 }
 </script>
 

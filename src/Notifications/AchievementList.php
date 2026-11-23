@@ -18,7 +18,7 @@ final class AchievementList
     }
 
     /**
-     * @param  list<string>  $names  achievements the reader may see named, in the order got
+     * @param  list<string>  $names  achievements the reader may see named, in the order to show them
      * @param  int  $secrets  achievements the reader may not see named: only counted
      */
     public static function sentence(array $names, int $secrets = 0): string

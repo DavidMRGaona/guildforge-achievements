@@ -7,6 +7,7 @@ import { VENUE_TIMEZONE } from '@/utils/datetime';
 import AchievementBadge from '../AchievementBadge.vue';
 import { formatShare } from '../../utils/badgeLook';
 import type {
+    AchievementProgress,
     EarnedAchievement,
     LockedAchievement,
     PointsSummary,
@@ -89,6 +90,23 @@ function formatMonth(month: string): string {
 
 function share(rarity: number): string {
     return formatShare(rarity, locale.value);
+}
+
+/** «2025, 2026 y 2027»: the seasons, never what was played in them */
+function seasonList(seasons: string[]): string {
+    return new Intl.ListFormat(locale.value, { type: 'conjunction' }).format(
+        [...seasons].reverse()
+    );
+}
+
+function progressText(progress: AchievementProgress): string {
+    return t(
+        progress.inMonths ? 'achievements.profile.progressMonths' : 'achievements.profile.progress',
+        {
+            value: progress.value,
+            threshold: progress.threshold,
+        }
+    );
 }
 
 function isChosen(id: string | null): boolean {
@@ -474,6 +492,13 @@ function progressPercent(item: LockedAchievement): number {
                             <time v-else-if="item.grantedMonth" :datetime="item.grantedMonth">
                                 {{ formatMonth(item.grantedMonth) }}
                             </time>
+                            <span v-if="item.seasons.length > 0" data-test="seasons">
+                                {{
+                                    t('achievements.profile.seasonsGot', {
+                                        seasons: seasonList(item.seasons),
+                                    })
+                                }}
+                            </span>
                             <span v-if="showsRarity && item.rarity !== null">
                                 {{ t('achievements.rarity.share', { share: share(item.rarity) }) }}
                             </span>
@@ -526,6 +551,13 @@ function progressPercent(item: LockedAchievement): number {
                         <p class="mt-0.5 break-words text-sm text-base-secondary">
                             {{ item.description }}
                         </p>
+                        <p
+                            v-if="item.season"
+                            class="mt-1 text-xs font-medium text-base-muted"
+                            data-test="season"
+                        >
+                            {{ t('achievements.profile.thisSeason', { season: item.season }) }}
+                        </p>
                         <div v-if="item.progress" class="mt-2">
                             <div
                                 class="h-2 overflow-hidden rounded-full bg-muted"
@@ -534,12 +566,7 @@ function progressPercent(item: LockedAchievement): number {
                                 aria-valuemin="0"
                                 :aria-valuemax="item.progress.threshold"
                                 :aria-label="item.name"
-                                :aria-valuetext="
-                                    t('achievements.profile.progress', {
-                                        value: item.progress.value,
-                                        threshold: item.progress.threshold,
-                                    })
-                                "
+                                :aria-valuetext="progressText(item.progress)"
                             >
                                 <div
                                     class="h-full rounded-full bg-primary-600 dark:bg-primary-400"
@@ -547,12 +574,7 @@ function progressPercent(item: LockedAchievement): number {
                                 />
                             </div>
                             <p class="mt-1 text-xs text-base-muted" aria-hidden="true">
-                                {{
-                                    t('achievements.profile.progress', {
-                                        value: item.progress.value,
-                                        threshold: item.progress.threshold,
-                                    })
-                                }}
+                                {{ progressText(item.progress) }}
                             </p>
                         </div>
                         <p v-else-if="item.manual" class="mt-1 text-xs text-base-muted">

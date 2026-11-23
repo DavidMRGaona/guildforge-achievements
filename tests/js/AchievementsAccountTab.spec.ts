@@ -10,7 +10,7 @@ function account(overrides: Partial<AccountAchievements> = {}): AccountAchieveme
         inLeaderboard: true,
         hidden: false,
         offersAnnouncements: true,
-        offersLeaderboard: true,
+        leaderboardOn: true,
         threshold: 10,
         updateUrl: '/logros/preferencias',
         noticesUrl: '/perfil?tab=mail',
@@ -47,11 +47,16 @@ describe('AchievementsAccountTab', () => {
         );
     });
 
-    it('offers only the choices whose mechanic is on', () => {
-        const wrapper = mountTab(account({ offersLeaderboard: false }));
+    it('always offers leaving the leaderboard, announcing only while it is on', () => {
+        const wrapper = mountTab(account({ offersAnnouncements: false, leaderboardOn: false }));
 
-        expect(wrapper.find('[data-test="switch-announceRare"]').exists()).toBe(true);
-        expect(wrapper.find('[data-test="switch-inLeaderboard"]').exists()).toBe(false);
+        expect(wrapper.find('[data-test="switch-announceRare"]').exists()).toBe(false);
+        expect(wrapper.find('[data-test="switch-inLeaderboard"]').exists()).toBe(true);
+        expect(wrapper.text()).toContain('La clasificación está apagada ahora mismo');
+    });
+
+    it('tells that the summary is monthly and says no day', () => {
+        expect(mountTab(account()).text()).toContain('Una vez al mes');
     });
 
     it('draws nothing without the tab', () => {
@@ -99,6 +104,25 @@ describe('AchievementsAccountTab', () => {
         );
         expect(wrapper.find('[data-test="switch-inLeaderboard"]').attributes('aria-checked')).toBe(
             'true'
+        );
+    });
+
+    it('shows what the server refused and puts the choice back', async () => {
+        vi.mocked(router.put).mockImplementation((_url, _data, options) => {
+            options?.onError?.({
+                announceRare: 'Los anuncios de logros están apagados ahora mismo.',
+            });
+            options?.onFinish?.({} as never);
+        });
+        const wrapper = mountTab(account());
+
+        await wrapper.find('[data-test="switch-announceRare"]').trigger('click');
+
+        expect(wrapper.find('[role="alert"]').text()).toBe(
+            'Los anuncios de logros están apagados ahora mismo.'
+        );
+        expect(wrapper.find('[data-test="switch-announceRare"]').attributes('aria-checked')).toBe(
+            'false'
         );
     });
 
