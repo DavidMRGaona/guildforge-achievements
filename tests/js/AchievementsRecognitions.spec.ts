@@ -211,6 +211,39 @@ describe('Achievements/Recognitions', () => {
         wrapper.unmount();
     });
 
+    it('puts focus on the row before when the last one is removed', async () => {
+        const first = own({ id: '1f3a5c7e-9b2d-4e6f-8a1c-3e5f7a9b1d11', personName: 'Luis' });
+        vi.mocked(router.delete).mockImplementation((_url, options) => {
+            options?.onSuccess?.({} as never);
+            options?.onFinish?.({} as never);
+        });
+        const wrapper = mount(Recognitions, {
+            props: { ...base, received: [first, own()] },
+            global: { stubs: { ...stubs, teleport: true } },
+            attachTo: document.body,
+        });
+
+        await wrapper.findAll('[data-test="remove"]')[1]?.trigger('click');
+        await wrapper.find('[data-test="remove-understood"]').setValue(true);
+        await wrapper.setProps({ received: [first] });
+        await wrapper.find('[data-test="remove-confirm"]').trigger('click');
+        await flushPromises();
+
+        expect(document.activeElement).toBe(wrapper.find('[data-test="remove"]').element);
+        wrapper.unmount();
+    });
+
+    it('tells nameless rows apart by month, in lower case', () => {
+        const wrapper = mount(Recognitions, {
+            props: { ...base, received: [own({ personName: null, personUrl: null })] },
+            global: { stubs },
+        });
+
+        expect(wrapper.find('[data-test="remove"]').attributes('aria-label')).toBe(
+            'Quitar «Gran narración» de diciembre de 2026, de una persona sin nombre público'
+        );
+    });
+
     it('names the type and the person on each remove button', () => {
         const wrapper = mount(Recognitions, {
             props: { ...base, received: [own()] },
@@ -285,6 +318,17 @@ describe('RemoveRecognitionDialog', () => {
         await wrapper.find('dialog').trigger('click');
 
         expect(cancel.defaultPrevented).toBe(true);
+        expect(wrapper.emitted('cancel')).toBeUndefined();
+    });
+
+    it('never tells the page it closed while the removal is on its way', () => {
+        const wrapper = mount(RemoveRecognitionDialog, {
+            props: { open: true, typeName: 'Gran narración', busy: true },
+            global,
+        });
+
+        wrapper.find('dialog').element.dispatchEvent(new Event('close'));
+
         expect(wrapper.emitted('cancel')).toBeUndefined();
     });
 

@@ -70,6 +70,8 @@ Estas tareas van solas, a la hora de {{site_name}}:
 - **A las 03:30**, la foto de la noche: se calcula la rareza y se fija lo que los demás ven de cada perfil (logros, contador, destacados, puntos, nivel y clasificación). Lo conseguido después sale a los demás la noche siguiente.
 - **A las 04:10**, se cuentan los retos. Es lo que actualiza el total de los retos **Solo socios**.
 - **Cada día**, se conceden los logros de años en la web.
+- **Cada día, a las 10:00**, con los reconocimientos encendidos, sale la invitación a reconocer a alguien de las partidas y campañas recientes.
+- **El día 1 de cada mes, a las 00:30**, se conceden los logros que cuentan reconocimientos recibidos, con lo recibido hasta el mes anterior.
 - **El día 1 de cada mes, a las 10:00**, salen el resumen de anuncios y la lista de quién consiguió cada reto.
 
 ## Recalcular la actividad

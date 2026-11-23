@@ -71,6 +71,15 @@ function onCancel(event: Event): void {
  * so `open` never stays true over a closed dialog.
  */
 function onClose(): void {
+    // While busy the dialog stays: a second Escape in Chrome closes it anyway, so it opens again
+    if (props.busy && props.open) {
+        if (typeof dialogRef.value?.showModal === 'function') {
+            dialogRef.value.showModal();
+        }
+
+        return;
+    }
+
     if (props.open) {
         emit('cancel');
     }

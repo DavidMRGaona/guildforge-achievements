@@ -47,6 +47,22 @@ function key(subject: RecognitionSubject, person: RecognisablePerson): string {
     return `${subject.sourceType}|${subject.subjectId}|${person.handle}`;
 }
 
+/**
+ * «Quitar «Gran narración» de Ana». Without a public name, the month tells two rows apart, in a
+ * phrase of its own (never a capitalised name in the middle of the sentence).
+ */
+function removeLabel(item: OwnRecognition): string {
+    return item.personName === null
+        ? t('achievements.recognitions.removeLabelNameless', {
+              type: item.type.name,
+              month: formatRecognitionMonth(item.month, locale.value),
+          })
+        : t('achievements.recognitions.removeLabel', {
+              type: item.type.name,
+              name: item.personName,
+          });
+}
+
 function typeName(id: string | null): string {
     return props.types.find((type) => type.id === id)?.name ?? '';
 }
@@ -343,12 +359,7 @@ function remove(): void {
                         type="button"
                         class="inline-flex min-h-[44px] items-center rounded-md px-3 text-sm font-medium text-base-secondary hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-50"
                         :disabled="saving !== null"
-                        :aria-label="
-                            t('achievements.recognitions.removeLabel', {
-                                type: item.type.name,
-                                name: item.personName ?? t('achievements.recognitions.someone'),
-                            })
-                        "
+                        :aria-label="removeLabel(item)"
                         data-test="remove"
                         @click="askToRemove(item, $event)"
                     >

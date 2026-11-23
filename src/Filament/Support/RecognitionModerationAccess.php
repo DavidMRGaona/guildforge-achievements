@@ -62,22 +62,40 @@ final class RecognitionModerationAccess
      */
     public static function allowsDeletingRecord(string $userId, RecognitionModel $record): bool
     {
+        return self::isOnPage($userId, $record)
+            && self::allowsDeleting($userId)
+            && self::mayManageOther($userId, $record);
+    }
+
+    /**
+     * Whether the recognition is one the account of the page gave or received.
+     */
+    public static function isOnPage(string $userId, RecognitionModel $record): bool
+    {
+        $userId = strtolower($userId);
+
+        return strtolower($record->giver_id) === $userId || strtolower($record->receiver_id) === $userId;
+    }
+
+    /**
+     * Whether the moderator may manage the other person of the row, read from the relations the
+     * table already loaded (`with()`). A person who no longer exists leaves nothing to check.
+     */
+    public static function mayManageOther(string $userId, RecognitionModel $record): bool
+    {
         try {
-            $userId = strtolower($userId);
-            $giver = strtolower($record->giver_id);
-            $receiver = strtolower($record->receiver_id);
-
-            if (($giver !== $userId && $receiver !== $userId) || ! self::allowsDeleting($userId)) {
-                return false;
-            }
-
             $viewer = Auth::user();
-            $other = UserModel::withTrashed()->find($giver === $userId ? $receiver : $giver);
+            $other = self::otherOf($userId, $record);
 
             return $viewer instanceof UserModel
                 && (! $other instanceof UserModel || app(RoleGrantPolicy::class)->canManageAccount($viewer, $other));
         } catch (Throwable) {
             return false;
         }
+    }
+
+    public static function otherOf(string $userId, RecognitionModel $record): ?UserModel
+    {
+        return strtolower($record->giver_id) === strtolower($userId) ? $record->receiver : $record->giver;
     }
 }

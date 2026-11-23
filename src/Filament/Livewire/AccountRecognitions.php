@@ -39,6 +39,12 @@ final class AccountRecognitions extends TableWidget
 
     protected int|string|array $columnSpan = 'full';
 
+    /** Whether the page's account may be managed, worked out once per request (not a public property: never sent to the browser) */
+    private ?bool $mayDeleteHere = null;
+
+    /** @var array<string, bool> other account id => whether it may be managed, per request */
+    private array $mayManage = [];
+
     public function mount(string $userId): void
     {
         $this->userId = strtolower($userId);
@@ -101,7 +107,7 @@ final class AccountRecognitions extends TableWidget
             ->label($this->text('delete.label'))
             ->icon('heroicon-o-trash')
             ->color('danger')
-            ->visible(fn (RecognitionModel $record): bool => RecognitionModerationAccess::allowsDeletingRecord($this->userId, $record))
+            ->visible(fn (RecognitionModel $record): bool => $this->mayDelete($record))
             // Filament asks again when the action runs, on the server
             ->authorize(fn (RecognitionModel $record): bool => RecognitionModerationAccess::allowsDeletingRecord($this->userId, $record))
             ->requiresConfirmation()
@@ -133,6 +139,27 @@ final class AccountRecognitions extends TableWidget
 
                 Notification::make()->title($this->text($deleted ? 'delete.done' : 'delete.gone'))->success()->send();
             });
+    }
+
+    /**
+     * The same rule as RecognitionModerationAccess::allowsDeletingRecord(), remembered for the
+     * request: the page's account once, each other person once, from the loaded relations.
+     */
+    private function mayDelete(RecognitionModel $record): bool
+    {
+        if (! RecognitionModerationAccess::isOnPage($this->userId, $record)) {
+            return false;
+        }
+
+        $this->mayDeleteHere ??= RecognitionModerationAccess::allowsDeleting($this->userId);
+
+        if (! $this->mayDeleteHere) {
+            return false;
+        }
+
+        $other = strtolower((string) RecognitionModerationAccess::otherOf($this->userId, $record)?->getKey());
+
+        return $this->mayManage[$other] ??= RecognitionModerationAccess::mayManageOther($this->userId, $record);
     }
 
     private function ensureAccess(): void

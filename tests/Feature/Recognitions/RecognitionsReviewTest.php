@@ -270,8 +270,7 @@ final class RecognitionsReviewTest extends ModuleTestCase
         $record = RecognitionModel::query()->sole();
 
         // The table is shown (they may view the account), the deletion is not offered
-        Livewire::test(AccountRecognitions::class, ['userId' => (string) $admin->id])
-            ->assertTableActionHidden(AccountRecognitions::DELETE_ACTION, $record);
+        $this->assertTrue($this->deleteHidden((string) $admin->id, $record));
         // And the same rule refuses it on the server, where the action asks again when it runs
         $this->assertTrue(RecognitionModerationAccess::allows((string) $admin->id));
         $this->assertFalse(RecognitionModerationAccess::allowsDeleting((string) $admin->id));
@@ -296,9 +295,8 @@ final class RecognitionsReviewTest extends ModuleTestCase
         // Nor a recognition that is not one of that page's account
         $this->assertFalse(RecognitionModerationAccess::allowsDeletingRecord((string) $this->bob->id, $toAdmin));
 
-        Livewire::test(AccountRecognitions::class, ['userId' => (string) $this->ana->id])
-            ->assertTableActionHidden(AccountRecognitions::DELETE_ACTION, $toAdmin)
-            ->assertTableActionVisible(AccountRecognitions::DELETE_ACTION, $toBob);
+        $this->assertTrue($this->deleteHidden((string) $this->ana->id, $toAdmin));
+        $this->assertFalse($this->deleteHidden((string) $this->ana->id, $toBob));
         $this->assertSame(2, $this->recognitionCount());
     }
 
@@ -323,6 +321,48 @@ final class RecognitionsReviewTest extends ModuleTestCase
         $this->played('mesa-1', '2026-12-08 18:00:00', $this->bob);
 
         $this->assertSame(0, $this->recognitionCount());
+    }
+
+    public function test_the_notice_is_forgotten_only_once_the_deletion_commits(): void
+    {
+        $this->played('mesa-1', '2026-12-08 18:00:00', $this->ana, $this->bob);
+        $this->give($this->ana, 'mesa-1', $this->bob);
+        $id = $this->recognitions()->received($this->bob)[0]->id;
+
+        // Rolled back: the recognition stays, and so does its notice
+        try {
+            DB::transaction(function () use ($id): void {
+                $this->recognitions()->deleteReceived($this->bob, $id);
+
+                throw new \RuntimeException('Something later failed.');
+            });
+        } catch (\RuntimeException) {
+        }
+
+        $this->assertSame(1, $this->recognitionCount());
+        $this->assertCount(1, $this->bellOf($this->bob, AchievementNoticeCategories::RECOGNITIONS));
+
+        // Committed: still there inside the transaction, gone once it commits
+        DB::transaction(function () use ($id): void {
+            $this->recognitions()->deleteReceived($this->bob, $id);
+            $this->assertCount(1, $this->bellOf($this->bob, AchievementNoticeCategories::RECOGNITIONS));
+        });
+
+        $this->assertSame([], $this->bellOf($this->bob, AchievementNoticeCategories::RECOGNITIONS));
+    }
+
+    /**
+     * The delete action of one row as Filament decides it (filament.md: never the cached visibility
+     * of a grouped action, read on a fresh table with the test's own record).
+     */
+    private function deleteHidden(string $userId, RecognitionModel $record): bool
+    {
+        $page = Livewire::test(AccountRecognitions::class, ['userId' => $userId])->instance();
+        $this->assertInstanceOf(AccountRecognitions::class, $page);
+        $action = $page->getTable()->getAction(AccountRecognitions::DELETE_ACTION);
+        $this->assertNotNull($action);
+
+        return $action->record($record)->isHidden();
     }
 
     private function give(UserModel $giver, string $subjectId, UserModel $receiver): GiveRecognitionOutcome

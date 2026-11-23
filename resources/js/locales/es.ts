@@ -168,6 +168,7 @@ export default {
             someone: 'Una persona sin nombre público',
             remove: 'Quitar',
             removeLabel: 'Quitar «{type}» de {name}',
+            removeLabelNameless: 'Quitar «{type}» de {month}, de una persona sin nombre público',
             removeTitle: 'Quitar el reconocimiento',
             removeMessage:
                 'Se quita «{type}» para siempre: deja de contar y desaparece también para quien lo dio.',

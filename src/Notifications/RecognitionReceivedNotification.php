@@ -25,10 +25,8 @@ final class RecognitionReceivedNotification extends Notification implements HasM
     ) {}
 
     /**
-     * About the recognition itself, so deleting it forgets the notice (RecognitionNotices).
-     */
-    /**
-     * One notice per recognition, never grouped: the core merges unread notices of a group under one
+     * About the recognition itself, so deleting it forgets the notice (RecognitionNotices). One
+     * notice per recognition, never grouped: the core merges unread notices of a group under one
      * subject, so deleting one recognition would take the others' notice with it. The giver is its
      * actor, so anonymizing them forgets their name in it at once (the core's forgetActor()).
      */

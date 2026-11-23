@@ -41,9 +41,11 @@ Quién jugó con quién no es público. Por eso:
 
 No hay una lista con todos. Para borrar uno, abre la ficha de la persona en *Personas → Usuarios*. Al final está la tabla **Reconocimientos**, con lo que dio y lo que recibió, la otra persona y el mes. No sale la partida. Abre el menú **⋯** de la fila, pulsa **Borrar** y marca la casilla.
 
-Hace falta el permiso «Ver y borrar los reconocimientos de cada persona». No lo tiene ningún rol por defecto: esa tabla dice quién jugó con quién, así que dalo solo a quien modera la asociación. También hay que poder ver la cuenta de la persona.
+Para ver la tabla hace falta el permiso «Ver y borrar los reconocimientos de cada persona» y poder ver la cuenta de la persona. No lo tiene ningún rol por defecto: esa tabla dice quién jugó con quién, así que dalo solo a quien modera la asociación.
 
-Quien recibe un reconocimiento también puede quitarlo desde su página **Reconocimientos**. Y se borran solos al anonimizar la cuenta de cualquiera de las dos personas.
+Para borrar una fila, además, hay que poder gestionar las dos cuentas de esa fila: la de la persona y la de la otra. Si no, **Borrar** no sale. Poder gestionar una cuenta quiere decir tener, al menos, todos los permisos que tiene esa persona. Por eso el rol que modera tiene que cubrir los permisos del rol de socio, o no podrá borrar en las cuentas de los socios; y en una cuenta de administración solo puede borrar la administración.
+
+Quien recibe un reconocimiento siempre puede quitarlo desde su página **Reconocimientos**. Y se borran solos al anonimizar la cuenta de cualquiera de las dos personas.
 
 ## Logros por reconocimientos
 
