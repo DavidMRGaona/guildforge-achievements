@@ -6,7 +6,6 @@ namespace Modules\Achievements\Http\Controllers;
 
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Routing\Controller;
-use Modules\Achievements\Application\Services\AchievementLeaderboardInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
 use Modules\Achievements\Http\Requests\UpdateProfileAchievementsRequest;
 
@@ -19,7 +18,6 @@ final class ProfileAchievementsController extends Controller
     public function update(
         UpdateProfileAchievementsRequest $request,
         AchievementPreferencesRepositoryInterface $preferences,
-        AchievementLeaderboardInterface $leaderboard,
     ): RedirectResponse {
         $preferences->saveShowcase($request->ownerId(), $request->hidden(), $request->featuredIds());
 
@@ -29,9 +27,6 @@ final class ProfileAchievementsController extends Controller
         if ($appears !== null) {
             $preferences->saveChoices($request->ownerId(), announceRare: null, inLeaderboard: $appears);
         }
-
-        // Choices are read again on every request; this only lets someone who came back appear at once
-        $leaderboard->forget();
 
         return back(303);
     }

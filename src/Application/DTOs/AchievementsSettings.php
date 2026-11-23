@@ -145,14 +145,14 @@ final readonly class AchievementsSettings
     }
 
     /**
-     * The starter scale with its names in the site's language.
+     * The starter scale with its names in the site's language (or the one asked).
      */
-    public static function starterLevelScale(): LevelScale
+    public static function starterLevelScale(?string $locale = null): LevelScale
     {
         return new LevelScale(array_map(
             static fn (array $level): array => [
                 'threshold' => $level[0],
-                'name' => __('achievements::messages.levels.starter.'.$level[1]),
+                'name' => __('achievements::messages.levels.starter.'.$level[1], [], $locale),
             ],
             LevelScale::STARTER,
         ));

@@ -23,7 +23,8 @@ interface AchievementPointsInterface
     public function period(?int $season): PointsPeriod;
 
     /**
-     * The seasons with grants, from the current one back to the first grant's.
+     * The seasons with grants, from the current one back to the earliest of the first grant's and
+     * the earliest season a grant was made for.
      *
      * @return list<int>
      */
@@ -31,10 +32,26 @@ interface AchievementPointsInterface
 
     /**
      * One account's points as a viewer sees them (null: a guest); the season while seasons are on,
-     * the level while levels show. The owner sees every point; anybody else not those of the secret
-     * achievements masked to them, which are only ever counted.
+     * the level while levels show. The owner sees their own at once and in full; anybody else last
+     * night's photo, without the secret achievements masked to them, which are only ever counted.
+     * Null for anybody else while there is no photo yet.
      */
-    public function summary(string $userId, ?string $viewerId): PointsSummaryDTO;
+    public function summary(string $userId, ?string $viewerId): ?PointsSummaryDTO;
+
+    /**
+     * The achievements that are secret now, as a set of ids in lower case (read once per request).
+     *
+     * @return array<string, true>
+     */
+    public function secretIds(): array;
+
+    /**
+     * The secret achievements of an owner revealed to a viewer: those the owner featured (featuring
+     * reveals one to everybody) and those the viewer holds too.
+     *
+     * @return array<string, true>
+     */
+    public function revealedSecrets(string $ownerId, ?string $viewerId): array;
 
     /**
      * The achievements an account holds (any season), as a set of ids in lower case.

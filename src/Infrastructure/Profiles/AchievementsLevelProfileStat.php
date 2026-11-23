@@ -9,6 +9,7 @@ use App\Application\Profiles\Contracts\ProfileStatInterface;
 use App\Application\Profiles\DTOs\ProfileOwnerDTO;
 use App\Application\Profiles\DTOs\ProfileStatDTO;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Modules\Achievements\Application\DTOs\PointsSummaryDTO;
 use Modules\Achievements\Application\Services\AchievementPointsInterface;
 use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
@@ -16,7 +17,8 @@ use Modules\Achievements\Domain\ValueObjects\Level;
 
 /**
  * «Nivel» on the stats row (`achievements.level`, #10): the level the owner's points reach (its
- * name is in the section). Nothing while levels or points are off, while the owner holds no points,
+ * name is in the section): the owner's own at once, last night's for anybody else, so the stat of
+ * people who played together never rises at once on their profile, their card or the forum. Nothing while levels or points are off, while the owner holds no points,
  * and for anybody else once the owner hid their achievements.
  */
 final readonly class AchievementsLevelProfileStat implements DescribesProfileStat, ProfileStatInterface
@@ -71,10 +73,11 @@ final readonly class AchievementsLevelProfileStat implements DescribesProfileSta
             return null;
         }
 
-        // The level of the total this viewer may see: secrets masked to them are not added
+        // The level of the total this viewer may see: last night's photo for anybody but the owner,
+        // without the secrets masked to them; nothing while there is no photo
         $summary = $this->points->summary($owner->id, $viewerId);
 
-        if ($summary->total === 0 || ! $summary->level instanceof Level) {
+        if (! $summary instanceof PointsSummaryDTO || $summary->total === 0 || ! $summary->level instanceof Level) {
             return null;
         }
 

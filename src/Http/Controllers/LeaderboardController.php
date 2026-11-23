@@ -11,9 +11,13 @@ use Illuminate\Routing\Controller;
 use Inertia\Inertia;
 use Inertia\Response;
 use Modules\Achievements\Application\DTOs\LeaderboardEntryDTO;
+use Modules\Achievements\Application\DTOs\LeaderboardPageDTO;
 use Modules\Achievements\Application\Services\AchievementLeaderboardInterface;
 use Modules\Achievements\Application\Services\AchievementPointsInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Throwable;
 
 /**
  * `/logros/clasificacion` (#10): signed-in accounts that need not verify their email first (the
@@ -24,24 +28,40 @@ use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
  */
 final class LeaderboardController extends Controller
 {
-    public function __construct(
-        private readonly AchievementLeaderboardInterface $leaderboard,
-        private readonly AchievementPointsInterface $points,
-        private readonly AchievementsSettingsInterface $settings,
-        private readonly SeoMetadataFactoryInterface $seo,
-    ) {}
-
-    public function __invoke(Request $request): Response
-    {
-        abort_unless($this->settings->leaderboardShown(), 404);
+    /**
+     * Resolved per call, never in the constructor: the route keeps its controller, and the points
+     * service remembers what is secret for one request only.
+     */
+    public function __invoke(
+        Request $request,
+        AchievementLeaderboardInterface $leaderboard,
+        AchievementPointsInterface $points,
+        AchievementsSettingsInterface $settings,
+        SeoMetadataFactoryInterface $seo,
+        AchievementWarnings $warnings,
+    ): Response {
+        abort_unless($settings->leaderboardShown(), 404);
 
         $viewer = $request->user();
         abort_if($viewer === null, 404);
 
-        $seasonsEnabled = $this->settings->seasonsAndStreaksEnabled();
-        $seasons = $seasonsEnabled ? $this->points->seasons() : [];
-        $season = $this->season($request->query('temporada'), $seasons);
-        $page = $this->leaderboard->page($viewer, $this->points->period($season), max(1, $request->integer('page', 1)));
+        $seasons = [];
+        $season = null;
+
+        try {
+            $seasons = $settings->seasonsAndStreaksEnabled() ? $points->seasons() : [];
+            $season = $this->season($request->query('temporada'), $seasons);
+            $page = $leaderboard->page($viewer, $points->period($season), max(1, $request->integer('page', 1)));
+        } catch (HttpExceptionInterface $notFound) {
+            throw $notFound;
+        } catch (Throwable $exception) {
+            // Fails closed: nobody shown and nothing said about the viewer, never a 500
+            $warnings->warn('leaderboard_unavailable', '[Achievements] The leaderboard could not be worked out; nobody is shown.', [
+                'reason' => 'leaderboard_unavailable',
+                'exception' => $exception::class,
+            ]);
+            $page = LeaderboardPageDTO::unavailable();
+        }
 
         return Inertia::render('Achievements/Leaderboard', [
             'entries' => array_map(static fn (LeaderboardEntryDTO $entry): array => $entry->toArray(), $page->entries),
@@ -58,11 +78,11 @@ final class LeaderboardController extends Controller
             'available' => $page->available,
             'season' => $season,
             'seasons' => $seasons,
-            'currentSeason' => $this->points->currentSeason(),
-            'showsLevels' => $this->settings->levelsShown(),
+            'currentSeason' => $points->currentSeason(),
+            'showsLevels' => $settings->levelsShown(),
             'catalogueUrl' => route('achievements.index', absolute: false),
             'leaderboardUrl' => route('achievements.leaderboard', absolute: false),
-            'seo' => $this->seo->forPage(new SeoPageDTO(
+            'seo' => $seo->forPage(new SeoPageDTO(
                 title: __('achievements::messages.pages.leaderboard_title'),
                 description: __('achievements::messages.pages.leaderboard_description'),
             ))->toArray(),

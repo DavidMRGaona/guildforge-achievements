@@ -15,6 +15,7 @@ use Modules\Achievements\Application\Services\SeasonClock;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\PointsSnapshotRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\PointsBreakdown;
 use Modules\Achievements\Domain\ValueObjects\PointsPeriod;
 use Modules\Achievements\Domain\ValueObjects\Season;
@@ -23,22 +24,28 @@ use Modules\Achievements\Domain\ValueObjects\Season;
  * Seasons are #8's (Season, SeasonClock): calendar years in the display zone. Their bounds are
  * midnight of the 1st of January there, as storage-zone instants.
  *
- * A total is the owner's to see in full. Anybody else sees it without the secret achievements that
- * are masked to them (not held by them, not featured by the owner), as the section and the catalogue
- * mask them: «the secrets of others are only counted».
+ * The owner sees their own points at once and in full. Anybody else sees last night's photo
+ * (PointsSnapshotRepositoryInterface), so points of people who played together never rise at once
+ * in front of them, and without the achievements that are secret now and masked to them (not held by
+ * them, not featured by the owner), as the section and the catalogue mask them: «the secrets of
+ * others are only counted». Without a photo they see nothing, never a 0.
  */
 final class AchievementPoints implements AchievementPointsInterface
 {
-    /** @var array<string, PointsSummaryDTO> */
+    /** @var array<string, PointsSummaryDTO|null> */
     private array $summaries = [];
 
     /** @var array<string, array<string, true>> */
     private array $held = [];
 
+    /** @var array<string, true>|null */
+    private ?array $secret = null;
+
     public function __construct(
         private readonly AchievementPointsRepositoryInterface $points,
         private readonly AchievementGrantRepositoryInterface $grants,
         private readonly AchievementPreferencesRepositoryInterface $preferences,
+        private readonly PointsSnapshotRepositoryInterface $snapshots,
         private readonly AchievementsSettingsInterface $settings,
         private readonly TimezoneServiceInterface $time,
         private readonly SeasonClock $clock,
@@ -67,28 +74,51 @@ final class AchievementPoints implements AchievementPointsInterface
     public function seasons(): array
     {
         $current = $this->clock->current()->year;
+        $oldest = $current;
         $first = $this->points->firstGrantedAt();
-        $oldest = $first instanceof DateTimeImmutable ? Season::containing($first, $this->time->displayTimezone())->year : $current;
 
-        return range($current, min($current, $oldest));
+        if ($first instanceof DateTimeImmutable) {
+            $oldest = min($oldest, Season::containing($first, $this->time->displayTimezone())->year);
+        }
+
+        // A grant for the season before, made in January, counts there
+        $earliestKey = Season::fromKey($this->points->earliestSeasonKey());
+
+        if ($earliestKey instanceof Season) {
+            $oldest = min($oldest, $earliestKey->year);
+        }
+
+        return range($current, $oldest);
     }
 
-    public function summary(string $userId, ?string $viewerId): PointsSummaryDTO
+    public function summary(string $userId, ?string $viewerId): ?PointsSummaryDTO
     {
         $userId = $this->id($userId);
         $viewerId = $viewerId === null ? null : $this->id($viewerId);
         $key = $userId.'|'.($viewerId ?? '');
 
-        if (isset($this->summaries[$key])) {
+        if (array_key_exists($key, $this->summaries)) {
             return $this->summaries[$key];
         }
 
-        $revealed = $viewerId === $userId ? null : $this->revealed($userId, $viewerId);
-        $total = $this->visible($this->points->breakdowns([$userId], PointsPeriod::allTime())[$userId], $revealed);
         $seasonYear = $this->currentSeason();
-        $season = $this->settings->seasonsAndStreaksEnabled()
-            ? $this->visible($this->points->breakdowns([$userId], $this->period($seasonYear))[$userId], $revealed)
-            : null;
+        $seasonPeriod = $this->settings->seasonsAndStreaksEnabled() ? $this->period($seasonYear) : null;
+
+        if ($viewerId === $userId) {
+            // The owner's own points, at once and in full
+            $total = $this->points->breakdowns([$userId], PointsPeriod::allTime())[$userId]->total();
+            $season = $seasonPeriod instanceof PointsPeriod ? $this->points->breakdowns([$userId], $seasonPeriod)[$userId]->total() : null;
+        } else {
+            // Anybody else: last night's photo, without the secrets masked to them; nothing without one
+            if (! $this->snapshots->takenAt() instanceof DateTimeImmutable) {
+                return $this->summaries[$key] = null;
+            }
+
+            $revealed = $this->revealedSecrets($userId, $viewerId);
+            $total = $this->fromSnapshot($userId, PointsPeriod::allTime(), $revealed);
+            $season = $seasonPeriod instanceof PointsPeriod ? $this->fromSnapshot($userId, $seasonPeriod, $revealed) : null;
+        }
+
         $scale = $this->settings->levelsShown() ? $this->settings->levelScale() : null;
 
         return $this->summaries[$key] = new PointsSummaryDTO(
@@ -98,6 +128,18 @@ final class AchievementPoints implements AchievementPointsInterface
             level: $scale?->levelFor($total),
             nextLevel: $scale?->nextAfter($total),
         );
+    }
+
+    public function secretIds(): array
+    {
+        return $this->secret ??= $this->points->secretIds();
+    }
+
+    public function revealedSecrets(string $ownerId, ?string $viewerId): array
+    {
+        $revealed = array_fill_keys($this->preferences->find($this->id($ownerId))->featured, true);
+
+        return $viewerId === null ? $revealed : $revealed + $this->heldBy($viewerId);
     }
 
     public function heldBy(string $viewerId): array
@@ -116,24 +158,13 @@ final class AchievementPoints implements AchievementPointsInterface
     }
 
     /**
-     * The secret achievements of an owner revealed to a viewer: those the viewer holds too and those
-     * the owner featured (featuring reveals one to everybody).
-     *
-     * @return array<string, true>
+     * @param  array<string, true>  $revealed
      */
-    private function revealed(string $ownerId, ?string $viewerId): array
+    private function fromSnapshot(string $userId, PointsPeriod $period, array $revealed): int
     {
-        $revealed = array_fill_keys($this->preferences->find($ownerId)->featured, true);
+        $points = $this->snapshots->forUsers([$userId], $period->key())[$userId] ?? new PointsBreakdown;
 
-        return $viewerId === null ? $revealed : $revealed + $this->heldBy($viewerId);
-    }
-
-    /**
-     * @param  array<string, true>|null  $revealed  null for the owner: everything
-     */
-    private function visible(PointsBreakdown $points, ?array $revealed): int
-    {
-        return $revealed === null ? $points->total() : $points->visibleWith($revealed);
+        return $points->visibleWith($this->secretIds(), $revealed);
     }
 
     private function id(string $id): string

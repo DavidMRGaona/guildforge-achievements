@@ -7,12 +7,14 @@ namespace Modules\Achievements\Tests\Feature\Points;
 use App\Application\Profiles\DTOs\ResolvedProfileDTO;
 use App\Application\Profiles\DTOs\ResolvedProfileStatDTO;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementPointsInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Models\AchievementModel;
+use Modules\Achievements\Infrastructure\Points\PointsSnapshotTaker;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsLevelProfileStat;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsActivityFacts;
@@ -57,6 +59,7 @@ final class PointsAndLevelsTest extends ModuleTestCase
         $this->grantAt($this->ana, (string) $this->twenty->id);
         $this->grantAt($this->ana, (string) $this->secret->id, '2025-03-01 10:00:00');
         $this->settingsWith(['points' => true, 'levels' => true, 'leaderboard' => true, 'seasons_and_streaks' => true]);
+        $this->snapshot();
     }
 
     public function test_the_summary_counts_secrets_inactive_ones_and_the_season(): void
@@ -66,6 +69,7 @@ final class PointsAndLevelsTest extends ModuleTestCase
 
         $summary = app(AchievementPointsInterface::class)->summary((string) $this->ana->id, (string) $this->ana->id);
 
+        $this->assertNotNull($summary);
         $this->assertSame(35, $summary->total);
         $this->assertSame(20, $summary->season);
         $this->assertSame(2026, $summary->seasonYear);
@@ -128,6 +132,7 @@ final class PointsAndLevelsTest extends ModuleTestCase
         $this->grantAt($carl, (string) $s->id);
         $this->grantAt($carl, (string) $this->twenty->id);
         $this->choose($bea, featured: [(string) $s->id]);
+        $this->snapshot();
 
         $beaSeen = $this->achievementsSection($this->render($bea, $this->luis))?->props;
         $carlSeen = $this->achievementsSection($this->render($carl, $this->luis))?->props;
@@ -141,6 +146,48 @@ final class PointsAndLevelsTest extends ModuleTestCase
         $this->assertSame(60, $this->achievementsSection($this->render($carl, $bea))?->props['points']['total'] ?? null);
         // Carl sees his own in full
         $this->assertSame(60, $this->achievementsSection($this->render($carl, $carl))?->props['points']['total'] ?? null);
+    }
+
+    public function test_a_masked_secret_that_crosses_a_level_leaves_others_on_the_level_below(): void
+    {
+        // Ana: 20 visible + 15 secret = 35; with 30 more secret points she reaches «Habitual» (50)
+        $more = $this->achievement($this->countRule(), ['name' => 'Otro secreto', 'points' => 30, 'is_secret' => true]);
+        $this->grantAt($this->ana, (string) $more->id);
+        $this->snapshot();
+
+        $this->assertSame(3, $this->levelStat($this->render($this->ana, $this->ana))?->value);
+        // Luis holds neither secret: he sees 20 points, «Aprendiz»
+        $this->assertSame(2, $this->levelStat($this->render($this->ana, $this->luis))?->value);
+        $this->assertSame('Aprendiz', $this->achievementsSection($this->render($this->ana, $this->luis))?->props['points']['level']['name'] ?? null);
+    }
+
+    public function test_others_see_last_nights_points_and_the_owner_at_once(): void
+    {
+        $forty = $this->achievement($this->countRule(), ['name' => 'Cuarenta', 'points' => 40]);
+        $this->grantAt($this->ana, (string) $forty->id, '2026-11-22 09:00:00');
+
+        $this->assertSame(20, $this->achievementsSection($this->render($this->ana, $this->luis))?->props['points']['total'] ?? null);
+        $this->assertSame(2, $this->levelStat($this->render($this->ana, $this->luis))?->value);
+        $this->assertSame(75, $this->achievementsSection($this->render($this->ana, $this->ana))?->props['points']['total'] ?? null);
+
+        $this->snapshot();
+
+        $this->assertSame(60, $this->achievementsSection($this->render($this->ana, $this->luis))?->props['points']['total'] ?? null);
+        $this->assertSame(3, $this->levelStat($this->render($this->ana, $this->luis))?->value);
+    }
+
+    public function test_without_a_photo_others_see_no_points_never_a_zero(): void
+    {
+        DB::table('achievements_snapshot_runs')->delete();
+        DB::table('achievements_points_snapshots')->delete();
+
+        $props = $this->achievementsSection($this->render($this->ana, $this->luis))?->props;
+
+        $this->assertIsArray($props);
+        $this->assertArrayNotHasKey('points', $props);
+        $this->assertNull($this->levelStat($this->render($this->ana, $this->luis)));
+        // The owner still sees their own
+        $this->assertSame(35, $this->achievementsSection($this->render($this->ana, $this->ana))?->props['points']['total'] ?? null);
     }
 
     public function test_a_guest_gets_no_link_to_the_leaderboard(): void
@@ -212,6 +259,12 @@ final class PointsAndLevelsTest extends ModuleTestCase
 
         $this->app['auth']->forgetGuards();
         $this->get('/logros')->assertInertia(fn (Assert $page): Assert => $page->where('leaderboardUrl', null));
+    }
+
+    private function snapshot(): void
+    {
+        app(PointsSnapshotTaker::class)->take();
+        $this->app->forgetScopedInstances();
     }
 
     private function levelStat(ResolvedProfileDTO $profile): ?ResolvedProfileStatDTO

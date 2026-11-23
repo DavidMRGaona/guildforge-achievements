@@ -7,10 +7,12 @@ namespace Modules\Achievements\Tests\Feature\Filament;
 use App\Infrastructure\Persistence\Eloquent\Models\PermissionModel;
 use App\Infrastructure\Persistence\Eloquent\Models\RoleModel;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use Illuminate\Support\Facades\Bus;
 use Livewire\Livewire;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Filament\Pages\AchievementsSettingsPage;
+use Modules\Achievements\Jobs\TakePointsSnapshotJob;
 use Tests\Support\Modules\ModuleTestCase;
 
 /**
@@ -74,6 +76,31 @@ final class LevelScaleSettingsTest extends ModuleTestCase
         $this->assertTrue($settings->levels);
         $this->assertNull($settings->levelScale);
         $this->assertNull($settings->toArray()['levels_scale']);
+    }
+
+    public function test_the_starter_scale_is_recognised_whatever_language_the_panel_shows(): void
+    {
+        $page = Livewire::test(AchievementsSettingsPage::class)->fillForm(['points' => true, 'levels' => true]);
+
+        // The panel switches language before saving: the site's starter names are still the starter scale
+        app()->setLocale('en');
+        $page->call('save')->assertHasNoFormErrors();
+
+        app()->setLocale('es');
+        $this->app->forgetScopedInstances();
+        $this->assertNull(app(AchievementsSettingsInterface::class)->settings()->levelScale);
+    }
+
+    public function test_switching_points_on_takes_a_photo_for_others(): void
+    {
+        Bus::fake([TakePointsSnapshotJob::class]);
+
+        Livewire::test(AchievementsSettingsPage::class)
+            ->fillForm(['points' => true])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        Bus::assertDispatched(TakePointsSnapshotJob::class);
     }
 
     public function test_a_scale_that_does_not_climb_is_refused_and_nothing_is_saved(): void

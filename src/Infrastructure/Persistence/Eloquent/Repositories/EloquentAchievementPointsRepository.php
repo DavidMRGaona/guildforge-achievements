@@ -15,8 +15,8 @@ use stdClass;
 
 /**
  * One aggregate query over `achievements_grants` joined to the catalogue, per account and
- * achievement, answered from the grants' unique key (user_id first). The standings join `users` (so an account deleted for good, whose grants stay
- * without a foreign key, never counts) and the choices (no row: shown).
+ * achievement, answered from the grants' unique key (user_id first). The photo's query joins `users`,
+ * so an account deleted for good (its grants stay without a foreign key) never counts.
  */
 final readonly class EloquentAchievementPointsRepository implements AchievementPointsRepositoryInterface
 {
@@ -43,21 +43,27 @@ final readonly class EloquentAchievementPointsRepository implements AchievementP
         return $this->fold($rows) + array_fill_keys($userIds, new PointsBreakdown);
     }
 
-    public function standings(PointsPeriod $period): array
+    public function everyone(PointsPeriod $period): array
     {
         $rows = $this->points($period)
             ->join('users', 'users.id', '=', 'achievements_grants.user_id')
-            ->leftJoin(EloquentAchievementPreferencesRepository::TABLE.' as preferences', 'preferences.user_id', '=', 'achievements_grants.user_id')
             ->whereNull('users.deleted_at')
             ->whereNull('users.anonymized_at')
-            // No row means nothing chosen: shown, and in the leaderboard
-            ->where(static fn (Builder $query): Builder => $query->whereNull('preferences.user_id')->orWhere(
-                static fn (Builder $chosen): Builder => $chosen->where('preferences.hidden', false)->where('preferences.in_leaderboard', true),
-            ))
             ->get()
             ->all();
 
         return array_filter($this->fold($rows), static fn (PointsBreakdown $points): bool => $points->total() > 0);
+    }
+
+    public function secretIds(): array
+    {
+        $ids = [];
+
+        foreach ($this->db->table('achievements_catalogue')->where('is_secret', true)->pluck('id') as $id) {
+            $ids[strtolower((string) $id)] = true;
+        }
+
+        return $ids;
     }
 
     public function firstGrantedAt(): ?DateTimeImmutable
@@ -73,49 +79,41 @@ final readonly class EloquentAchievementPointsRepository implements AchievementP
         return $read === false ? null : $read;
     }
 
+    public function earliestSeasonKey(): ?string
+    {
+        $key = $this->db->table('achievements_grants')->where('season_key', '<>', '')->min('season_key');
+
+        return is_string($key) && preg_match('/^\d{4}$/D', $key) === 1 ? $key : null;
+    }
+
     /**
-     * Rows of (account, achievement, secret, points) folded into each account's breakdown.
+     * Rows of (account, achievement, points) folded into each account's breakdown.
      *
      * @param  array<int, stdClass>  $rows
      * @return array<string, PointsBreakdown>
      */
     private function fold(array $rows): array
     {
-        $open = [];
-        $secrets = [];
+        $points = [];
 
         foreach ($rows as $row) {
-            $userId = strtolower((string) $row->user_id);
-            $points = (int) $row->points;
-            $open[$userId] ??= 0;
-
-            if ((bool) $row->is_secret) {
-                $secrets[$userId][strtolower((string) $row->achievement_id)] = $points;
-            } else {
-                $open[$userId] += $points;
-            }
+            $points[strtolower((string) $row->user_id)][strtolower((string) $row->achievement_id)] = (int) $row->points;
         }
 
-        $breakdowns = [];
-
-        foreach ($open as $userId => $points) {
-            $breakdowns[$userId] = new PointsBreakdown($points, $secrets[$userId] ?? []);
-        }
-
-        return $breakdowns;
+        return array_map(static fn (array $byAchievement): PointsBreakdown => new PointsBreakdown($byAchievement), $points);
     }
 
     /**
      * The grants of the period, their achievement's points summed per account and achievement (a
-     * repeatable one counts once per season), with whether it is secret.
+     * repeatable one counts once per season).
      */
     private function points(PointsPeriod $period): Builder
     {
         $query = $this->db->table('achievements_grants')
             ->join('achievements_catalogue', 'achievements_catalogue.id', '=', 'achievements_grants.achievement_id')
-            ->select(['achievements_grants.user_id', 'achievements_catalogue.id as achievement_id', 'achievements_catalogue.is_secret'])
+            ->select(['achievements_grants.user_id', 'achievements_catalogue.id as achievement_id'])
             ->selectRaw('sum(achievements_catalogue.points) as points')
-            ->groupBy('achievements_grants.user_id', 'achievements_catalogue.id', 'achievements_catalogue.is_secret');
+            ->groupBy('achievements_grants.user_id', 'achievements_catalogue.id');
 
         if ($period->isAllTime() || ! $period->from instanceof DateTimeImmutable || ! $period->until instanceof DateTimeImmutable) {
             return $query;

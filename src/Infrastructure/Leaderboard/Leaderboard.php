@@ -8,6 +8,7 @@ use App\Application\Profiles\DTOs\PublicProfileDTO;
 use App\Application\Profiles\Services\ProfileAccessRule;
 use App\Domain\Activity\ActivityIdentifierRule;
 use App\Infrastructure\Seo\CloudinaryImageUrlBuilder;
+use DateTimeImmutable;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Modules\Achievements\Application\DTOs\LeaderboardEntryDTO;
 use Modules\Achievements\Application\DTOs\LeaderboardPageDTO;
@@ -17,13 +18,15 @@ use Modules\Achievements\Application\Services\AchievementPointsInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\PointsSnapshotRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\LevelScale;
 use Modules\Achievements\Domain\ValueObjects\PointsPeriod;
 use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Throwable;
 
 /**
- * On every request, over the standings (cached ids and points only):
+ * On every request, over last night's photo of points (ids and points only; the viewer's own row
+ * as it is now, so nobody sees the points of two people who played together rise at once):
  *
  * 1. the core describes each candidate's profile and its ProfileAccessRule keeps those the viewer
  *    may see (visibleAmong(): deactivated, anonymized, hidden or stricter profiles go, as on the
@@ -31,8 +34,8 @@ use Throwable;
  * 2. accounts without a public name go, the viewer's own included: nobody is ever shown by the
  *    account name;
  * 3. each person's choices are read again, so hiding achievements or opting out takes effect at once;
- * 4. each total is the one this viewer may see: their own in full, anybody else's without the secret
- *    achievements masked to the viewer (not held by them, not featured by the owner). A total minus
+ * 4. each total is the one this viewer may see: their own in full, anybody else's without the
+ *    achievements that are secret now and masked to the viewer (not held by them, not featured by the owner). A total minus
  *    what the viewer can see would otherwise give a secret's points, and with them who holds it.
  *    Rows left without points go.
  *
@@ -45,7 +48,7 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
     private const int AVATAR_SIZE = 64;
 
     public function __construct(
-        private CachedLeaderboardStandings $standings,
+        private PointsSnapshotRepositoryInterface $snapshots,
         private LeaderboardProfiles $profiles,
         private ProfileAccessRule $access,
         private AchievementPreferencesRepositoryInterface $preferences,
@@ -61,6 +64,11 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
         $viewerId = ActivityIdentifierRule::userId((string) $viewer->getAuthIdentifier()) ?? strtolower((string) $viewer->getAuthIdentifier());
 
         try {
+            // No photo yet (the first night after points were switched on): nobody, never a 0
+            if (! $this->snapshots->takenAt() instanceof DateTimeImmutable) {
+                return LeaderboardPageDTO::unavailable();
+            }
+
             $rows = $this->visibleRows($viewer, $viewerId, $period);
         } catch (Throwable $exception) {
             $this->warnings->warn('leaderboard_unavailable', '[Achievements] The leaderboard could not be worked out; nobody is shown.', [
@@ -115,11 +123,6 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
         );
     }
 
-    public function forget(): void
-    {
-        $this->standings->forget();
-    }
-
     /**
      * The standings the viewer may see with the totals they may see, the most points first, then by
      * public name.
@@ -128,11 +131,9 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
      */
     private function visibleRows(Authenticatable $viewer, string $viewerId, PointsPeriod $period): array
     {
-        $standings = $this->standings->standings($period);
-
-        if ($standings === []) {
-            return [];
-        }
+        // Last night's photo for everybody; the viewer's own points as they are now
+        $standings = $this->snapshots->forPeriod($period->key());
+        $standings[$viewerId] = $this->points->breakdowns([$viewerId], $period)[$viewerId];
 
         $described = $this->profiles->describe(array_map(strval(...), array_keys($standings)));
         $visible = array_flip(array_map(
@@ -159,6 +160,7 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
         }
 
         $viewerHolds = $this->pointsShown->heldBy($viewerId);
+        $secret = $this->pointsShown->secretIds();
         $rows = [];
 
         foreach ($this->preferences->forUsers(array_keys($named)) as $userId => $choices) {
@@ -169,7 +171,7 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
             $points = $userId === $viewerId
                 ? $standings[$userId]->total()
                 // Featuring reveals a secret to everybody; holding it too reveals it to the viewer
-                : $standings[$userId]->visibleWith(array_fill_keys($choices->featured, true) + $viewerHolds);
+                : $standings[$userId]->visibleWith($secret, array_fill_keys($choices->featured, true) + $viewerHolds);
 
             if ($points > 0) {
                 $rows[] = ['userId' => $userId, 'points' => $points] + $named[$userId];
@@ -232,7 +234,7 @@ final readonly class Leaderboard implements AchievementLeaderboardInterface
             return null;
         }
 
-        // Points not counted yet in the kept standings (a grant moments ago): they show shortly
-        return LeaderboardViewerStatus::Pending;
+        // Listed by every rule: nothing to tell (never reached, the viewer's row is read as it is now)
+        return null;
     }
 }

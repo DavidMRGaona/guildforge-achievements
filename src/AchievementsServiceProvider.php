@@ -28,7 +28,6 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Inertia\Inertia;
@@ -57,6 +56,7 @@ use Modules\Achievements\Domain\Repositories\AchievementPointsRepositoryInterfac
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\PendingAchievementNoticeRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\PointsSnapshotRepositoryInterface;
 use Modules\Achievements\Filament\Livewire\AccountAchievements;
 use Modules\Achievements\Filament\Livewire\AccountGrantLog;
 use Modules\Achievements\Filament\Media\AchievementBadgeImageMediaSource;
@@ -79,6 +79,7 @@ use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\Eloque
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementPreferencesRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentAchievementRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentPendingAchievementNoticeRepository;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentPointsSnapshotRepository;
 use Modules\Achievements\Infrastructure\Points\AchievementPoints;
 use Modules\Achievements\Infrastructure\Profiles\AccountAchievementsTab;
 use Modules\Achievements\Infrastructure\Profiles\AchievementsCountProfileStat;
@@ -93,18 +94,20 @@ use Modules\Achievements\Infrastructure\Support\AchievementWarnings;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Jobs\RefreshAchievementRarityJob;
 use Modules\Achievements\Jobs\ReleaseAchievementAnnouncementsJob;
+use Modules\Achievements\Jobs\TakePointsSnapshotJob;
 use Modules\Achievements\Listeners\EvaluateAchievementsForChangedFacts;
 use Modules\Achievements\Listeners\EvaluateAchievementsOfEnabledModule;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountFacts;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountGrants;
+use Modules\Achievements\Listeners\ForgetAnonymizedAccountPoints;
 use Modules\Achievements\Listeners\ForgetAnonymizedAccountPreferences;
 use Modules\Achievements\Listeners\ForgetCommunityProgress;
-use Modules\Achievements\Listeners\ForgetLeaderboardStandings;
 use Modules\Achievements\Listeners\QueueAchievementNotice;
 use Modules\Achievements\Listeners\RecordActivityFacts;
 use Modules\Achievements\Listeners\RefreshRarityAfterGrant;
 use Modules\Achievements\Notifications\AchievementNoticeCategories;
 use Modules\Achievements\Policies\AchievementPolicy;
+use Throwable;
 
 /**
  * Achievements («Logros»): what people have done in the association, as badges, levels and
@@ -118,6 +121,9 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
 
     /** The leaderboard page (#10): each request works out what one viewer may see */
     public const string LEADERBOARD_LIMITER = 'achievements-leaderboard';
+
+    /** When the nightly photo of points is taken, in the display zone (after the rarity's 03:30) */
+    public const string POINTS_SNAPSHOT_AT = '03:40';
 
     private const int LEADERBOARD_PER_MINUTE = 30;
 
@@ -169,6 +175,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         $this->app->bind(AchievementPointsRepositoryInterface::class, EloquentAchievementPointsRepository::class);
         $this->app->scoped(AchievementPointsInterface::class, AchievementPoints::class);
         $this->app->bind(AchievementLeaderboardInterface::class, Leaderboard::class);
+        $this->app->bind(PointsSnapshotRepositoryInterface::class, EloquentPointsSnapshotRepository::class);
 
         // Grants waiting to be told to their holders, a little later and together (#6)
         $this->app->bind(PendingAchievementNoticeRepositoryInterface::class, EloquentPendingAchievementNoticeRepository::class);
@@ -182,24 +189,16 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountFacts::class);
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountGrants::class);
         Event::listen(UserAnonymized::class, ForgetAnonymizedAccountPreferences::class);
+        Event::listen(UserAnonymized::class, ForgetAnonymizedAccountPoints::class);
         Event::listen(AchievementGranted::class, RefreshRarityAfterGrant::class);
         Event::listen(AchievementGranted::class, QueueAchievementNotice::class);
         Event::listen(AchievementRevoked::class, RefreshRarityAfterGrant::class);
-        Event::listen(AchievementGranted::class, ForgetLeaderboardStandings::class);
-        Event::listen(AchievementRevoked::class, ForgetLeaderboardStandings::class);
         Event::listen(AchievementFactsChanged::class, EvaluateAchievementsForChangedFacts::class);
         Event::listen(AchievementFactsChanged::class, ForgetCommunityProgress::class);
         Event::listen(ModuleEnabled::class, EvaluateAchievementsOfEnabledModule::class);
 
         AchievementModel::observe(EvaluateChangedAchievements::class);
         AchievementModel::observe(ForgetFeaturedWhenMadeSecret::class);
-        // An achievement's points count for everybody who holds it, and whether it is secret decides
-        // who sees them: the kept standings go once the change is committed
-        AchievementModel::updated(static function (AchievementModel $achievement): void {
-            if ($achievement->wasChanged(['points', 'is_secret'])) {
-                DB::afterCommit(static fn () => app(AchievementLeaderboardInterface::class)->forget());
-            }
-        });
         RateLimiter::for(self::PROFILE_CHOICES_LIMITER, static fn (Request $request): array => [
             Limit::perMinute(self::PROFILE_CHOICES_PER_MINUTE)->by('achievements-choices:'.self::requesterKey($request)),
             Limit::perHour(self::PROFILE_CHOICES_PER_HOUR)->by('achievements-choices-hour:'.self::requesterKey($request)),
@@ -310,6 +309,12 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
                 ->dailyAt('03:30')
                 ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
                 ->name('achievements:rarity');
+            // The photo of points others see (#10), once a night after the rarity: points of people
+            // who played together never rise at once in front of others
+            $schedule->job(new TakePointsSnapshotJob)
+                ->dailyAt(self::POINTS_SNAPSHOT_AT)
+                ->timezone(app(TimezoneServiceInterface::class)->displayTimezone())
+                ->name('achievements:points-snapshot');
             // What others hear of goes out once a month, about the month before (#6)
             $schedule->job(new ReleaseAchievementAnnouncementsJob)
                 ->monthlyOn(ReleaseAchievementAnnouncementsJob::RELEASE_DAY, ReleaseAchievementAnnouncementsJob::RELEASE_AT)
@@ -401,12 +406,22 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
                 label: __('achievements::messages.title'),
                 module: $this->moduleName(),
             ),
-            new ModuleRouteDTO(
+            // Offered to the menu editor only while there is a leaderboard: a link to it would answer 404
+            ...($this->leaderboardShown() ? [new ModuleRouteDTO(
                 routeName: 'achievements.leaderboard',
                 label: __('achievements::messages.leaderboard.title'),
                 module: $this->moduleName(),
-            ),
+            )] : []),
         ];
+    }
+
+    private function leaderboardShown(): bool
+    {
+        try {
+            return $this->app->make(AchievementsSettingsInterface::class)->leaderboardShown();
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     /**

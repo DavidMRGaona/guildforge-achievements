@@ -10,6 +10,7 @@ use App\Application\Profiles\DTOs\ProfileOwnerDTO;
 use App\Application\Services\EmailVerificationPolicyInterface;
 use App\Domain\Profiles\ProfileRegion;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Modules\Achievements\Application\DTOs\PointsSummaryDTO;
 use Modules\Achievements\Application\DTOs\ShowcaseItemDTO;
 use Modules\Achievements\Application\Services\AchievementPointsInterface;
 use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
@@ -117,7 +118,17 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
             'showsRarity' => $this->settings->rarityEnabled(),
             'catalogueUrl' => route('achievements.index', absolute: false),
             'owner' => $preferences instanceof AchievementPreferences ? $this->owner($owner, $earned, $preferences) : null,
-        ] + ($showsPoints ? ['points' => $this->points($owner, $viewerId, $isOwner)] : []);
+        ] + $this->pointsProp($showsPoints, $owner, $viewerId, $isOwner);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function pointsProp(bool $showsPoints, ProfileOwnerDTO $owner, ?string $viewerId, bool $isOwner): array
+    {
+        $points = $showsPoints ? $this->points($owner, $viewerId, $isOwner) : null;
+
+        return $points === null ? [] : ['points' => $points];
     }
 
     /**
@@ -142,15 +153,21 @@ final readonly class AchievementsProfileSection implements ProfileSectionInterfa
 
     /**
      * The owner's totals as this viewer may see them (#10): all time, the current season while
-     * seasons are on, the level while levels show. Secrets masked to the viewer are only counted
-     * (secretCount), never added: a total minus the points shown would give their points away, and
-     * with them who holds them. The owner sees every point and the next level.
+     * seasons are on, the level while levels show. The owner sees their own at once, with every point
+     * and the next level. Anybody else sees last night's photo (points of people who played together
+     * never rise at once), and secrets masked to them only counted (secretCount), never added: a
+     * total minus the points shown would give their points away, and with them who holds them.
+     * Nothing for anybody else without a photo, or with no points in it: never a 0.
      *
-     * @return array{total: int, season: int|null, seasonYear: int, level: array{number: int, name: string, threshold: int}|null, nextLevel: array{number: int, name: string, threshold: int}|null, leaderboardUrl: string|null}
+     * @return array{total: int, season: int|null, seasonYear: int, level: array{number: int, name: string, threshold: int}|null, nextLevel: array{number: int, name: string, threshold: int}|null, leaderboardUrl: string|null}|null
      */
-    private function points(ProfileOwnerDTO $owner, ?string $viewerId, bool $isOwner): array
+    private function points(ProfileOwnerDTO $owner, ?string $viewerId, bool $isOwner): ?array
     {
         $summary = $this->points->summary($owner->id, $viewerId);
+
+        if (! $summary instanceof PointsSummaryDTO || (! $isOwner && $summary->total === 0)) {
+            return null;
+        }
         $level = static fn (?Level $level): ?array => $level instanceof Level ? [
             'number' => $level->number,
             'name' => $level->name,

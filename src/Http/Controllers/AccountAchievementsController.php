@@ -6,7 +6,6 @@ namespace Modules\Achievements\Http\Controllers;
 
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Routing\Controller;
-use Modules\Achievements\Application\Services\AchievementLeaderboardInterface;
 use Modules\Achievements\Domain\Repositories\AchievementPreferencesRepositoryInterface;
 use Modules\Achievements\Http\Requests\UpdateAccountAchievementsRequest;
 
@@ -21,7 +20,6 @@ final class AccountAchievementsController extends Controller
     public function update(
         UpdateAccountAchievementsRequest $request,
         AchievementPreferencesRepositoryInterface $preferences,
-        AchievementLeaderboardInterface $leaderboard,
     ): RedirectResponse {
         $preferences->saveChoices(
             (string) $request->user()?->getAuthIdentifier(),
@@ -29,8 +27,6 @@ final class AccountAchievementsController extends Controller
             announceRare: $request->announceRare(),
             inLeaderboard: $request->inLeaderboard(),
         );
-        // Choices are read again on every request; this only lets someone who came back appear at once
-        $leaderboard->forget();
 
         return back(303);
     }

@@ -15,7 +15,4 @@ enum LeaderboardViewerStatus: string
     case Hidden = 'hidden';
     case OptedOut = 'opted_out';
     case NoPublicName = 'no_public_name';
-
-    /** In it by every rule, but not counted yet: the standings are kept for a few minutes */
-    case Pending = 'pending';
 }

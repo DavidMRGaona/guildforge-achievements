@@ -24,6 +24,7 @@ use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Domain\ValueObjects\LevelScale;
 use Modules\Achievements\Domain\ValueObjects\MetricKinds;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
+use Modules\Achievements\Jobs\TakePointsSnapshotJob;
 
 /**
  * «Sistema → Configuración → Logros»: the switch of every mechanic of the module.
@@ -226,6 +227,11 @@ final class AchievementsSettingsPage extends Page implements HasForms
             EvaluateAchievementsJob::dispatch();
         }
 
+        // Others see last night's photo of points: take one now, so they do not wait for the night
+        if (! $current->points && $saved->points) {
+            TakePointsSnapshotJob::dispatch();
+        }
+
         Notification::make()
             ->title(__('achievements::messages.settings.saved'))
             ->success()
@@ -283,8 +289,15 @@ final class AchievementsSettingsPage extends Page implements HasForms
             throw ValidationException::withMessages(['data.levels_scale' => __('achievements::messages.settings.levels_invalid')]);
         }
 
-        // The starter scale untouched is not stored: its names keep following the site's language
-        return $scale->toArray() === AchievementsSettings::starterLevelScale()->toArray() ? null : $scale;
+        // The starter scale untouched is not stored: its names keep following the site's language,
+        // whatever language the panel shows them in
+        foreach (array_unique([app()->getLocale(), (string) config('app.locale'), (string) config('app.fallback_locale')]) as $locale) {
+            if ($scale->toArray() === AchievementsSettings::starterLevelScale($locale)->toArray()) {
+                return null;
+            }
+        }
+
+        return $scale;
     }
 
     /**
