@@ -84,7 +84,7 @@ final class NightlyAchievementRarity implements AchievementRarityInterface
                 ->whereIn('user_id', $this->activePeople($since)->distinct()->select('achievements_facts.user_id'))
                 // Strictly before: a grant written in the photo's own second waits for the next one;
                 // one shown by closed months waits for its month to be over
-                ->tap(fn (Builder $grants): Builder => ShownToOthersGrants::apply($grants, $takenAt, $this->time->displayTimezone()))
+                ->tap(fn (Builder $grants): Builder => ShownToOthersGrants::apply($grants, $takenAt, $this->time))
                 ->selectRaw('achievement_id, count(distinct user_id) as holders')
                 ->groupBy('achievement_id')
                 ->get();

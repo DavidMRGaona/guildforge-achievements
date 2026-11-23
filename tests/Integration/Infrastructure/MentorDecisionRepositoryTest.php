@@ -73,6 +73,29 @@ final class MentorDecisionRepositoryTest extends ModuleTestCase
         $this->assertSame(self::ANA, DB::table('achievements_mentor_decisions')->where('newcomer_id', self::LUIS)->value('mentor_id'));
     }
 
+    public function test_a_newcomer_anonymized_after_being_listed_is_never_written(): void
+    {
+        $when = new DateTimeImmutable('2026-03-28 18:00:00');
+        // Listed as undecided, then anonymized (and its listener done) before the batch writes
+        UserModel::query()->whereKey(self::LUIS)->update(['anonymized_at' => now()]);
+        UserModel::withTrashed()->findOrFail(self::PEPA)->forceDelete();
+
+        $written = $this->repository()->record([new MentorDecision(self::LUIS, self::ANA, $when), new MentorDecision(self::PEPA, self::ANA, $when), new MentorDecision(self::MARTA, self::ANA, $when)]);
+
+        $this->assertSame(1, $written);
+        $this->assertSame([self::MARTA], DB::table('achievements_mentor_decisions')->pluck('newcomer_id')->all());
+    }
+
+    public function test_a_mentor_anonymized_after_the_first_games_were_read_is_written_as_nobody(): void
+    {
+        UserModel::query()->whereKey(self::ANA)->update(['anonymized_at' => now()]);
+
+        $this->repository()->record([new MentorDecision(self::LUIS, self::ANA, new DateTimeImmutable('2026-03-28 18:00:00'))]);
+
+        $this->assertSame(1, DB::table('achievements_mentor_decisions')->where('newcomer_id', self::LUIS)->count());
+        $this->assertNull(DB::table('achievements_mentor_decisions')->where('newcomer_id', self::LUIS)->value('mentor_id'));
+    }
+
     public function test_it_counts_each_mentor_s_newcomers_with_when_they_were_decided(): void
     {
         $this->repository()->record([

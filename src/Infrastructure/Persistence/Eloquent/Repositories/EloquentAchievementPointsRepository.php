@@ -102,7 +102,7 @@ final readonly class EloquentAchievementPointsRepository implements AchievementP
     private function before(Builder $query, ?DateTimeImmutable $before): Builder
     {
         return $before instanceof DateTimeImmutable
-            ? ShownToOthersGrants::apply($query, $before, $this->time->displayTimezone())
+            ? ShownToOthersGrants::apply($query, $before, $this->time)
             : $query;
     }
 

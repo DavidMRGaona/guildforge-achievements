@@ -62,6 +62,7 @@ use Modules\Achievements\Domain\Repositories\AchievementRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\ChallengeRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\MentorDecisionRepositoryInterface;
 use Modules\Achievements\Domain\Repositories\PendingAchievementNoticeRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\RecalculationMarkRepositoryInterface;
 use Modules\Achievements\Filament\Livewire\AccountAchievements;
 use Modules\Achievements\Filament\Livewire\AccountGrantLog;
 use Modules\Achievements\Filament\Media\AchievementBadgeImageMediaSource;
@@ -92,6 +93,7 @@ use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\Eloque
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentChallengeRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentMentorDecisionRepository;
 use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentPendingAchievementNoticeRepository;
+use Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories\EloquentRecalculationMarkRepository;
 use Modules\Achievements\Infrastructure\Points\AchievementPoints;
 use Modules\Achievements\Infrastructure\Points\NightlyPhotoPointsCutoff;
 use Modules\Achievements\Infrastructure\Profiles\AccountAchievementsTab;
@@ -177,6 +179,7 @@ final class AchievementsServiceProvider extends ModuleServiceProvider
         $this->app->bind(CommunityMetricsInterface::class, LedgerCommunityMetrics::class);
         $this->app->bind(MentorDecisionRepositoryInterface::class, EloquentMentorDecisionRepository::class);
         $this->app->bind(MentorDecisionsInterface::class, LedgerMentorDecisions::class);
+        $this->app->bind(RecalculationMarkRepositoryInterface::class, EloquentRecalculationMarkRepository::class);
         $this->app->bind(AchievementCatalogueInterface::class, AchievementCatalogue::class);
         $this->app->bind(StarterCatalogueInterface::class, StarterCatalogue::class);
         $this->app->singleton(AchievementWarnings::class);

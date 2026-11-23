@@ -11,12 +11,16 @@ use App\Domain\Events\UserAnonymized;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use DateTimeZone;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Testing\PendingCommand;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementEvaluatorInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
+use Modules\Achievements\Console\Commands\RecalculateAchievementFactsCommand;
 use Modules\Achievements\Domain\Repositories\AchievementGrantRepositoryInterface;
+use Modules\Achievements\Domain\Repositories\RecalculationMarkRepositoryInterface;
 use Modules\Achievements\Domain\ValueObjects\RecordedFact;
 use Modules\Achievements\Jobs\EvaluateAchievementsJob;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
@@ -62,6 +66,9 @@ final class MentorAchievementTest extends ModuleTestCase
         foreach ([self::ANA, self::LUIS, self::MARTA, self::PEPA] as $id) {
             $this->account($id);
         }
+
+        // As after installing: the game sessions were recalculated once
+        $this->app->make(RecalculationMarkRepositoryInterface::class)->markComplete(self::SESSIONS);
     }
 
     protected function tearDown(): void
@@ -329,6 +336,31 @@ final class MentorAchievementTest extends ModuleTestCase
         $this->assertTrue($this->holds(self::ANA, $mentor));
     }
 
+    public function test_nothing_is_decided_until_the_game_sessions_were_recalculated_once(): void
+    {
+        $mentor = $this->mentor();
+        DB::table('achievements_recalculations')->delete();
+        $this->played('s1', [self::ANA], [self::LUIS], daysAgo: 20);
+
+        // The first night after installing, before anybody ran the recalculation: the ledger may lack older games
+        $this->nightly();
+        $this->assertSame(0, DB::table('achievements_mentor_decisions')->count());
+
+        $this->app->make(Kernel::class)->registerCommand($this->app->make(RecalculateAchievementFactsCommand::class));
+        $this->recalculate(['--source' => self::SESSIONS, '--dry-run' => true])->assertSuccessful();
+        $this->nightly();
+        $this->assertSame(0, DB::table('achievements_mentor_decisions')->count());
+
+        InMemoryActivitySource::put('s1', [
+            $this->activityFact(self::ANA, ActivityRole::Director, $this->daysAgo(20)),
+            $this->activityFact(self::LUIS, ActivityRole::Player, $this->daysAgo(20)),
+        ]);
+        $this->recalculate(['--source' => self::SESSIONS])->assertSuccessful();
+        $this->nightly();
+
+        $this->assertTrue($this->holds(self::ANA, $mentor));
+    }
+
     public function test_a_recent_decision_is_told_to_the_mentor_and_an_old_one_is_not(): void
     {
         $mentor = $this->mentor();
@@ -436,6 +468,17 @@ final class MentorAchievementTest extends ModuleTestCase
     {
         $this->app->forgetScopedInstances();
         $this->app->call([new EvaluateAchievementsJob(silent: false, onlyNightly: true), 'handle']);
+    }
+
+    /**
+     * @param  array<string, mixed>  $options
+     */
+    private function recalculate(array $options): PendingCommand
+    {
+        $command = $this->artisan('achievements:recalculate', $options);
+        $this->assertInstanceOf(PendingCommand::class, $command);
+
+        return $command;
     }
 
     private function holds(string $userId, string $achievementId): bool

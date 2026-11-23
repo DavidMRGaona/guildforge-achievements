@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Infrastructure\Persistence\Eloquent\Repositories;
 
+use App\Application\Services\TimezoneServiceInterface;
+use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use DateTimeImmutable;
-use DateTimeZone;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
@@ -14,8 +15,8 @@ use Modules\Achievements\Domain\ValueObjects\MentorDecision;
 use stdClass;
 
 /**
- * Written with the query builder, so instants are formatted in the storage zone (PHP's default zone)
- * by hand, like the ledger.
+ * Written with the query builder, so instants go through the storage zone by hand
+ * (TimezoneServiceInterface), like the ledger.
  */
 final readonly class EloquentMentorDecisionRepository implements MentorDecisionRepositoryInterface
 {
@@ -25,6 +26,7 @@ final readonly class EloquentMentorDecisionRepository implements MentorDecisionR
 
     public function __construct(
         private ConnectionInterface $db,
+        private TimezoneServiceInterface $time,
     ) {}
 
     public function undecidedNewcomers(string $kind, string $role, ?string $afterUserId, int $limit): array
@@ -55,26 +57,51 @@ final readonly class EloquentMentorDecisionRepository implements MentorDecisionR
 
     public function record(array $decisions): int
     {
-        $now = new DateTimeImmutable('now', $this->zone())->format(self::STORAGE_FORMAT);
-        $rows = array_map(fn (MentorDecision $decision): array => [
-            'newcomer_id' => strtolower($decision->newcomerId),
-            'mentor_id' => $decision->mentorId === null ? null : strtolower($decision->mentorId),
-            'decided_at' => $decision->decidedAt->setTimezone($this->zone())->format(self::STORAGE_FORMAT),
-            'created_at' => $now,
-            'updated_at' => $now,
-        ], $decisions);
-        $written = 0;
-
-        foreach (array_chunk($rows, 500) as $chunk) {
-            $written += $this->db->table(self::TABLE)->insertOrIgnore($chunk);
+        if ($decisions === []) {
+            return 0;
         }
 
-        return $written;
+        return $this->db->transaction(function () use ($decisions): int {
+            // The accounts are read with a shared lock: an anonymization that starts meanwhile waits
+            // for this write, and its listener then erases or empties what was written; one done
+            // before is seen here, so its newcomer is left out and its mentor written as nobody
+            $live = $this->liveAccounts(array_merge(
+                array_map(static fn (MentorDecision $decision): string => $decision->newcomerId, $decisions),
+                array_filter(array_map(static fn (MentorDecision $decision): ?string => $decision->mentorId, $decisions)),
+            ));
+            $now = $this->time->toStorage(new DateTimeImmutable('now'))->format(self::STORAGE_FORMAT);
+            $rows = [];
+
+            foreach ($decisions as $decision) {
+                $newcomerId = strtolower($decision->newcomerId);
+                $mentorId = $decision->mentorId === null ? null : strtolower($decision->mentorId);
+
+                if (! isset($live[$newcomerId])) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'newcomer_id' => $newcomerId,
+                    'mentor_id' => $mentorId !== null && isset($live[$mentorId]) ? $mentorId : null,
+                    'decided_at' => $this->time->toStorage($decision->decidedAt)->format(self::STORAGE_FORMAT),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+
+            $written = 0;
+
+            foreach (array_chunk($rows, 500) as $chunk) {
+                $written += $this->db->table(self::TABLE)->insertOrIgnore($chunk);
+            }
+
+            return $written;
+        });
     }
 
     public function welcomed(array $mentorIds): array
     {
-        $zone = $this->zone();
+        $zone = $this->time->storageTimezone();
         $welcomed = [];
 
         foreach (array_chunk(array_values(array_unique(array_map(strtolower(...), $mentorIds))), 500) as $chunk) {
@@ -111,8 +138,24 @@ final readonly class EloquentMentorDecisionRepository implements MentorDecisionR
         });
     }
 
-    private function zone(): DateTimeZone
+    /**
+     * The accounts that exist and are not anonymized, read with a shared lock.
+     *
+     * @param  list<string>  $userIds
+     * @return array<string, true>
+     */
+    private function liveAccounts(array $userIds): array
     {
-        return new DateTimeZone(date_default_timezone_get());
+        $live = [];
+
+        foreach (array_chunk(array_values(array_unique(array_map(strtolower(...), $userIds))), 500) as $chunk) {
+            foreach (UserModel::withTrashed()->whereIn('id', $chunk)->sharedLock()->get(['id', 'anonymized_at']) as $user) {
+                if ($user->anonymized_at === null) {
+                    $live[strtolower((string) $user->id)] = true;
+                }
+            }
+        }
+
+        return $live;
     }
 }

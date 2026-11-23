@@ -93,6 +93,8 @@ Premia a quien dirige la primera partida de alguien: la primera partida en la qu
 - **Un mentor por persona nueva, para siempre.** Si la mesa tuvo varias personas en la dirección, el mentor es la que además creó la mesa. Si ninguna la creó, no hay mentor. Si alguien empezó con dos mesas a la misma hora, tampoco. Lo que se decide esa noche ya no cambia: aunque luego aparezca una mesa anterior o la primera deje de contar, nadie más es su mentor.
 - **Dirigir con el nombre oculto.** Quien dirige sin enseñar su nombre cuenta como jugador en esa mesa: nunca es el mentor, y si era su primera partida como jugador, cuenta como persona nueva de quien dirigía a la vista.
 - **El progreso** sube con la revisión de la noche, no antes.
+- **Antes de la primera noche** hay que recalcular la actividad una vez (lo explica la guía «Ajustes de los logros y recálculo»): hasta entonces no se decide ningún Mentor.
+- **Qué se mide no cambia** en cuanto alguien tiene el logro: lo que ven los demás de cada concesión depende de ello. Para otra cosa, crea un logro nuevo.
 - **Aviso.** Quien lo consigue recibe el aviso de siempre si la primera partida es de las últimas semanas. Lo que se decide de golpe, porque la partida es más antigua (al instalar el módulo, por ejemplo), se concede sin aviso.
 - **Qué se deduce.** Quien lo recibe sabe que alguien de una mesa que dirigió no había jugado antes en {{site_name}}. La asociación lo acepta a cambio de este logro. Los demás solo ven que lo tiene, con el mes y el año y cuando ese mes ha terminado, nunca a quién dio la bienvenida.
 

@@ -433,10 +433,13 @@ final readonly class EloquentAchievementFactRepository implements AchievementFac
         foreach ($bySource as $sourceType => $ids) {
             foreach (array_chunk(array_map(strval(...), array_keys($ids)), 500) as $chunk) {
                 $rows = $this->table()
-                    ->where('source_type', $sourceType)
-                    ->whereIn('subject_id', $chunk)
-                    ->whereIn('role', [$hostRole, $creatorRole])
-                    ->get(['subject_id', 'user_id', 'role']);
+                    // Anonymized or deleted for good: nobody's mentor, even before the ledger forgets them
+                    ->join('users', 'users.id', '=', self::TABLE.'.user_id')
+                    ->whereNull('users.anonymized_at')
+                    ->where(self::TABLE.'.source_type', $sourceType)
+                    ->whereIn(self::TABLE.'.subject_id', $chunk)
+                    ->whereIn(self::TABLE.'.role', [$hostRole, $creatorRole])
+                    ->get([self::TABLE.'.subject_id', self::TABLE.'.user_id', self::TABLE.'.role']);
 
                 foreach ($rows as $row) {
                     /** @var stdClass $row */

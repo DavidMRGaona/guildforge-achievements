@@ -8,7 +8,9 @@ use App\Application\Profiles\DTOs\ResolvedProfileDTO;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use Inertia\Testing\AssertableInertia as Assert;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
+use Modules\Achievements\Application\DTOs\AchievementViewDTO;
 use Modules\Achievements\Application\Services\AchievementRarityInterface;
+use Modules\Achievements\Application\Services\AchievementShowcaseInterface;
 use Modules\Achievements\Application\Services\AchievementsSettingsInterface;
 use Modules\Achievements\Tests\Support\BuildsAchievements;
 use Modules\Achievements\Tests\Support\BuildsActivityFacts;
@@ -89,6 +91,32 @@ final class MentorClosedMonthsTest extends ModuleTestCase
         $shares = app(AchievementRarityInterface::class)->current()->shares;
         $this->assertArrayNotHasKey(strtolower($this->mentor), $shares);
         $this->assertArrayHasKey(strtolower($this->mentorOfThree), $shares);
+    }
+
+    public function test_a_featured_mentor_of_this_month_waits_for_its_month_for_everybody(): void
+    {
+        $this->choose($this->ana, featured: [$this->mentor]);
+        $this->app->forgetScopedInstances();
+
+        $featured = app(AchievementShowcaseInterface::class)->featured([strtolower((string) $this->ana->id)]);
+        $this->assertNotContains('Mentor', array_map(static fn (AchievementViewDTO $view): string => $view->name, $featured[strtolower((string) $this->ana->id)] ?? []));
+
+        $this->photoAt('2026-12-01 03:30:00');
+
+        $featured = app(AchievementShowcaseInterface::class)->featured([strtolower((string) $this->ana->id)]);
+        $this->assertSame(['Mentor'], array_map(static fn (AchievementViewDTO $view): string => $view->name, $featured[strtolower((string) $this->ana->id)] ?? []));
+    }
+
+    public function test_others_see_this_month_s_mentors_out_of_the_season_s_points_too(): void
+    {
+        app(AchievementsSettingsInterface::class)->save(AchievementsSettings::fromArray(['points' => true, 'levels' => true, 'leaderboard' => true, 'seasons_and_streaks' => true]));
+        $this->app->forgetScopedInstances();
+
+        $this->actingAs($this->luis)->get('/logros/clasificacion?temporada=2026')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page): Assert => $page
+                ->where('entries.0.publicName', 'Ana')
+                ->where('entries.0.points', 35));
     }
 
     public function test_once_the_month_is_over_the_next_photo_shows_it(): void

@@ -183,7 +183,7 @@ final class AchievementResource extends BaseResource
         }
 
         // What others see of each holder (ShownToOthersRule): a mentor waits for its month to end
-        ShownToOthersGrants::apply($query->getQuery(), $takenAt, app(TimezoneServiceInterface::class)->displayTimezone());
+        ShownToOthersGrants::apply($query->getQuery(), $takenAt, app(TimezoneServiceInterface::class));
 
         return $query;
     }

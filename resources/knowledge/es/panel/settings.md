@@ -77,7 +77,7 @@ Los logros se calculan con la actividad que registran los módulos. Lo que pasó
 php artisan achievements:recalculate
 ```
 
-Vuelve a leer toda la actividad de cada módulo y concede lo que ya se cumplía, **sin avisos**. Se puede repetir sin miedo: una segunda pasada no cambia nada. Conviene repetirlo si un módulo ha fallado durante un tiempo. Al terminar dice, por módulo, cuánto ha leído y cambiado, y acaba con error si alguno no se ha podido leer entero.
+Vuelve a leer toda la actividad de cada módulo y concede lo que ya se cumplía, **sin avisos**. Hasta que se haga entero una vez, nadie consigue **Mentor**: decidir quién dio la bienvenida a quién necesita todas las partidas de antes. Se puede repetir sin miedo: una segunda pasada no cambia nada. Conviene repetirlo si un módulo ha fallado durante un tiempo. Al terminar dice, por módulo, cuánto ha leído y cambiado, y acaba con error si alguno no se ha podido leer entero.
 
 Otras opciones del mismo comando:
 

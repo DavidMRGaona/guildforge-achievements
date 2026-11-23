@@ -155,6 +155,18 @@ final class CommunityLedgerQueriesTest extends ModuleTestCase
         $this->assertSame([], $first[self::RAUL]->subjects[0]->creators);
     }
 
+    public function test_anonymized_directors_and_creators_are_left_out_of_a_first_fact(): void
+    {
+        $this->ledgerSession('s1', '2026-01-10 18:00:00', director: [self::ANA, self::MARTA], players: [self::LUIS], creators: [self::MARTA]);
+        // Anonymized, before its listener drops its facts from the ledger
+        UserModel::query()->whereKey(self::MARTA)->update(['anonymized_at' => now()]);
+
+        $first = $this->repository()->firstFacts([self::LUIS], 'game_session', 'player', 'director', 'creator');
+
+        $this->assertSame([self::ANA], $first[self::LUIS]->subjects[0]->directors);
+        $this->assertSame([], $first[self::LUIS]->subjects[0]->creators);
+    }
+
     public function test_two_first_facts_at_the_same_instant_both_come_back(): void
     {
         // A sign-up mistake, say: Luis is in two tables that start at the same time
