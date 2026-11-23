@@ -431,6 +431,30 @@ final class ChallengeBoardTest extends ModuleTestCase
                 ->where('challenges.0.people.0.name', 'Ana'));
     }
 
+    public function test_a_reward_got_in_the_photos_own_second_waits_for_the_next_list(): void
+    {
+        $challenge = $this->challenge(['target' => 1]);
+        [$ana, $luis] = [$this->person('Ana'), $this->person('Luis')];
+        $this->grantAt($ana, $challenge->reward_achievement_id);
+        $this->counted($challenge, progress: 2, contributors: 2, contributions: [(string) $ana->id => 1, (string) $luis->id => 1], completed: true);
+
+        // The 1st: Luis gets the reward in the very second of the photo, as its profile counts strictly before
+        $this->travelTo('2027-01-01 10:00:00');
+        $this->refreshRarity();
+        $this->app->forgetScopedInstances();
+        $takenAt = $this->app->make(AchievementRarityInterface::class)->current()->takenAt;
+        $this->assertNotNull($takenAt);
+        $this->grantAt($luis, $challenge->reward_achievement_id, when: $takenAt->setTimezone(new DateTimeZone(date_default_timezone_get()))->format('Y-m-d H:i:s'));
+        $this->listCompleters();
+
+        $this->actingAs($this->person('Quien mira'))->get(route('achievements.index'))
+            ->assertInertia(fn (Assert $page): Assert => $page
+                ->has('challenges.0.people', 1)
+                ->where('challenges.0.people.0.name', 'Ana'));
+        // Her profile, as others see it, does not hold it either
+        $this->assertSame([], $this->achievementsSection($this->render($luis, $ana))?->props['earned'] ?? []);
+    }
+
     public function test_the_kept_list_is_the_monthly_one(): void
     {
         $challenge = $this->challenge(['target' => 1]);

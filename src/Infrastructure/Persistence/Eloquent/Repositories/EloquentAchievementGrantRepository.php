@@ -266,6 +266,29 @@ final readonly class EloquentAchievementGrantRepository implements AchievementGr
         return array_map(static fn (array $ids): array => array_map(strval(...), array_keys($ids)), $held);
     }
 
+    public function holdersBefore(string $achievementId, array $userIds, DateTimeImmutable $before): array
+    {
+        $userIds = array_values(array_unique(array_map(strtolower(...), $userIds)));
+        // Bindings skip the models' conversion: the instant in the storage zone by hand
+        $cutoff = $before->setTimezone(new DateTimeZone(date_default_timezone_get()))->format(self::STORAGE_FORMAT);
+        $found = [];
+
+        foreach (array_chunk($userIds, 500) as $chunk) {
+            $rows = $this->table()
+                ->where('achievement_id', strtolower($achievementId))
+                ->whereIn('user_id', $chunk)
+                ->where('granted_at', '<', $cutoff)
+                ->distinct()
+                ->pluck('user_id');
+
+            foreach ($rows as $userId) {
+                $found[strtolower((string) $userId)] = true;
+            }
+        }
+
+        return array_values(array_filter($userIds, static fn (string $userId): bool => isset($found[$userId])));
+    }
+
     public function forUser(string $userId): array
     {
         $rows = $this->table()

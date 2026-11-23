@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Achievements\Domain\Repositories;
 
+use DateTimeImmutable;
 use Modules\Achievements\Domain\Entities\AchievementGrant;
 use Modules\Achievements\Domain\ValueObjects\NewGrant;
 
@@ -70,6 +71,16 @@ interface AchievementGrantRepositoryInterface
      * @return array<string, list<string>>
      */
     public function heldAchievementIds(array $userIds): array;
+
+    /**
+     * Which of these accounts got this achievement (in any season) strictly before the instant, in
+     * lower case and in the order given: as the nightly photo counts them, so one got in the photo's
+     * own second waits a night.
+     *
+     * @param  list<string>  $userIds
+     * @return list<string>
+     */
+    public function holdersBefore(string $achievementId, array $userIds, DateTimeImmutable $before): array;
 
     /**
      * Every grant of an account, oldest first.
