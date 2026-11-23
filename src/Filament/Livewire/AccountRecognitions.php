@@ -108,8 +108,9 @@ final class AccountRecognitions extends TableWidget
             ->icon('heroicon-o-trash')
             ->color('danger')
             ->visible(fn (RecognitionModel $record): bool => $this->mayDelete($record))
-            // Filament asks again when the action runs, on the server
-            ->authorize(fn (RecognitionModel $record): bool => RecognitionModerationAccess::allowsDeletingRecord($this->userId, $record))
+            // Filament asks again when the action runs, on the server (the same rule, remembered per
+            // request; the action itself checks it afresh right before deleting)
+            ->authorize(fn (RecognitionModel $record): bool => $this->mayDelete($record))
             ->requiresConfirmation()
             ->modalHeading($this->text('delete.heading'))
             ->modalDescription($this->text('delete.description'))
