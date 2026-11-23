@@ -15,6 +15,7 @@ function achievement(overrides: Partial<CatalogueAchievement> = {}): CatalogueAc
         repeats: false,
         held: false,
         rarity: 50,
+        heldByNobody: false,
         standing: null,
         ...overrides,
     };
@@ -29,8 +30,8 @@ describe('Achievements/Index', () => {
                 achievements: [
                     achievement(),
                     achievement({ id: null, name: 'Logro secreto', masked: true, rarity: null }),
-                    achievement({ id: 'c', name: 'Común', rarity: 0 }),
-                    achievement({ id: 'r', name: 'Rarísimo', rarity: 0.04 }),
+                    achievement({ id: 'c', name: 'Común', rarity: null, heldByNobody: true }),
+                    achievement({ id: 'r', name: 'Rarísimo', rarity: 0 }),
                 ],
                 showsRarity: true,
             },
@@ -43,7 +44,7 @@ describe('Achievements/Index', () => {
         expect(items[1]?.text()).toContain('Logro secreto');
         expect(items[1]?.text()).not.toContain('gente activa');
         expect(items[2]?.text()).toContain('Ninguna persona activa lo tiene todavía');
-        expect(items[3]?.text()).toContain('Lo tiene el < 0,1 % de la gente activa');
+        expect(items[3]?.text()).toContain('Lo tiene el < 1 % de la gente activa');
     });
 
     it('marks what the signed-in person holds', () => {

@@ -29,7 +29,7 @@ export interface EarnedAchievement extends AchievementSummary {
     grantedAt: string | null;
     /** Display month (`YYYY-MM`): all anybody else gets, since the instant tells who played together */
     grantedMonth: string | null;
-    /** Share of active people holding it, in percent; null when not shown */
+    /** Whole percent of active people holding it at last night's photo, 0 for under 1 %; null when not shown */
     rarity: number | null;
     featured: boolean;
     /** Seasons it was got in («2027»), newest first; empty when it does not repeat */
@@ -69,7 +69,10 @@ export interface SeasonStanding {
 export interface CatalogueAchievement extends AchievementSummary {
     /** Held at some point (in any season, for one that repeats) */
     held: boolean;
+    /** Whole percent at last night's photo, 0 for under 1 %; null when not shown */
     rarity: number | null;
+    /** Nobody active held it at last night's photo */
+    heldByNobody: boolean;
     standing: SeasonStanding | null;
 }
 

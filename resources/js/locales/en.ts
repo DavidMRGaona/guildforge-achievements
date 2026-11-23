@@ -63,7 +63,7 @@ export default {
             held: 'You hold {count} of {total}.',
             empty: 'There are no achievements yet.',
             rarityExplained:
-                'Rarity is the share of active people (who took part in something in the last twelve months) holding each achievement.',
+                'Rarity is the share of active people (who took part in something in the last twelve months) holding each achievement. It is updated once a day, at night.',
             youHoldIt: 'You hold it',
             seasonExplained:
                 'Some achievements can be got again every season, which lasts a calendar year. This is season {season}.',

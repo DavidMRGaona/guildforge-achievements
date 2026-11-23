@@ -8,6 +8,7 @@ use App\Application\SiteNotifications\DTOs\SiteNotificationItemDTO;
 use App\Application\SiteNotifications\Services\SiteNotificationPreferenceServiceInterface;
 use App\Application\SiteNotifications\Services\SiteNotificationServiceInterface;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use DateTimeImmutable;
 use Modules\Achievements\Application\DTOs\AchievementRarityDTO;
 use Modules\Achievements\Application\DTOs\AchievementsSettings;
 use Modules\Achievements\Application\Services\AchievementGranterInterface;
@@ -76,9 +77,10 @@ trait BuildsNotices
     /**
      * @param  array<string, float>  $shares  achievement id => percent of active people holding it
      */
-    protected function rarity(array $shares, int $activePeople = 100): void
+    protected function rarity(array $shares, int $activePeople = 100, ?string $takenAt = null, bool $photo = true): void
     {
-        $fixed = new FixedAchievementRarity(new AchievementRarityDTO($activePeople, array_change_key_case($shares)));
+        $at = $takenAt === null ? null : new DateTimeImmutable($takenAt);
+        $fixed = new FixedAchievementRarity(new AchievementRarityDTO($activePeople, array_change_key_case($shares), $at?->format(DATE_ATOM), $at), $photo);
         $this->app->scoped(AchievementRarityInterface::class, static fn (): FixedAchievementRarity => $fixed);
         $this->app->forgetScopedInstances();
     }

@@ -6,6 +6,7 @@ namespace Modules\Achievements\Jobs;
 
 use App\Application\Services\TimezoneServiceInterface;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
+use DateTimeImmutable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -79,6 +80,15 @@ final class ReleaseAchievementAnnouncementsJob implements ShouldBeUnique, Should
         // Everything got before this display month: what arrives late (a grant of the 31st queued
         // after this release, a month whose release failed) goes in the next one, under its own month
         $before = $timezone->displayMonthRange($timezone->today())[0];
+        // And before the nightly photo, as everything others see: without one nothing is told yet,
+        // challenges included, and what waits stays for the next release
+        $takenAt = $rarityService->current()->takenAt;
+
+        if (! $takenAt instanceof DateTimeImmutable) {
+            return;
+        }
+
+        $before = min($before, $takenAt);
 
         $pending->releaseAnnouncements($before, function (array $waiting) use ($settings, $grants, $preferences, $rarityService, $timezone): void {
             // Off: what waited is dropped, never told once the mechanic comes back

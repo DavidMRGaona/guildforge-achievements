@@ -199,6 +199,39 @@ final class AchievementAnnouncementTest extends ModuleTestCase
         $this->assertSame('Ana consiguió un logro de un reto en noviembre', $this->announcementsOf($this->bea)[0]->title);
     }
 
+    public function test_only_what_was_got_before_the_nightly_photo_is_told(): void
+    {
+        $this->earn($this->ana, $this->rare('Raro de antes'));
+        $this->travelTo('2026-11-25 12:00:00');
+        $carla = $this->person('Carla');
+        $this->allowAnnouncing($carla);
+        $this->earn($carla, $this->rare('Raro de después'));
+        // The night of the 20th is the last photo the job finds: Carla's grant is newer
+        $this->rarity($this->rareShares, takenAt: '2026-11-20 02:30:00');
+
+        $this->release();
+        $this->assertSame(['Ana consiguió un logro raro en noviembre'], $this->titlesOf($this->bea));
+
+        // Nothing is lost: told, under its own month, once a photo has it
+        $this->rarity($this->rareShares);
+        $this->release();
+        $this->assertContains('Carla consiguió un logro raro en noviembre', $this->titlesOf($this->bea));
+    }
+
+    public function test_without_a_photo_nothing_is_told_challenges_included(): void
+    {
+        $achievement = $this->manualAchievement('Reto de otoño');
+        $this->earn($this->ana, $achievement, GrantSource::Challenge);
+        $this->rarity([(string) $achievement->id => 80.0], photo: false);
+
+        $this->release();
+        $this->assertSame([], $this->announcementsOf($this->bea));
+
+        $this->rarity([(string) $achievement->id => 80.0]);
+        $this->release();
+        $this->assertSame(['Ana consiguió un logro de un reto en noviembre'], $this->titlesOf($this->bea));
+    }
+
     public function test_a_rare_manual_grant_is_told(): void
     {
         $this->earn($this->ana, $this->rare('Fundadora'), GrantSource::Manual);
@@ -582,6 +615,14 @@ final class AchievementAnnouncementTest extends ModuleTestCase
     private function announcementsOf(UserModel $user): array
     {
         return $this->bellOf($user, AchievementNoticeCategories::ANNOUNCEMENTS);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function titlesOf(UserModel $user): array
+    {
+        return array_map(static fn (SiteNotificationItemDTO $item): string => $item->title, $this->announcementsOf($user));
     }
 
     private function profileVisibility(UserModel $user, string $visibility): void
