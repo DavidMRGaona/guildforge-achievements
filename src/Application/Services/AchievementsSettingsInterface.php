@@ -42,7 +42,7 @@ interface AchievementsSettingsInterface
     public function announcementsEnabled(): bool;
 
     /**
-     * Share of active people (in percent, 0.1 to 100) at or below which an achievement counts
+     * Share of active people (in percent, 0.1 to 100) below which (strictly) an achievement counts
      * as rare enough to be announced.
      */
     public function announcementsRarityThreshold(): float;

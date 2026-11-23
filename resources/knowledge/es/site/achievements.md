@@ -1,11 +1,11 @@
 ---
 id: achievements.site.achievements
 title: Tus logros
-summary: Qué son los logros, cómo se consiguen, las temporadas y las rachas, qué es la rareza, cómo destacar tres junto a tu nombre y cómo ocultarlos.
+summary: Qué son los logros, cómo se consiguen, las temporadas y las rachas, qué es la rareza, cómo destacar tres junto a tu nombre, cómo ocultarlos y qué avisos llegan.
 category: community
 audience: site
 order: 40
-keywords: [logros, insignias, medallas, trofeos, conseguir, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, destacar, destacados, estrella, junto a mi nombre, foro, tarjeta, perfil, ocultar, privacidad, catálogo, temporada, cada año, racha, meses seguidos, constancia, comunidad, personas distintas]
+keywords: [logros, insignias, medallas, trofeos, conseguir, progreso, cuánto me falta, rareza, raro, gente activa, secreto, logro secreto, destacar, destacados, estrella, junto a mi nombre, foro, tarjeta, perfil, ocultar, privacidad, catálogo, temporada, cada año, racha, meses seguidos, constancia, comunidad, personas distintas, aviso, avisos, campana, anunciar, anuncio, logros raros, clasificación, ajustes de la cuenta]
 related: [core.site.public-profile]
 ---
 Un logro es una insignia que se consigue con lo que haces en {{site_name}}: jugar o dirigir partidas, probar sistemas distintos, ir a eventos, participar en torneos, cumplir años en la web… Se concede solo, en cuanto cumples lo que pide, y no se pierde nunca: aunque una partida deje de contar, lo conseguido se queda.
@@ -57,3 +57,30 @@ Si destacas un logro secreto, lo enseñas a todo el mundo con su nombre. Si un l
 En la sección **Logros** de tu perfil, apaga **Mostrar mis logros a los demás**. Desde ese momento solo los ves tú: desaparecen de tu perfil para los demás, junto con su número y los destacados junto a tu nombre. Puedes volver a encenderlo cuando quieras. Aunque los ocultes, tus logros siguen contando en la rareza, que solo da totales.
 
 Si no quieres la sección en tu perfil pero sí los destacados junto a tu nombre, quítala en **Editar perfil**: allí eliges qué secciones salen.
+
+## Avisos de logros
+
+Cuando consigues un logro, te llega un aviso a la campana: «Has conseguido “Diez partidas”». Si consigues varios a la vez, llegan juntos en un solo aviso. No llegan correos.
+
+No hay aviso de lo que ya tenías ganado antes de que existiera el logro, ni de lo que la asociación concede en lote sin aviso.
+
+Puedes apagar estos avisos en **Ajustes de la cuenta → Avisos**, en **Logros que consigo**.
+
+## Anunciar tus logros raros
+
+Si quieres, la gente que puede ver tu perfil recibe una vez al mes un resumen con tus logros raros del mes anterior: los que tiene poca gente activa (menos del 10 %, o lo que decida la asociación) y los de retos. Por ejemplo: «Ana, Bob y 3 más consiguieron logros raros en noviembre». Viene apagado.
+
+Para encenderlo:
+
+1. Abre **Ajustes de la cuenta** y entra en la pestaña **Logros**.
+2. Enciende **Anunciar mis logros raros**. Se guarda al momento.
+
+El resumen sale el día 1 de cada mes y solo dice el mes y el nombre de cada logro: ni el día, ni la hora, ni en qué mesa, sesión o evento estuviste, ni con quién. Solo llega a quien puede ver tu perfil en ese momento. Un logro secreto solo se nombra a quien también lo tiene, o si lo has destacado; a los demás les llega «un logro secreto». Lo que la asociación concede en lote no se anuncia nunca. Si ocultas tus logros, no se anuncia ninguno.
+
+Puedes cambiar de idea cuando quieras: cuenta lo que tengas elegido el día del resumen. Un resumen que ya llegó se queda en la campana de quien lo recibió.
+
+Cada persona elige si recibe estos resúmenes en **Ajustes de la cuenta → Avisos**, en **Logros poco comunes de otras personas**.
+
+## La clasificación
+
+Si la asociación enciende la clasificación de logros, apareces en ella salvo que no quieras. Para salir, en **Ajustes de la cuenta → Logros**, apaga **Aparecer en la clasificación**. Puedes hacerlo aunque la clasificación todavía esté apagada: si se enciende, no saldrás.

@@ -11,7 +11,7 @@ El core rechaza el módulo si no se cumplen (`module.json` → `requires`).
 
 ## Qué hace
 
-Un catálogo de logros que se conceden solos con lo que cada persona hace en la asociación, a partir del registro de actividad, o a mano y en lote desde el panel, con su historial, y que se ven en el perfil público, junto al nombre (perfil, tarjeta y foro) y en la página `/logros`. Los logros pueden repetirse cada temporada o pedir rachas de meses seguidos. Cada mecánica restante (avisos, retos…) llega con su propia issue.
+Un catálogo de logros que se conceden solos con lo que cada persona hace en la asociación, a partir del registro de actividad, o a mano y en lote desde el panel, con su historial, y que se ven en el perfil público, junto al nombre (perfil, tarjeta y foro) y en la página `/logros`. Los logros pueden repetirse cada temporada o pedir rachas de meses seguidos. Avisa en la campana de lo que cada persona consigue y, si la persona quiere, anuncia sus logros raros en un resumen mensual a quien puede ver su perfil; sus elecciones están en la pestaña «Logros» de los ajustes de la cuenta. Cada mecánica restante (retos…) llega con su propia issue.
 
 ## Registro de actividad
 
@@ -170,6 +170,37 @@ La parte de la gente activa que tiene cada logro. Gente activa: cuentas con al m
 ### Página `/logros`
 
 `achievements.index`, para todo el mundo: los logros que se pueden conseguir ahora (estado *Activo* o *Solo a mano*, con `AchievementStatusRule`), con la rareza de cada uno y los secretos ocultos, más los que la persona ya tiene, aunque ya no se puedan conseguir. Los que se repiten llevan «Cada temporada», y la página dice qué temporada es. A quien ha iniciado sesión, y solo a esa persona, cada uno de ellos le dice si lo tiene esta temporada, en qué temporadas anteriores lo consiguió y cuánto lleva en la actual (`AchievementShowcaseInterface::seasonStandings()`); nunca se construye la posición de otra persona. Las funciones siguen a los módulos instalados: un logro sin fuente no se ofrece. Al habilitar el módulo por primera vez, `AchievementsMenuLinkSeeder` añade «Logros» al final del menú de la cabecera, como enlace del módulo: se mueve o se borra en *Sitio web → Navegación* y no vuelve.
+
+## Avisos y anuncios
+
+Dos categorías de avisos, solo en la campana (nunca por correo, así que no hay resumen diario), opcionales y encendidas por defecto; cada persona las apaga en *Ajustes de la cuenta → Avisos* (`AchievementNoticeCategories`, icono `trophy`):
+
+- **`achievements.earned`** («Has conseguido…»): al dueño, de lo que acaba de conseguir. Sus propios logros, así que los secretos van con su nombre.
+- **`achievements.announcements`** («Ana, Bob y 3 más consiguieron logros raros en noviembre»): un resumen mensual de los logros raros y de retos de otras personas.
+
+**Cuándo.** `QueueAchievementNotice` escucha `AchievementGranted` (en cola, tras el commit). Una concesión silenciosa no avisa nunca: un recálculo, lo que ya se cumplía antes (`AnnouncementWindow`) o un lote marcado «en silencio». Las demás se apuntan dos veces en `achievements_pending_notices` (tipo `earned` y `announcement`; la fila se va con la concesión si se retira o se anonimiza la cuenta).
+
+**Al dueño.** Cada concesión encola `DeliverAchievementNoticesJob` un minuto después (`DELAY_SECONDS`), único por persona mientras espera. Ese job manda un solo aviso con todas las concesiones pendientes de la persona: una evaluación que concede cientos da un aviso («Has conseguido 120 logros», con tres nombres y «y 117 más»). Lo pendiente se bloquea mientras se manda y se borra solo después, en la misma transacción. El aviso se monta antes de `notify()` (`AchievementsEarnedNotification::for()`), porque el canal de la campana del core se traga lo que falla mientras lo monta: si algo falla, falla el job y todo sigue esperando al reintento, y repetirlo no avisa dos veces.
+
+**A los demás: resumen mensual.** A quien no es el dueño, de un logro solo se le dice el mes: las concesiones de una misma evaluación comparten segundo, y salir a la vez, o el mismo día, diría quién jugó con quién. `ReleaseAchievementAnnouncementsJob` sale el día 1 de cada mes a las 10:00 de la zona de visualización (`achievements:announcements`) con todo lo conseguido antes de ese mes, y manda **un aviso por lector y mes** (clave `achievements.announcements:<AAAA-MM>`). Cada concesión va bajo el mes de la zona de visualización en que se consiguió: lo que llega tarde (una concesión del 31 a las 23:59 encolada después del resumen, un mes cuyo resumen falló) sale en el siguiente, con su propio mes, y el título nunca nombra un mes falso. El título va en singular con un solo logro, y dice «raros», «de retos» o los dos según lo que lleve. El título nombra a dos personas y cuenta el resto; el cuerpo da, por persona y en orden alfabético, el nombre de sus logros, nunca el día, la hora, ni con quién. Se decide al salir y falla cerrado (`AnnouncementRule`):
+
+- el interruptor **Anuncios de logros raros** encendido, con los ajustes leídos con `readStrictly()`. Si no se pueden leer, no se toca nada, el job se reintenta (10 minutos, 1 hora y 6 horas) y en el último intento falla con `AchievementSettingsUnreadableException`, para que se vea; si el interruptor está apagado, lo que esperaba se descarta y no se anuncia después;
+- el dueño lo ha pedido (`achievements_preferences.announce_rare`, apagado por defecto) y no oculta sus logros, en el momento del resumen;
+- cada concesión es de un reto (`GrantSource::Challenge`) o de un logro que tiene **menos** gente activa que el umbral (`AchievementRarityInterface::current()`; con la rareza desconocida no se anuncia), venga de una regla o de una concesión a mano;
+- nunca un lote: dice quién participó en una cosa, y eso los demás solo lo ven como totales.
+
+Se reparte en tandas de 100 cuentas (`DeliverAchievementAnnouncementsJob`, con `notify()` por el canal `site` del core), encoladas tras el commit; lo pendiente se borra en la misma transacción. Cada tanda prefiere no repetir a completar: antes de mandar nada lee los ajustes en modo estricto (si no se pueden leer, se reintenta y en el último intento falla) y todo lo que comparte (cada dueño y lo que tienen los lectores), así que lo que falla ahí se reintenta sin que nadie lo haya recibido. Una vez empieza a mandar, una cuenta que falla se registra y se salta, y nunca se manda otra vez a las demás. Al entregar se vuelve a mirar todo lo anterior por dueño y, para cada lector, si puede ver el perfil del dueño (`PublicProfileServiceInterface::findByHandle()`, la regla de la página del perfil). Nadie recibe noticias de sí mismo. Un logro secreto solo se nombra a quien también lo tiene, o si el dueño lo ha destacado; a los demás se les cuenta («un logro secreto»). Lo que tienen los lectores se lee en una consulta por tanda, y solo si algún secreto lo necesita. Un anuncio ya entregado se queda en la campana aunque el dueño cambie de idea después.
+
+El módulo no depende del módulo de anuncios: todo va por los contratos de avisos del core (`HasMailCategory`, `HasSiteNotification`).
+
+## Pestaña «Logros» de la cuenta
+
+`/perfil?tab=achievements`, en el hueco `profile-sections` con `profileTab` (`AccountAchievementsTab`, props compartidas `achievementsAccount` y `achievementsAccountVisible`, solo en `profile.show`):
+
+- **Anunciar mis logros raros** (`announce_rare`, apagado), mientras **Anuncios de logros raros** esté encendido;
+- **Aparecer en la clasificación** (`in_leaderboard`, encendido), siempre, para que cada cual pueda salirse antes de que se encienda; la usa la clasificación del hito «Gamificación» (con puntos y clasificación encendidos, `leaderboardOn`).
+
+Mientras la persona deba verificar su correo no hay pestaña. Cada interruptor se guarda al momento con `PUT /logros/preferencias` (`achievements.account.update`, `auth`, mismo límite que la sección del perfil: 20 por minuto y 200 por hora). Cada escritor de `achievements_preferences` escribe solo sus columnas, en una sola sentencia (`saveShowcase()` para ocultar y destacados, `saveChoices()` para la pestaña), así que ninguno devuelve a un valor viejo lo que cambió el otro. Pedir que se anuncie mientras los anuncios están apagados se rechaza con un error de validación, nunca con un guardado que no guarda. Una impersonación de solo lectura no guarda nada.
 
 ## Catálogo inicial
 
