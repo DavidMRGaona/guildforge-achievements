@@ -9,6 +9,7 @@ use App\Application\Modules\DTOs\ModuleRouteDTO;
 use App\Application\Services\EmailVerificationPolicyInterface;
 use App\Application\Services\SettingsServiceInterface;
 use App\Domain\Events\UserAnonymized;
+use App\Http\Middleware\EnsurePublicNameIsChosen;
 use App\Http\Middleware\ThrottleWhereListed;
 use App\Infrastructure\Persistence\Eloquent\Models\UserModel;
 use App\Infrastructure\Time\StorageTimezoneResolver;
@@ -220,9 +221,16 @@ final class LeaderboardVisibilityTest extends ModuleTestCase
                 ->where('entries.0.publicName', 'Pública')
                 ->where('entries.0.rank', 1));
 
-        // Not even to themselves without a public name: nobody is ever shown by the account name
+        // The core sends an account without a public name to choose one first (core#855)
         $this->app['auth']->forgetGuards();
         $this->actingAs($unnamed->refresh())->get('/logros/clasificacion')
+            ->assertRedirect(route('public-name.show'));
+
+        // Where the core lets it through (an impersonation), the page still never shows it, not
+        // even to itself: nobody is ever shown by the account name
+        $this->app['auth']->forgetGuards();
+        $this->withoutMiddleware(EnsurePublicNameIsChosen::class)
+            ->actingAs($unnamed)->get('/logros/clasificacion')
             ->assertInertia(fn (Assert $page): Assert => $page
                 ->has('entries', 1)
                 ->where('viewer.entry', null)
