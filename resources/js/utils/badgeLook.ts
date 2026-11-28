@@ -92,16 +92,16 @@ export function badgeIcon(icon: string): Component {
  * Tailwind finds every class.
  */
 export const badgeColours: Record<string, string> = {
-    slate: 'bg-slate-700 text-white dark:bg-slate-300 dark:text-neutral-950',
-    red: 'bg-red-700 text-white dark:bg-red-300 dark:text-neutral-950',
-    orange: 'bg-orange-700 text-white dark:bg-orange-300 dark:text-neutral-950',
-    amber: 'bg-amber-700 text-white dark:bg-amber-300 dark:text-neutral-950',
-    green: 'bg-green-700 text-white dark:bg-green-300 dark:text-neutral-950',
-    teal: 'bg-teal-700 text-white dark:bg-teal-300 dark:text-neutral-950',
-    sky: 'bg-sky-700 text-white dark:bg-sky-300 dark:text-neutral-950',
-    blue: 'bg-blue-700 text-white dark:bg-blue-300 dark:text-neutral-950',
-    violet: 'bg-violet-700 text-white dark:bg-violet-300 dark:text-neutral-950',
-    pink: 'bg-pink-700 text-white dark:bg-pink-300 dark:text-neutral-950',
+    slate: 'bg-(--color-slate-700) text-(--color-white) dark:bg-(--color-slate-300) dark:text-(--color-neutral-950)',
+    red: 'bg-(--color-red-700) text-(--color-white) dark:bg-(--color-red-300) dark:text-(--color-neutral-950)',
+    orange: 'bg-(--color-orange-700) text-(--color-white) dark:bg-(--color-orange-300) dark:text-(--color-neutral-950)',
+    amber: 'bg-(--color-amber-700) text-(--color-white) dark:bg-(--color-amber-300) dark:text-(--color-neutral-950)',
+    green: 'bg-(--color-green-700) text-(--color-white) dark:bg-(--color-green-300) dark:text-(--color-neutral-950)',
+    teal: 'bg-(--color-teal-700) text-(--color-white) dark:bg-(--color-teal-300) dark:text-(--color-neutral-950)',
+    sky: 'bg-(--color-sky-700) text-(--color-white) dark:bg-(--color-sky-300) dark:text-(--color-neutral-950)',
+    blue: 'bg-(--color-blue-700) text-(--color-white) dark:bg-(--color-blue-300) dark:text-(--color-neutral-950)',
+    violet: 'bg-(--color-violet-700) text-(--color-white) dark:bg-(--color-violet-300) dark:text-(--color-neutral-950)',
+    pink: 'bg-(--color-pink-700) text-(--color-white) dark:bg-(--color-pink-300) dark:text-(--color-neutral-950)',
 };
 
 /** An unknown colour is drawn in slate */

@@ -191,8 +191,8 @@ function help(choice: Choice): string {
                             class="relative block h-6 w-11 rounded-full border transition-colors duration-200"
                             :class="
                                 values[choice]
-                                    ? 'border-primary-600 bg-primary-600 dark:border-primary-500 dark:bg-primary-500'
-                                    : 'border-neutral-300 bg-neutral-200 dark:border-neutral-600 dark:bg-neutral-700'
+                                    ? 'border-(--color-primary-600) bg-(--color-primary-600) dark:border-(--color-primary-500) dark:bg-(--color-primary-500)'
+                                    : 'border-(--color-neutral-300) bg-(--color-neutral-200) dark:border-(--color-neutral-600) dark:bg-(--color-neutral-700)'
                             "
                             aria-hidden="true"
                         >

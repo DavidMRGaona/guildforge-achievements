@@ -296,8 +296,8 @@ function progressPercent(item: LockedAchievement): number {
                         class="relative block h-6 w-11 rounded-full border transition-colors duration-200"
                         :class="
                             !hidden
-                                ? 'border-primary-600 bg-primary-600 dark:border-primary-500 dark:bg-primary-500'
-                                : 'border-neutral-300 bg-neutral-200 dark:border-neutral-600 dark:bg-neutral-700'
+                                ? 'border-(--color-primary-600) bg-(--color-primary-600) dark:border-(--color-primary-500) dark:bg-(--color-primary-500)'
+                                : 'border-(--color-neutral-300) bg-(--color-neutral-200) dark:border-(--color-neutral-600) dark:bg-(--color-neutral-700)'
                         "
                         aria-hidden="true"
                     >
@@ -349,8 +349,8 @@ function progressPercent(item: LockedAchievement): number {
                         class="relative block h-6 w-11 rounded-full border transition-colors duration-200"
                         :class="
                             inLeaderboard
-                                ? 'border-primary-600 bg-primary-600 dark:border-primary-500 dark:bg-primary-500'
-                                : 'border-neutral-300 bg-neutral-200 dark:border-neutral-600 dark:bg-neutral-700'
+                                ? 'border-(--color-primary-600) bg-(--color-primary-600) dark:border-(--color-primary-500) dark:bg-(--color-primary-500)'
+                                : 'border-(--color-neutral-300) bg-(--color-neutral-200) dark:border-(--color-neutral-600) dark:bg-(--color-neutral-700)'
                         "
                         aria-hidden="true"
                     >
@@ -405,7 +405,7 @@ function progressPercent(item: LockedAchievement): number {
                         "
                     >
                         <div
-                            class="h-full rounded-full bg-primary-600 dark:bg-primary-400"
+                            class="h-full rounded-full bg-(--color-primary-600) dark:bg-(--color-primary-400)"
                             :style="{ width: `${levelPercent}%` }"
                         />
                     </div>
@@ -455,7 +455,7 @@ function progressPercent(item: LockedAchievement): number {
                             <button
                                 v-if="owner && item.id !== null"
                                 type="button"
-                                class="-m-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-base-muted hover:text-primary-600 dark:hover:text-primary-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                class="-m-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-(--color-text-muted) hover:text-(--color-primary-600) dark:hover:text-(--color-primary-400) focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-primary-500) disabled:cursor-not-allowed disabled:opacity-50"
                                 :aria-pressed="isChosen(item.id)"
                                 :aria-label="t('achievements.profile.feature', { name: item.name })"
                                 :title="
@@ -473,7 +473,7 @@ function progressPercent(item: LockedAchievement): number {
                                     class="h-5 w-5"
                                     :class="
                                         isChosen(item.id)
-                                            ? 'fill-current text-primary-600 dark:text-primary-400'
+                                            ? 'fill-current text-(--color-primary-600) dark:text-(--color-primary-400)'
                                             : ''
                                     "
                                     aria-hidden="true"
@@ -507,7 +507,7 @@ function progressPercent(item: LockedAchievement): number {
                             </span>
                             <span
                                 v-if="item.featured"
-                                class="rounded-full bg-primary-100 px-2 py-0.5 font-medium text-primary-800 dark:bg-primary-900 dark:text-primary-100"
+                                class="rounded-full bg-(--color-primary-100) px-2 py-0.5 font-medium text-(--color-primary-800) dark:bg-(--color-primary-900) dark:text-(--color-primary-100)"
                             >
                                 {{ t('achievements.profile.featured') }}
                             </span>
@@ -569,7 +569,7 @@ function progressPercent(item: LockedAchievement): number {
                                 :aria-valuetext="progressText(item.progress)"
                             >
                                 <div
-                                    class="h-full rounded-full bg-primary-600 dark:bg-primary-400"
+                                    class="h-full rounded-full bg-(--color-primary-600) dark:bg-(--color-primary-400)"
                                     :style="{ width: `${progressPercent(item)}%` }"
                                 />
                             </div>

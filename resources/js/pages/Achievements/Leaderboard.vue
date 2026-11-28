@@ -111,7 +111,7 @@ function initials(name: string): string {
                         class="inline-flex min-h-[44px] items-center rounded-md px-3 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                         :class="
                             season === null
-                                ? 'bg-primary-600 text-white dark:bg-primary-500 dark:text-neutral-950'
+                                ? 'bg-(--color-primary-600) text-(--color-white) dark:bg-(--color-primary-500) dark:text-(--color-neutral-950)'
                                 : 'text-base-secondary hover:bg-muted'
                         "
                         :aria-current="season === null ? 'page' : undefined"
@@ -124,7 +124,7 @@ function initials(name: string): string {
                         class="inline-flex min-h-[44px] items-center rounded-md px-3 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                         :class="
                             season === currentSeason
-                                ? 'bg-primary-600 text-white dark:bg-primary-500 dark:text-neutral-950'
+                                ? 'bg-(--color-primary-600) text-(--color-white) dark:bg-(--color-primary-500) dark:text-(--color-neutral-950)'
                                 : 'text-base-secondary hover:bg-muted'
                         "
                         :aria-current="season === currentSeason ? 'page' : undefined"
@@ -212,7 +212,11 @@ function initials(name: string): string {
                     v-for="entry in entries"
                     :key="entry.profileUrl"
                     class="flex min-w-0 items-center gap-3 px-3 py-3 sm:px-4"
-                    :class="entry.isViewer ? 'bg-primary-50 dark:bg-primary-900/40' : ''"
+                    :class="
+                        entry.isViewer
+                            ? 'bg-(--color-primary-50) dark:bg-(--color-primary-900)/40'
+                            : ''
+                    "
                     :aria-current="entry.isViewer ? 'true' : undefined"
                 >
                     <span
@@ -221,7 +225,7 @@ function initials(name: string): string {
                     >
                         <Trophy
                             v-if="entry.rank <= 3"
-                            class="h-4 w-4 text-amber-600 dark:text-amber-300"
+                            class="h-4 w-4 text-(--color-amber-600) dark:text-(--color-amber-300)"
                             aria-hidden="true"
                         />
                         <span aria-hidden="true">{{ entry.rank }}</span>
@@ -237,7 +241,7 @@ function initials(name: string): string {
                     />
                     <span
                         v-else
-                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-sm font-semibold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-100"
+                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-(--color-neutral-200) text-sm font-semibold text-(--color-neutral-700) dark:bg-(--color-neutral-700) dark:text-(--color-neutral-100)"
                         aria-hidden="true"
                     >
                         {{ initials(entry.publicName) }}

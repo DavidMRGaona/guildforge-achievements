@@ -212,7 +212,7 @@ function remove(): void {
         <p
             v-if="error"
             role="alert"
-            class="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200"
+            class="rounded-md bg-(--color-red-50) px-4 py-3 text-sm text-(--color-red-800) dark:bg-(--color-red-950) dark:text-(--color-red-200)"
             data-test="error"
         >
             {{ error }}
