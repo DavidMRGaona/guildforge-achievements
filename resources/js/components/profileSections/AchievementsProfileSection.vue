@@ -455,7 +455,7 @@ function progressPercent(item: LockedAchievement): number {
                             <button
                                 v-if="owner && item.id !== null"
                                 type="button"
-                                class="-m-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-base-muted hover:text-(--color-primary-600) dark:hover:text-(--color-primary-400) focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-primary-500) disabled:cursor-not-allowed disabled:opacity-50"
+                                class="-m-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-(--color-text-muted) hover:text-(--color-primary-600) dark:hover:text-(--color-primary-400) focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-primary-500) disabled:cursor-not-allowed disabled:opacity-50"
                                 :aria-pressed="isChosen(item.id)"
                                 :aria-label="t('achievements.profile.feature', { name: item.name })"
                                 :title="
