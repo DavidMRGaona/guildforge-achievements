@@ -1,7 +1,7 @@
 {
   "name": "achievements",
   "displayName": "Logros",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "repository": "DavidMRGaona/guildforge-achievements",
   "namespace": "Modules\\Achievements",
   "provider": "AchievementsServiceProvider",
