@@ -36,7 +36,7 @@ const stateClass = computed(() => {
         case 'completed':
             return 'bg-success-bg text-base-primary';
         case 'running':
-            return 'bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-100';
+            return 'bg-(--color-primary-100) text-(--color-primary-800) dark:bg-(--color-primary-900) dark:text-(--color-primary-100)';
         default:
             return 'bg-muted text-base-secondary';
     }
@@ -157,7 +157,7 @@ const stateClass = computed(() => {
                         />
                         <span
                             v-else
-                            class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-800 dark:bg-primary-900 dark:text-primary-100"
+                            class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-(--color-primary-100) text-xs font-semibold text-(--color-primary-800) dark:bg-(--color-primary-900) dark:text-(--color-primary-100)"
                             aria-hidden="true"
                         >
                             {{ person.name.charAt(0).toUpperCase() }}

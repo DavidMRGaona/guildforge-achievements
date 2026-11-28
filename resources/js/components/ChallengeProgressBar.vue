@@ -32,7 +32,11 @@ const label = computed(() =>
     <div>
         <div
             class="h-2.5 w-full overflow-hidden rounded-full"
-            :class="tone === 'dark' ? 'bg-white/20' : 'bg-neutral-200 dark:bg-neutral-700'"
+            :class="
+                tone === 'dark'
+                    ? 'bg-(--color-white)/20'
+                    : 'bg-(--color-neutral-200) dark:bg-(--color-neutral-700)'
+            "
             role="progressbar"
             :aria-valuenow="Math.min(progress, target)"
             aria-valuemin="0"
@@ -41,7 +45,11 @@ const label = computed(() =>
         >
             <div
                 class="h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none"
-                :class="tone === 'dark' ? 'bg-primary-400' : 'bg-primary-600 dark:bg-primary-400'"
+                :class="
+                    tone === 'dark'
+                        ? 'bg-(--color-primary-400)'
+                        : 'bg-(--color-primary-600) dark:bg-(--color-primary-400)'
+                "
                 :style="{ width: `${share}%` }"
             />
         </div>

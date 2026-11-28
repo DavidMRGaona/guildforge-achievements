@@ -205,7 +205,7 @@ function progressText(progress: AchievementProgress): string {
                             </span>
                             <span
                                 v-if="isHeld(item)"
-                                class="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2 py-0.5 font-medium text-primary-800 dark:bg-primary-900 dark:text-primary-100"
+                                class="inline-flex items-center gap-1 rounded-full bg-(--color-primary-100) px-2 py-0.5 font-medium text-(--color-primary-800) dark:bg-(--color-primary-900) dark:text-(--color-primary-100)"
                             >
                                 <Check class="h-3.5 w-3.5" aria-hidden="true" />
                                 {{
